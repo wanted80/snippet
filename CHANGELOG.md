@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/wanted80/snippet/compare/v1.2.1...v1.2.2) (2026-08-26)
+
+
+### Bug Fixes
+
+* **release:** add conditional check for specific repository in release job ([#10](https://github.com/wanted80/snippet/issues/10)) ([0e8f316](https://github.com/wanted80/snippet/commit/0e8f3167832ca91f0fe75b6073a405b7cea67535))
+
 ## [1.2.1](https://github.com/wanted80/snippet/compare/v1.2.0...v1.2.1) (2026-08-26)
 
 
