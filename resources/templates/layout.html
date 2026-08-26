@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="{{language}}">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'">
+        <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
+        <meta name="format-detection" content="telephone=no">
+        <meta name="description" content="{{description}}">
+        <meta name="author" content="{{author}}">
+        <meta name="generator" content="Snippet {{version}}">
+        <meta name="theme-color" content="#08090a">
+        <script src="{{base_path}}/assets/theme.js"></script>
+        <title>{{title}}</title>
+        <link rel="canonical" href="{{canonical}}">
+        {{preloads}}
+        <link rel="stylesheet" href="{{base_path}}/assets/site.css">
+        {{theme_stylesheet}}
+    </head>
+    <body>
+        <a class="skip-link" href="#main">Skip to content</a>
+        <header class="site-header" data-site-header>
+            <button class="menu-toggle icon-button" type="button" popovertarget="site-navigation" aria-expanded="false" aria-controls="site-navigation" aria-label="Open navigation" title="Open navigation">
+                <svg class="menu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path class="menu-icon-open" d="M4 7.25h16M4 12h16M4 16.75h16"/>
+                    <path class="menu-icon-close" d="m5.75 5.75 12.5 12.5m0-12.5-12.5 12.5"/>
+                </svg>
+            </button>
+            <a class="site-brand" href="{{base_path}}/" aria-label="{{sitename}} — Home"><span class="site-wordmark">{{sitename}}</span></a>
+            <button class="theme-toggle icon-button" type="button" data-theme-toggle aria-label="Toggle color theme" title="Toggle color theme">
+                <svg class="menu-icon theme-icon-light" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M12 2.75v2.1M12 19.15v2.1M21.25 12h-2.1M4.85 12h-2.1M18.54 5.46l-1.48 1.48M6.94 17.06l-1.48 1.48M18.54 18.54l-1.48-1.48M6.94 6.94 5.46 5.46M16.25 12A4.25 4.25 0 1 1 7.75 12a4.25 4.25 0 0 1 8.5 0Z"/>
+                </svg>
+                <svg class="menu-icon theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M20.2 15.2A8.75 8.75 0 0 1 8.8 3.8 8.76 8.76 0 1 0 20.2 15.2Z"/>
+                    <path d="m17.5 3 .45 1.05L19 4.5l-1.05.45L17.5 6l-.45-1.05L16 4.5l1.05-.45L17.5 3Z"/>
+                </svg>
+            </button>
+            <nav class="site-navigation" id="site-navigation" popover aria-label="Primary">
+                <div class="menu-links">
+                    {{navigation}}
+                </div>
+            </nav>
+        </header>
+        <main class="site-main" id="main">
+            {{body}}
+        </main>
+        <footer class="site-footer">
+            <p class="site-footer-row"><span>Generated and published with</span><span class="site-footer-heart" aria-hidden="true">♥</span><span>by</span><span class="site-footer-link"><a href="https://github.com/wanted80/snippet"><svg class="site-footer-github" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.084-.729.084-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.108-.775.418-1.305.762-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg><span>Snippet</span></a>.</span></p>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,26 @@
+fpath=(/home/snippet/.zfunc $fpath)
+autoload -Uz compinit && compinit -C
+autoload -Uz add-zsh-hook
+setopt append_history hist_ignore_dups hist_reduce_blanks interactive_comments prompt_subst
+HISTFILE=/home/snippet/.zsh_history
+HISTSIZE=10000
+SAVEHIST=10000
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
+alias ls='ls --color=auto'
+alias ll='ls -alF'
+alias rg='rg --smart-case'
+alias fd='fdfind'
+alias bat='batcat'
+alias g='git'
+precmd() { print -Pn "\e]0;%1~\a" }
+preexec() { timer_start=$EPOCHREALTIME }
+command_time() {
+    if [[ -n $timer_start ]]; then
+        local elapsed=$(( EPOCHREALTIME - timer_start ))
+        (( elapsed >= 2 )) && print -P "%F{8}${elapsed}s%f"
+        unset timer_start
+    fi
+}
+add-zsh-hook precmd command_time
+PROMPT='%F{cyan}%1~%f %F{yellow}$(git branch --show-current 2>/dev/null)%f %# '

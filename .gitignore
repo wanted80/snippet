@@ -1,0 +1,15 @@
+/vendor/
+/.env
+/coverage/
+/coverage.xml
+/.phpunit.cache/
+/.pest.cache/
+/.pest/
+/.php-cs-fixer.cache
+/.rector.cache/
+/.phpstan.cache/
+/.idea/
+/public/
+/.snippet-build-*/
+/.snippet-backup-*/
+.DS_Store

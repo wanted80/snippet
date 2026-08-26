@@ -1,0 +1,50 @@
+name: snippet
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: ${ENVIRONMENT:-development}
+      args:
+        LOCAL_UID: ${LOCAL_UID:-1000}
+        LOCAL_GID: ${LOCAL_GID:-1000}
+    image: ${IMAGE:-snippet}:${TAG:-local}-${ENVIRONMENT:-development}
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: /app
+    init: true
+    working_dir: /app
+    command:
+      - bin/snippet
+      - preview
+      - --host=0.0.0.0
+      - --port=8080
+    expose:
+      - "8080"
+    volumes:
+      - .:/app
+      - type: volume
+        source: vendor-${ENVIRONMENT:-development}
+        target: /app/vendor
+
+  caddy:
+    image: caddy:2-alpine
+    profiles:
+      - preview
+    depends_on:
+      - app
+    ports:
+      - 127.0.0.1:${PREVIEW_PORT:-8443}:443
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  vendor-development:
+  vendor-production:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+<title id="title">Content flowing through a static builder</title>
+<desc id="desc">Three connected panels represent source, validation, and a finished static page.</desc>
+<rect width="960" height="540" fill="#08090a"/>
+<g fill="#0e1114" stroke="#9fc5ff" stroke-width="4">
+<rect x="70" y="145" width="220" height="250" rx="18"/>
+<rect x="370" y="145" width="220" height="250" rx="18"/>
+<rect x="670" y="145" width="220" height="250" rx="18"/>
+</g>
+<g fill="#e8edf2" font-family="system-ui,sans-serif" text-anchor="middle">
+<text x="180" y="245" font-size="30">CONTENT</text>
+<text x="480" y="245" font-size="30">VALIDATE</text>
+<text x="780" y="245" font-size="30">STATIC SITE</text>
+<text x="180" y="295" font-size="20" fill="#88919a">Markdown + metadata</text>
+<text x="480" y="295" font-size="20" fill="#88919a">typed and bounded</text>
+<text x="780" y="295" font-size="20" fill="#88919a">portable files</text>
+</g>
+<g stroke="#9fc5ff" stroke-width="7" fill="none"><path d="M300 270h55"/><path d="m340 250 20 20-20 20"/><path d="M600 270h55"/><path d="m640 250 20 20-20 20"/></g>
+</svg>

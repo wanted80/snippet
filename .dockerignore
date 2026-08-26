@@ -1,0 +1,12 @@
+.DS_Store
+.git
+.codex
+.env
+.phpunit.cache
+.phpstan.cache
+.rector.cache
+coverage.xml
+vendor
+public
+.snippet-build-*
+.snippet-backup-*
