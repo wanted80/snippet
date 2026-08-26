@@ -1,0 +1,21 @@
+name: snippet-dev
+
+services:
+  app:
+    build:
+      target: development
+    image: ${IMAGE:-snippet}:${TAG:-local}-development
+    environment:
+      ENVIRONMENT: development
+    entrypoint: /usr/local/bin/snippet-devcontainer-entrypoint
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse:/dev/fuse
+    security_opt:
+      - apparmor=unconfined
+    command:
+      - sleep
+      - infinity
+    volumes:
+      - vendor-development:/app/vendor

@@ -1,0 +1,9 @@
+https://localhost {
+	tls internal
+	header {
+		Content-Security-Policy "frame-ancestors 'none'"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+	reverse_proxy app:8080
+}
