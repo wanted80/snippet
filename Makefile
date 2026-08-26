@@ -51,7 +51,7 @@ docker-validate: docker-install
 	$(COMPOSE) run --rm --no-deps app bin/snippet validate
 
 docker-build: docker-install
-	$(COMPOSE) run --rm --no-deps app bin/snippet build
+	$(COMPOSE) run --rm --no-deps --user "$$(id -u):$$(id -g)" app bin/snippet build
 
 docker-preview: docker-install
 	$(if $(call truthy,$(PULL)),$(COMPOSE) --profile preview pull caddy)

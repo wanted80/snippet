@@ -96,6 +96,9 @@ it('keeps Docker development entry points and build dependencies out of producti
     expect($makefile)->toContain(
         "COMPOSE ?= $(shell if docker compose version >/dev/null 2>&1; then printf '%s' 'docker compose'; elif docker-compose version >/dev/null 2>&1; then printf '%s' 'docker-compose'; else printf '%s' 'docker compose'; fi)",
         "docker-shell:\n\t$(MAKE) ENVIRONMENT=development docker-install\n\tENVIRONMENT=development $(COMPOSE) run --rm --no-deps app zsh",
+        "docker-build: docker-install\n\t$(COMPOSE) run --rm --no-deps --user ",
+        '$$(id -u):$$(id -g)',
+        ' app bin/snippet build',
     )
         ->and($dockerfile)->toContain('apt-mark manual libonig5', 'apt-get purge -y --auto-remove')
         ->and($caddyfile)->toContain('Content-Security-Policy "frame-ancestors \'none\'"', 'X-Content-Type-Options "nosniff"');

@@ -69,6 +69,8 @@ it('configures the first stable source release across bootstrap and subsequent r
     expect(json_decode($configuration, true, flags: JSON_THROW_ON_ERROR))->toBe([
         '$schema' => 'https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json',
         'bootstrap-sha' => '412bdce48d348050976621f638bcf3dfdaf71b14',
+        'last-release-sha' => 'b0dd32b5e1290b3a388888f4ea922b4e1eafbf6a',
+        'release-as' => '1.2.0',
         'packages' => [
             '.' => [
                 'release-type' => 'php',
