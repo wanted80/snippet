@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/wanted80/snippet/compare/v1.0.0...v1.2.0) (2026-08-26)
+
+
+### Bug Fixes
+
+* **ci:** recover automated release publishing ([#3](https://github.com/wanted80/snippet/issues/3)) ([9d3e09a](https://github.com/wanted80/snippet/commit/9d3e09a1709794c004d7bc7de50ecfdd5472a437))
+
 ## 1.0.0 (2026-08-26)
 
 
