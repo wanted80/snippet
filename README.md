@@ -42,7 +42,7 @@ git remote add origin git@github.com:your-name/my-private-site.git
 git push -u origin main
 ```
 
-Keep personal content and customization in the private `origin`; fetch builder improvements from `upstream`. Snippet intentionally has no submodule, plugin API, template replacement package, or separately distributed builder.
+Keep personal content and customization in the private `origin`; fetch builder improvements from `upstream`. Snippet intentionally has no submodule, plugin API, or template replacement package. An official builder image is also available for content-only repositories; see [INSTALL.md](INSTALL.md#official-builder-image).
 
 ## Content
 
@@ -271,7 +271,7 @@ make docker-audit
 
 `docker-check` is deterministic and includes exact line and type coverage, Pint, Rector, PHPStan, content validation, ShellCheck, and JavaScript syntax validation. `docker-audit` is separate because the Composer advisory lookup requires network access.
 
-Snippet follows Semantic Versioning. Pull requests are squash-merged with conventional titles, and Release Please maintains `CHANGELOG.md`, `vX.Y.Z` tags, and source-only GitHub releases. See [CONTRIBUTING.md](CONTRIBUTING.md) for title conventions and the full contributor workflow. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+Snippet follows Semantic Versioning. Pull requests are squash-merged with conventional titles, and Release Please maintains `CHANGELOG.md`, `vX.Y.Z` tags, and GitHub releases. Each stable release also publishes the official multi-platform builder image to GitHub Container Registry. See [CONTRIBUTING.md](CONTRIBUTING.md) for title conventions and the full contributor workflow. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## Documentation
 

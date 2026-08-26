@@ -1,0 +1,33 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Snippet\Application;
+
+const USAGE = "Usage:\n  snippet --version\n  snippet validate\n  snippet build\n";
+
+/** @var list<string> $arguments */
+$arguments = $_SERVER['argv'];
+$command = $arguments[1] ?? null;
+
+if (count($arguments) !== 2 || !in_array($command, ['--version', 'validate', 'build'], true)) {
+    fwrite(STDERR, USAGE);
+    exit(2);
+}
+
+$configuredEngineRoot = getenv('SNIPPET_ENGINE_ROOT');
+$engineRoot = $configuredEngineRoot === false ? '/app' : $configuredEngineRoot;
+$configuredWorkspace = getenv('SNIPPET_WORKSPACE');
+$workspace = $configuredWorkspace === false ? '/workspace' : $configuredWorkspace;
+
+require $engineRoot . '/vendor/autoload.php';
+
+$stdout = new SplFileObject('php://stdout', 'w');
+$stderr = new SplFileObject('php://stderr', 'w');
+
+exit(new Application($workspace)->run(
+    ['snippet', $command],
+    $stdout,
+    $stderr,
+));
