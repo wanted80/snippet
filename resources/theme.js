@@ -3,19 +3,23 @@
     const root = document.documentElement;
     const system = window.matchMedia('(prefers-color-scheme: light)');
     const colors = { light: '#f7f1e8', dark: '#08090a' };
+    const systemTheme = () => system.matches ? 'light' : 'dark';
     let preference = null;
-    let themeChangeFrame = 0;
+    let storage = null;
+    let themeChangeSequence = 0;
 
     try {
-        const stored = localStorage.getItem(storageKey);
+        storage = localStorage;
+        const stored = storage.getItem(storageKey);
         if (stored === 'light' || stored === 'dark') {
             preference = stored;
         }
     } catch {
         preference = null;
+        storage = null;
     }
 
-    const initialTheme = preference ?? (system.matches ? 'light' : 'dark');
+    const initialTheme = preference ?? systemTheme();
     root.dataset.theme = initialTheme;
     const themeColor = document.querySelector('meta[name="theme-color"]');
     themeColor?.setAttribute('content', colors[initialTheme]);
@@ -98,21 +102,25 @@
         }
 
         const apply = (theme, persist) => {
-            root.dataset.themeChanging = 'true';
-            root.dataset.theme = theme;
+            if (root.dataset.theme !== theme) {
+                root.dataset.themeChanging = 'true';
+                root.dataset.theme = theme;
+                const sequence = ++themeChangeSequence;
+                window.requestAnimationFrame(() => {
+                    window.requestAnimationFrame(() => {
+                        if (themeChangeSequence === sequence) {
+                            delete root.dataset.themeChanging;
+                        }
+                    });
+                });
+            }
             const label = theme === 'dark' ? 'Use light theme' : 'Use dark theme';
             themeButton.setAttribute('aria-label', label);
             themeButton.setAttribute('title', label);
             themeColor.setAttribute('content', colors[theme]);
-            const frame = window.requestAnimationFrame(() => {
-                if (themeChangeFrame === frame) {
-                    delete root.dataset.themeChanging;
-                }
-            });
-            themeChangeFrame = frame;
-            if (persist) {
+            if (persist && storage !== null) {
                 try {
-                    localStorage.setItem(storageKey, theme);
+                    storage.setItem(storageKey, theme);
                 } catch {
                     // The selected theme still applies for this page.
                 }
@@ -124,6 +132,15 @@
             if (preference === null) {
                 apply(event.matches ? 'light' : 'dark', false);
             }
+        });
+        window.addEventListener('storage', (event) => {
+            if (storage === null || event.storageArea !== storage || (event.key !== storageKey && event.key !== null)) {
+                return;
+            }
+
+            const stored = event.key === storageKey ? event.newValue : null;
+            preference = stored === 'light' || stored === 'dark' ? stored : null;
+            apply(preference ?? systemTheme(), false);
         });
         themeButton.addEventListener('click', () => {
             preference = root.dataset.theme === 'dark' ? 'light' : 'dark';
