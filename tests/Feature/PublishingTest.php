@@ -484,14 +484,16 @@ it('ships a storage-safe system-aware theme script as a dedicated asset', functi
         ->toContain('<button class="theme-toggle icon-button" type="button" data-theme-toggle aria-label="Toggle color theme" title="Toggle color theme">')
         ->toContain('<svg class="menu-icon theme-icon-light"', '<svg class="menu-icon theme-icon-dark"')
         ->toContain('<meta name="theme-color" content="#08090a">')->not->toContain('sha256-', "'unsafe-inline'", '<script>')
-        ->and($script)->toContain("'snippet-theme'", "matchMedia('(prefers-color-scheme: light)')", 'localStorage.getItem', 'localStorage.setItem', "themeButton.setAttribute('aria-label', label)")
+        ->and($script)->toContain("'snippet-theme'", "matchMedia('(prefers-color-scheme: light)')", 'storage.getItem', 'storage.setItem', "themeButton.setAttribute('aria-label', label)")
         ->toContain("if (header !== null) {", "if (themeButton === null || themeColor === null) {")
-        ->and($script)->toContain("root.dataset.themeChanging = 'true';", 'window.requestAnimationFrame', 'delete root.dataset.themeChanging;')
+        ->and($script)->toContain("if (root.dataset.theme !== theme) {", "root.dataset.themeChanging = 'true';", 'window.requestAnimationFrame', 'delete root.dataset.themeChanging;', 'const sequence = ++themeChangeSequence;', 'themeChangeSequence === sequence')
+        ->toContain("window.addEventListener('storage'", 'event.storageArea !== storage', 'event.key !== storageKey && event.key !== null', 'preference ?? systemTheme()')
         ->toContain("navigation.addEventListener('toggle'", "menuButton.setAttribute('aria-expanded', open ? 'true' : 'false')")
         ->toContain("navigation.addEventListener('keydown'", "event.key === 'Escape'", 'navigation.hidePopover()', 'menuButton.focus()')
         ->toContain("case 'ArrowDown':", "case 'ArrowUp':", "case 'Home':", "case 'End':")
         ->toContain("document.querySelector('[data-site-header]')", "header.toggleAttribute('data-scrolled', scrolled)", "window.addEventListener('scroll', syncScrollState, { passive: true })")
-        ->and($script)->toBe(file_get_contents($this->directory . '/resources/theme.js'));
+        ->and($script)->toBe(file_get_contents($this->directory . '/resources/theme.js'))
+        ->and(mb_substr_count($script, 'window.requestAnimationFrame'))->toBe(2);
 });
 
 it('preloads each bundled upright font only when the theme and matching asset are available', function (bool $theme, bool $upright, bool $wordmark, array $expectedAssets): void {
