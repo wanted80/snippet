@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 use Snippet\Support\ApplicationVersion;
 
-it('defines stable least-privilege continuous integration and release workflows', function (): void {
+it('defines stable least-privilege continuous integration and deployment workflows', function (): void {
     $root = dirname(__DIR__, 2);
     $quality = file_get_contents($root . '/.github/workflows/quality.yml');
     $pages = file_get_contents($root . '/.github/workflows/pages.yml');
-    $release = file_get_contents($root . '/.github/workflows/release.yml');
     assert(is_string($quality));
     assert(is_string($pages));
-    assert(is_string($release));
 
     expect($quality)->toContain(
         "name: Quality\n",
@@ -43,17 +41,72 @@ it('defines stable least-privilege continuous integration and release workflows'
         ->and($pages)->not->toContain('pull_request_target', 'permissions: write-all', 'path: .', 'gh-pages')
         ->and($pages)->toMatch('~uses: actions/checkout@[0-9a-f]{40}~')
         ->and($pages)->toMatch('~uses: actions/upload-pages-artifact@[0-9a-f]{40}~')
-        ->and($pages)->toMatch('~uses: actions/deploy-pages@[0-9a-f]{40}~')
-        ->and($release)->toContain(
-            "name: Release\n",
-            "permissions:\n  contents: write\n  issues: write\n  pull-requests: write\n",
-            'uses: googleapis/release-please-action@',
-            'token: ${{ secrets.RELEASE_PLEASE_TOKEN }}',
-            'config-file: release-please-config.json',
-            'manifest-file: .release-please-manifest.json',
-        )
-        ->and($release)->not->toContain('pull_request_target', 'permissions: write-all')
-        ->and($release)->toMatch('~uses: googleapis/release-please-action@[0-9a-f]{40}~');
+        ->and($pages)->toMatch('~uses: actions/deploy-pages@[0-9a-f]{40}~');
+});
+
+it('keeps Release Please source-only and independently guarded', function (): void {
+    $releasePlease = file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/release-please.yml');
+    assert(is_string($releasePlease));
+
+    expect($releasePlease)->toContain(
+        "name: Release Please\n",
+        "  push:\n    branches:\n      - main\n  workflow_dispatch:\n",
+        "permissions:\n  contents: write\n  issues: write\n  pull-requests: write\n",
+        "concurrency:\n  group: release-please\n  cancel-in-progress: false\n",
+        "    if: github.repository == 'wanted80/snippet'\n",
+        "    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n",
+        'uses: googleapis/release-please-action@',
+        'token: ${{ secrets.RELEASE_PLEASE_TOKEN }}',
+        'config-file: release-please-config.json',
+        'manifest-file: .release-please-manifest.json',
+    )
+        ->not->toContain('pull_request_target', 'permissions: write-all', 'packages: write', 'ghcr.io', 'docker/')
+        ->toMatch('~uses: googleapis/release-please-action@[0-9a-f]{40}~');
+});
+
+it('publishes stable released builder tags with provenance and least privilege', function (): void {
+    $release = file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/release.yml');
+    assert(is_string($release));
+
+    expect($release)->toContain(
+        "name: Builder Image\n",
+        "  release:\n    types:\n      - published\n",
+        "permissions:\n  contents: read\n  packages: write\n  attestations: write\n  id-token: write\n",
+        "github.event.release.prerelease == false",
+        "          ref: \${{ github.event.release.tag_name }}\n",
+        'uses: actions/checkout@',
+        'uses: docker/setup-qemu-action@',
+        'uses: docker/setup-buildx-action@',
+        'uses: docker/login-action@',
+        "          registry: ghcr.io\n",
+        "          username: \${{ github.actor }}\n",
+        'password: ${{ secrets.GITHUB_TOKEN }}',
+        'uses: docker/metadata-action@',
+        "          images: ghcr.io/wanted80/snippet\n",
+        'type=semver,pattern={{raw}},value=${{ github.event.release.tag_name }}',
+        'type=semver,pattern={{major}}.{{minor}},value=${{ github.event.release.tag_name }}',
+        'type=semver,pattern={{major}},value=${{ github.event.release.tag_name }}',
+        'type=raw,value=latest',
+        'org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}',
+        'org.opencontainers.image.revision=${{ github.sha }}',
+        'org.opencontainers.image.version=${{ github.event.release.tag_name }}',
+        'org.opencontainers.image.description=A small personal static publishing system.',
+        'org.opencontainers.image.licenses=MIT',
+        'uses: docker/build-push-action@',
+        "          context: .\n",
+        "          target: builder\n",
+        "          platforms: linux/amd64,linux/arm64\n",
+        "          push: true\n",
+        "          tags: \${{ steps.metadata.outputs.tags }}\n",
+        "          labels: \${{ steps.metadata.outputs.labels }}\n",
+        'uses: actions/attest-build-provenance@',
+        'subject-name: ghcr.io/wanted80/snippet',
+        'subject-digest: ${{ steps.build.outputs.digest }}',
+        "          push-to-registry: true\n",
+    )
+        ->not->toContain('workflow_dispatch', 'push:', 'pull_request_target', 'permissions: write-all', 'contents: write')
+        ->and(mb_substr_count($release, 'uses:'))->toBe(7)
+        ->and(preg_match_all('~uses: [^@\\s]+@[0-9a-f]{40}~', $release))->toBe(7);
 });
 it('configures the first stable source release across bootstrap and subsequent runs', function (): void {
     $root = dirname(__DIR__, 2);

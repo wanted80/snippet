@@ -80,6 +80,24 @@ make docker-preview PREVIEW_PORT=9443
 
 Development is the default and contains the complete locked quality toolchain. Production installs only non-development Composer dependencies and is intended for checking runtime validation, builds, and previews. Development and production use separate named `vendor` volumes, so switching environments cannot mix their dependency sets.
 
+### Official builder image
+
+Stable releases publish a dependency-free Snippet builder for `linux/amd64` and `linux/arm64` at `ghcr.io/wanted80/snippet`. This is an alternative for repositories that contain only their publication inputs: `content/`, `site/`, and `resources/`. The image keeps the engine at `/app`, reads those inputs from `/workspace`, and writes the generated `public/` directory back to the mounted repository.
+
+Use an exact release such as `v1.3.0` for reproducible builds, or pin an immutable image digest. The `vX.Y`, `vX`, and `latest` tags intentionally move to newer stable releases.
+
+```bash
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$PWD:/workspace" \
+  ghcr.io/wanted80/snippet:v1.3.0 \
+  build
+```
+
+Replace `build` with `validate` to check the publication without changing `public/`, or with `--version` to report the packaged Snippet version. The official image does not provide preview or draft-creation commands.
+
+After the first image is published, a repository owner must open the package under the repository's **Packages** section and change its visibility to public once in **Package settings**. Subsequent versions can then be pulled anonymously. Container packages appear under Packages, not Deployments.
+
 ### Build, validate, and preview
 
 Create a minimal incomplete draft from the development shell:
@@ -225,7 +243,7 @@ Composer aliases include `composer app:new -- article first-post`, `composer app
 
 All pull requests run the Docker development gate and production validation in GitHub Actions. Before opening one, follow the focused-test, fix, analysis, check, and audit workflow in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Snippet uses squash merges and conventional pull-request titles. Release Please converts `fix`, `feat`, and breaking-change commits into Semantic Versioning updates, maintains `CHANGELOG.md`, and creates `vX.Y.Z` source releases. Generated `public/` output is not attached to releases and remains a local publication artifact.
+Snippet uses squash merges and conventional pull-request titles. Release Please converts `fix`, `feat`, and breaking-change commits into Semantic Versioning updates, maintains `CHANGELOG.md`, and creates `vX.Y.Z` releases. Each stable published release builds the tagged source and publishes `ghcr.io/wanted80/snippet` for AMD64 and ARM64 with OCI metadata and provenance. Generated `public/` output is not attached to releases and remains a local publication artifact.
 
 ## Content validation during writing
 
