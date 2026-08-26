@@ -246,7 +246,7 @@ The engine is frozen after these content-integrity rules. Unless an explicit pro
 3. Customize `site/assets/`, `site/theme.css`, and `resources/templates/` as needed.
 4. Run `make docker-preview` while writing and review successful rebuilds in the browser.
 5. Run `make docker-validate`, then `make docker-build` for the final static output.
-6. Upload only the contents of `public/` to the chosen static host and configure the response headers documented in README. For this repository, pushes to `main` and manual CI dispatches build and deploy that directory automatically after quality succeeds.
+6. Upload only the contents of `public/` to the chosen static host and configure the response headers documented in README. For this repository, a successful `Quality` workflow on `main` builds and deploys that directory automatically. Dispatch `Quality` manually when a manual publication is needed.
 
 For the devcontainer or native workflow, substitute `bin/snippet preview`, `bin/snippet validate`, and `bin/snippet build`. Do not upload the source repository, Composer dependencies, `.env`, Docker configuration, or PHP files. A production Docker build changes the dependency set used to generate the same static output; it is not a long-running production server.
 
@@ -254,7 +254,7 @@ For the devcontainer or native workflow, substitute `bin/snippet preview`, `bin/
 
 Before publishing this repository, review the complete Git history and existing Actions logs for private content, personal data, and credentials: public visibility exposes both. Then make the repository public and select **Settings → Pages → Build and deployment → GitHub Actions**.
 
-The CI workflow keeps pull requests quality-only. After quality succeeds on `main`, or after a manual workflow dispatch, a separate job builds with `ENVIRONMENT=production make docker-build`, uploads only `public/`, and deploys it to the protected `github-pages` environment. Keep `public/` ignored; do not create a `gh-pages` branch or commit generated output. With the checked-in configuration, the published address is `https://wanted80.github.io/snippet/`.
+The separate `Quality` workflow keeps pull requests quality-only. After it succeeds on `main`, the `Pages` workflow checks out the tested revision, builds with `ENVIRONMENT=production make docker-build`, uploads only `public/`, and deploys it to the protected `github-pages` environment. Dispatch `Quality` manually when a manual publication is needed. Keep `public/` ignored; do not create a `gh-pages` branch or commit generated output. With the checked-in configuration, the published address is `https://wanted80.github.io/snippet/`.
 
 GitHub Pages owns HTTPS and does not offer project-controlled response headers. Snippet's meta CSP remains effective for supported directives, but Pages cannot be configured here to add every recommended framing, MIME-sniffing, and referrer response header.
 

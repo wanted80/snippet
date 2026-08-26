@@ -6,37 +6,44 @@ use Snippet\Support\ApplicationVersion;
 
 it('defines stable least-privilege continuous integration and release workflows', function (): void {
     $root = dirname(__DIR__, 2);
-    $ci = file_get_contents($root . '/.github/workflows/ci.yml');
+    $quality = file_get_contents($root . '/.github/workflows/quality.yml');
+    $pages = file_get_contents($root . '/.github/workflows/pages.yml');
     $release = file_get_contents($root . '/.github/workflows/release.yml');
-    assert(is_string($ci));
+    assert(is_string($quality));
+    assert(is_string($pages));
     assert(is_string($release));
 
-    expect($ci)->toContain(
-        "name: CI\n",
+    expect($quality)->toContain(
+        "name: Quality\n",
         "permissions:\n  contents: read\n",
         'uses: actions/checkout@',
         'run: make docker-check',
         'run: make docker-audit',
         'run: ENVIRONMENT=production make docker-validate',
         "    concurrency:\n      group: quality-\${{ github.workflow }}-\${{ github.ref }}\n      cancel-in-progress: true\n",
-        "  pages:\n    name: Build GitHub Pages\n",
-        "    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')\n",
-        "    needs: quality\n",
-        "    permissions:\n      contents: read\n",
-        'run: ENVIRONMENT=production make docker-build',
-        'uses: actions/upload-pages-artifact@',
-        "with:\n          path: public/\n",
-        "  deploy:\n    name: Deploy GitHub Pages\n",
-        "    needs: pages\n",
-        "    concurrency:\n      group: github-pages\n      cancel-in-progress: false\n",
-        "    permissions:\n      pages: write\n      id-token: write\n",
-        "    environment:\n      name: github-pages\n      url: \${{ steps.deployment.outputs.page_url }}\n",
-        'uses: actions/deploy-pages@',
     )
-        ->and($ci)->not->toContain('pull_request_target', 'permissions: write-all', 'path: .', 'gh-pages')
-        ->and($ci)->toMatch('~uses: actions/checkout@[0-9a-f]{40}~')
-        ->and($ci)->toMatch('~uses: actions/upload-pages-artifact@[0-9a-f]{40}~')
-        ->and($ci)->toMatch('~uses: actions/deploy-pages@[0-9a-f]{40}~')
+        ->and($quality)->not->toContain('pull_request_target', 'permissions: write-all', 'path: .', 'gh-pages')
+        ->and($quality)->toMatch('~uses: actions/checkout@[0-9a-f]{40}~')
+        ->and($pages)->toContain(
+            "name: Pages\n",
+            "  workflow_run:\n    workflows:\n      - Quality\n    types:\n      - completed\n",
+            "    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'\n",
+            "        with:\n          ref: \${{ github.event.workflow_run.head_sha }}\n",
+            "    permissions:\n      contents: read\n",
+            'run: ENVIRONMENT=production make docker-build',
+            'uses: actions/upload-pages-artifact@',
+            "with:\n          path: public/\n",
+            "  deploy:\n    name: Deploy GitHub Pages\n",
+            "    needs: pages\n",
+            "    concurrency:\n      group: github-pages\n      cancel-in-progress: false\n",
+            "    permissions:\n      pages: write\n      id-token: write\n",
+            "    environment:\n      name: github-pages\n      url: \${{ steps.deployment.outputs.page_url }}\n",
+            'uses: actions/deploy-pages@',
+        )
+        ->and($pages)->not->toContain('pull_request_target', 'permissions: write-all', 'path: .', 'gh-pages')
+        ->and($pages)->toMatch('~uses: actions/checkout@[0-9a-f]{40}~')
+        ->and($pages)->toMatch('~uses: actions/upload-pages-artifact@[0-9a-f]{40}~')
+        ->and($pages)->toMatch('~uses: actions/deploy-pages@[0-9a-f]{40}~')
         ->and($release)->toContain(
             "name: Release\n",
             "permissions:\n  contents: write\n  issues: write\n  pull-requests: write\n",
