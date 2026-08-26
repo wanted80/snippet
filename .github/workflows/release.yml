@@ -18,6 +18,7 @@ concurrency:
 jobs:
   release:
     name: Release
+    if: github.repository == 'wanted80/snippet'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
