@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/wanted80/snippet/compare/v1.2.2...v1.3.0) (2026-08-26)
+
+
+### Features
+
+* publish official builder image ([#12](https://github.com/wanted80/snippet/issues/12)) ([1838366](https://github.com/wanted80/snippet/commit/18383666af436bc487a0c183a71661c457aa421d))
+
 ## [1.2.2](https://github.com/wanted80/snippet/compare/v1.2.1...v1.2.2) (2026-08-26)
 
 
