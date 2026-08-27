@@ -4,14 +4,15 @@
 declare(strict_types=1);
 
 use Snippet\Application;
+use Snippet\Scaffolding\WorkspaceInitializer;
 
-const USAGE = "Usage:\n  snippet --version\n  snippet validate\n  snippet build\n";
+const USAGE = "Usage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n";
 
 /** @var list<string> $arguments */
 $arguments = $_SERVER['argv'];
 $command = $arguments[1] ?? null;
 
-if (count($arguments) !== 2 || !in_array($command, ['--version', 'validate', 'build'], true)) {
+if (count($arguments) !== 2 || !in_array($command, ['--version', 'init', 'validate', 'build'], true)) {
     fwrite(STDERR, USAGE);
     exit(2);
 }
@@ -22,6 +23,30 @@ $configuredWorkspace = getenv('SNIPPET_WORKSPACE');
 $workspace = $configuredWorkspace === false ? '/workspace' : $configuredWorkspace;
 
 require $engineRoot . '/vendor/autoload.php';
+
+if ($command === 'init') {
+    try {
+        $result = new WorkspaceInitializer($engineRoot, $workspace)->initialize();
+    } catch (RuntimeException $runtimeException) {
+        fwrite(STDERR, 'Error: ' . $runtimeException->getMessage() . "\n");
+        exit(1);
+    }
+
+    if ($result['created'] === []) {
+        fwrite(STDOUT, "Snippet workspace is already initialized.\nNo files were changed.\n");
+        exit(0);
+    }
+
+    fwrite(STDOUT, "Initializing Snippet workspace.\n\n");
+    foreach ($result['created'] as $file) {
+        fwrite(STDOUT, "Created: {$file}\n");
+    }
+    foreach ($result['skipped'] as $file) {
+        fwrite(STDOUT, "Skipped: {$file}\n");
+    }
+    fwrite(STDOUT, "\nWorkspace initialized.\nExisting files were not overwritten.\n");
+    exit(0);
+}
 
 $stdout = new SplFileObject('php://stdout', 'w');
 $stderr = new SplFileObject('php://stderr', 'w');

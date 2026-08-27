@@ -12,6 +12,9 @@ final class PublisherFaults
     /** @var array<string, list<'fail'|'partial'|'pass'|'throw'>> */
     private static array $faults = [];
 
+    /** @var array<string, int<0, max>> */
+    private static array $calls = [];
+
     /** @param list<'fail'|'partial'|'pass'|'throw'> $outcomes */
     public static function set(string $operation, array $outcomes): void
     {
@@ -21,6 +24,17 @@ final class PublisherFaults
     public static function reset(): void
     {
         self::$faults = [];
+        self::$calls = [];
+    }
+
+    public static function record(string $operation): void
+    {
+        self::$calls[$operation] = (self::$calls[$operation] ?? 0) + 1;
+    }
+
+    public static function calls(string $operation): int
+    {
+        return self::$calls[$operation] ?? 0;
     }
 
     public static function fails(string $operation): bool

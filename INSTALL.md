@@ -86,6 +86,20 @@ Stable releases publish a dependency-free Snippet builder for `linux/amd64` and 
 
 Use an exact release such as `v1.3.0` for reproducible builds, or pin an immutable image digest. The `vX.Y`, `vX`, and `latest` tags intentionally move to newer stable releases.
 
+Initialize a content-only repository from the starter bundled in the image:
+
+```bash
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$PWD:/workspace" \
+  ghcr.io/wanted80/snippet:vX.Y.Z \
+  init
+```
+
+`init` creates the missing `content/`, `site/`, and `resources/` directories and files. It safely merges the starter into a partially initialized repository: existing files always win, nothing is deleted, and `public/` is never touched. Run it again after updating the image to add newly introduced starter files without replacing personal content or customization.
+
+Build the initialized publication inputs:
+
 ```bash
 docker run --rm \
   --user "$(id -u):$(id -g)" \
@@ -94,7 +108,7 @@ docker run --rm \
   build
 ```
 
-Replace `build` with `validate` to check the publication without changing `public/`, or with `--version` to report the packaged Snippet version. The official image does not provide preview or draft-creation commands.
+Replace `build` with `validate` to check the publication without changing `public/`, or with `--version` to report the packaged Snippet version. The official image provides only `init`, `validate`, `build`, and `--version`; it does not provide preview or draft-creation commands.
 
 After the first image is published, a repository owner must open the package under the repository's **Packages** section and change its visibility to public once in **Package settings**. Subsequent versions can then be pulled anonymously. Container packages appear under Packages, not Deployments.
 
