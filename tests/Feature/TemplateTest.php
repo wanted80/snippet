@@ -80,6 +80,7 @@ it('keeps the default layout self-contained and loads only local stylesheets', f
     expect($layout)->toContain(
         '<meta name="author" content="Writer &amp; Editor">',
         '<meta name="generator" content="Snippet ' . ApplicationVersion::CURRENT . '">',
+        '<link rel="icon" href="/favicon.svg" type="image/svg+xml">',
         '<link rel="stylesheet" href="/assets/site.css">',
         '<p class="site-footer-row">',
         '<span>Generated and published with</span>',

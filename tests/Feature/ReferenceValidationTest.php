@@ -102,7 +102,7 @@ it('exposes a sorted deterministic publication inventory', function (): void {
     sort($sorted, SORT_STRING);
 
     expect($paths)->toBe($sorted)
-        ->toContain('/articles/post/', '/articles/post/index.html', '/articles/post/notes.txt', '/llms.txt', '/tags/caf%C3%A9/');
+        ->toContain('/articles/post/', '/articles/post/index.html', '/articles/post/notes.txt', '/favicon.svg', '/llms.txt', '/tags/caf%C3%A9/');
 });
 
 it('fails explicitly if URL parsing invariants are bypassed', function (string $kind, string $message): void {

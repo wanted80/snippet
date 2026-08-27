@@ -57,6 +57,7 @@ function builderScaffoldFiles(string $directory, string $prefix = ''): array
 function removeBuilderTestSite(string $workspace): void
 {
     unlink($workspace . '/site/config.php');
+    unlink($workspace . '/site/favicon.svg');
     rmdir($workspace . '/site');
 }
 

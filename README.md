@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="site/favicon.svg" alt="Snippet logo" width="160" height="160">
+</p>
+
 # Snippet
 
 Snippet is a small, dependency-free PHP 8.5+ publishing system for one author. It turns self-contained Markdown content directories into a completely static website. The public repository is an MIT-licensed starter: the content is the product, the generated site is disposable, and the builder stays out of the published result.
@@ -185,6 +189,8 @@ The `language` value sets the document's HTML language tag. The shipped template
 When `build.minify` is enabled, publication conservatively collapses whitespace-only text nodes between HTML tags. It leaves prose, attributes, comments, doctypes, inline spacing, and the contents of `pre`, `code`, `textarea`, `script`, and `style` unchanged. It also stream-minifies `resources/site.css` and optional `site/theme.css`: external whitespace is collapsed, whitespace around `{`, `}`, `;`, and `,` is removed, and strings, escapes, comments, and meaningful token spacing are preserved. Malformed or uncertain CSS is copied unchanged. When minification is disabled, both stylesheets use the direct byte-for-byte copy path. `resources/theme.js`, content assets, and files beneath `site/assets/` remain byte-for-byte copies in either mode.
 
 ### Site assets
+
+`site/favicon.svg` is the required default browser icon and is copied unchanged to `/favicon.svg`. Replace that file with any valid SVG to customize the site's favicon; a square canvas is recommended for consistent browser presentation. The generated layout references it at the configured deployment path.
 
 Every regular file under `site/assets/` is copied to `/assets/site/` with its relative path preserved. Use this directory for icons, self-hosted fonts, and other site-owned presentation assets; symlinks are rejected.
 

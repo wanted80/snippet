@@ -275,7 +275,7 @@ The engine is frozen after these content-integrity rules. Unless an explicit pro
 
 1. Edit `site/config.php`. Set `url` to the complete public HTTPS site URL, including a deployment path such as `https://wanted80.github.io/snippet`, because it drives canonical URLs and public paths. Omit the path only for a root-hosted site.
 2. Replace the example directories under `content/pages/` and `content/articles/` with your own self-contained content units. Use `bin/snippet new page <slug>` or `bin/snippet new article <slug> [--date=YYYY-MM-DD]` to start an intentionally incomplete skeleton, then fill both generated files.
-3. Customize `site/assets/`, `site/theme.css`, and `resources/templates/` as needed.
+3. Replace `site/favicon.svg` and customize `site/assets/`, `site/theme.css`, and `resources/templates/` as needed.
 4. Run `make docker-preview` while writing and review successful rebuilds in the browser.
 5. Run `make docker-validate`, then `make docker-build` for the final static output.
 6. Upload only the contents of `public/` to the chosen static host and configure the response headers documented in README. For this repository, a successful `Quality` workflow on `main` builds and deploys that directory automatically. Dispatch `Quality` manually when a manual publication is needed.

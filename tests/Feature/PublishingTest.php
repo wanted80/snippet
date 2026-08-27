@@ -94,6 +94,7 @@ it('builds the complete deterministic site with escaped semantic HTML and every 
         'assets/site/media/custom.bin',
         'assets/theme.css',
         'assets/theme.js',
+        'favicon.svg',
         'index.html',
         'llms.txt',
         'pages/index.html',
@@ -337,7 +338,7 @@ it('reports transactional publication and cleanup failures deterministically', f
         'mkdir' => ['fail'],
     ], false, 'Unable to create output directory'],
     'asset size read' => [[
-        'filesize' => ['pass', 'pass', 'fail'],
+        'filesize' => ['pass', 'pass', 'pass', 'pass', 'pass', 'fail'],
     ], false, 'Unable to read publication asset size'],
     'existing backup' => [[
         'rename' => ['fail'],
@@ -479,7 +480,7 @@ it('ships a storage-safe system-aware theme script as a dedicated asset', functi
     expect(mb_substr_count($html, '<script src="/assets/theme.js"></script>'))->toBe(1)
         ->and($html)->toContain("script-src 'self'")
         ->toContain('<header class="site-header" data-site-header>', '<script src="/assets/theme.js"></script>')
-        ->toMatch('~<meta charset="utf-8">.*<meta http-equiv="Content-Security-Policy".*<meta name="theme-color" content="#08090a">.*<script src="/assets/theme.js"></script>.*<link rel="stylesheet" href="/assets/site.css">~s')
+        ->toMatch('~<meta charset="utf-8">.*<meta http-equiv="Content-Security-Policy".*<meta name="theme-color" content="#08090a">.*<link rel="icon" href="/favicon\.svg" type="image/svg\+xml">.*<script src="/assets/theme.js"></script>.*<link rel="stylesheet" href="/assets/site.css">~s')
         ->toContain('<button class="menu-toggle icon-button" type="button" popovertarget="site-navigation" aria-expanded="false" aria-controls="site-navigation" aria-label="Open navigation" title="Open navigation">')
         ->toContain('<button class="theme-toggle icon-button" type="button" data-theme-toggle aria-label="Toggle color theme" title="Toggle color theme">')
         ->toContain('<svg class="menu-icon theme-icon-light"', '<svg class="menu-icon theme-icon-dark"')
@@ -612,8 +613,10 @@ it('publishes every browser-facing URL beneath the configured deployment path wi
     $llms = file_get_contents($this->directory . '/public/llms.txt');
     $theme = file_get_contents($this->directory . '/public/assets/theme.css');
     expect([$home, $article])->each->toBeString()
+        ->and($home)->toContain('<link rel="icon" href="/snippet/favicon.svg" type="image/svg+xml">')
         ->and($home)->toContain('<link rel="canonical" href="https://example.test/snippet/">', '<script src="/snippet/assets/theme.js"></script>', '<link rel="stylesheet" href="/snippet/assets/site.css">', '<link rel="stylesheet" href="/snippet/assets/theme.css">', '<link rel="preload" href="/snippet/assets/site/fonts/snippet-logo/snippet-logo.woff2"', '<a class="site-brand" href="/snippet/"', '<a class="menu-link" href="/snippet/articles/">', '<a href="/snippet/tags/caf%C3%A9/"', '<img src="/snippet/articles/post/cover.webp"', '<a href="/snippet/articles/post/notes.txt">asset</a>')
         ->and($article)->toBeString()
+        ->toContain('<link rel="icon" href="/snippet/favicon.svg" type="image/svg+xml">')
         ->toContain('<link rel="canonical" href="https://example.test/snippet/articles/post/">', '<a href="/snippet/about/">about</a>', '<a href="notes.txt">asset</a>', '<a href="#part">fragment</a>', '<a href="https://outside.test/">external</a>', '<img src="/snippet/articles/post/cover.webp"')
         ->and($llms)->toBeString()
         ->toContain('https://example.test/snippet/articles/post/', 'https://example.test/snippet/about/')

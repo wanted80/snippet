@@ -35,6 +35,7 @@ final readonly class Publisher
         $templates = $this->templateLoader->load($root . '/resources/templates', $limits);
         $this->validateAsset($root . '/resources/site.css', $limits, true);
         $this->validateAsset($root . '/resources/theme.js', $limits, true);
+        $this->validateAsset($root . '/site/favicon.svg', $limits, true);
 
         if ($config->hasTheme) {
             $this->validateAsset($root . '/site/theme.css', $limits, true);
@@ -120,6 +121,7 @@ final readonly class Publisher
 
         $this->publishCss($root . '/resources/site.css', $output . '/assets/site.css', $config->minify, $budget);
         $this->copy($root . '/resources/theme.js', $output . '/assets/theme.js', $budget);
+        $this->copy($root . '/site/favicon.svg', $output . '/favicon.svg', $budget);
 
         if ($config->hasTheme) {
             $this->publishCss($root . '/site/theme.css', $output . '/assets/theme.css', $config->minify, $budget);
