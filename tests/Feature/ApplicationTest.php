@@ -90,6 +90,32 @@ it('validates required publication assets before reporting success', function (s
     'oversized stylesheet' => ['size', 'exceeds the 1-byte asset limit.'],
 ]);
 
+it('validates the required favicon asset', function (string $fault, string $message): void {
+    $this->content();
+    $this->resources();
+    $path = $this->directory . '/site/favicon.svg';
+    $expectedMessage = $message;
+    if ($fault === 'missing') {
+        unlink($path);
+    } elseif ($fault === 'encoding') {
+        file_put_contents($path, "\xFF");
+    } else {
+        $size = filesize($path);
+        assert(is_int($size));
+        file_put_contents($this->directory . '/resources/site.css', 'x');
+        file_put_contents($this->directory . '/resources/theme.js', 'x');
+        $publicationInputLoader = new PublicationInputLoader(limits: new Limits(assetBytes: $size - 1));
+        $expectedMessage = 'exceeds the ' . ($size - 1) . '-byte asset limit.';
+    }
+
+    expect(runApplication($this->directory, ['bin/snippet', 'validate'], $publicationInputLoader ?? null))
+        ->toBe([1, '', "Error: Publication asset '{$path}' {$expectedMessage}\n"]);
+})->with([
+    'missing favicon' => ['missing', 'must be a regular non-symlink file.'],
+    'invalid favicon encoding' => ['encoding', 'must be readable UTF-8 text.'],
+    'oversized favicon' => ['size', 'exceeds the 1-byte asset limit.'],
+]);
+
 it('writes usage errors only to stderr', function (array $arguments): void {
     /** @var list<string> $arguments */
     expect(runApplication($this->directory, $arguments))

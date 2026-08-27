@@ -32,6 +32,7 @@ abstract class TestCase extends BaseTestCase
         $this->directory = $temporary;
         PublisherFaults::reset();
         $this->site();
+        copy(dirname(__DIR__) . '/site/favicon.svg', $this->directory . '/site/favicon.svg');
     }
 
     protected function tearDown(): void

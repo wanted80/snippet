@@ -16,7 +16,7 @@ final readonly class PublicationInventory
     public function __construct(Config $config, Catalog $catalog)
     {
         $targets = [];
-        foreach (['/', '/index.html', '/llms.txt', '/articles/', '/articles/index.html', '/pages/', '/pages/index.html', '/tags/', '/tags/index.html', '/assets/site.css', '/assets/theme.js'] as $target) {
+        foreach (['/', '/index.html', '/llms.txt', '/favicon.svg', '/articles/', '/articles/index.html', '/pages/', '/pages/index.html', '/tags/', '/tags/index.html', '/assets/site.css', '/assets/theme.js'] as $target) {
             $targets[$target] = true;
         }
         if ($config->hasTheme) {

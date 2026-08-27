@@ -67,3 +67,22 @@ it('ships and copies the configured wordmark font byte for byte', function (): v
             '--font-wordmark: "Snippet Logo", var(--font-interface);',
         );
 });
+
+it('publishes a replacement favicon byte for byte', function (): void {
+    $this->content();
+    $this->resources();
+    $favicon = <<<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16"><path fill="#123456" d="M0 0h16v16H0z"/></svg>
+SVG;
+    file_put_contents($this->directory . '/site/favicon.svg', $favicon);
+
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    new Publisher()->publish($this->directory, $config, $this->catalog());
+    $published = file_get_contents($this->directory . '/public/favicon.svg');
+    $home = file_get_contents($this->directory . '/public/index.html');
+    assert(is_string($published));
+    assert(is_string($home));
+
+    expect($published)->toBe($favicon)
+        ->and($home)->toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml">');
+});
