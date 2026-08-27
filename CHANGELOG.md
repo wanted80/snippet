@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/wanted80/snippet/compare/v1.3.1...v1.3.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **release:** validate stable release tag format and update Docker build steps ([#16](https://github.com/wanted80/snippet/issues/16)) ([ed770fb](https://github.com/wanted80/snippet/commit/ed770fb019cebe6303d3071b471c48795149318c))
+
 ## [1.3.1](https://github.com/wanted80/snippet/compare/v1.3.0...v1.3.1) (2026-08-27)
 
 
