@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/wanted80/snippet/compare/v1.4.0...v1.5.0) (2026-08-27)
+
+
+### Features
+
+* publish customizable favicon ([#21](https://github.com/wanted80/snippet/issues/21)) ([d6539de](https://github.com/wanted80/snippet/commit/d6539de7cfb56b0790d325ec4297abf1308b86a6))
+
 ## [1.4.0](https://github.com/wanted80/snippet/compare/v1.3.2...v1.4.0) (2026-08-27)
 
 
