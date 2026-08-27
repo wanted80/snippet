@@ -86,6 +86,20 @@ Stable releases publish a dependency-free Snippet builder for `linux/amd64` and 
 
 Use an exact release such as `v1.3.0` for reproducible builds, or pin an immutable image digest. The `vX.Y`, `vX`, and `latest` tags intentionally move to newer stable releases.
 
+Initialize a content-only repository from the starter bundled in the image:
+
+```bash
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$PWD:/workspace" \
+  ghcr.io/wanted80/snippet:vX.Y.Z \
+  init
+```
+
+`init` creates the missing `content/`, `site/`, and `resources/` directories and files. It safely merges the starter into a partially initialized repository: existing files always win, nothing is deleted, and `public/` is never touched. Run it again after updating the image to add newly introduced starter files without replacing personal content or customization.
+
+Build the initialized publication inputs:
+
 ```bash
 docker run --rm \
   --user "$(id -u):$(id -g)" \
@@ -94,7 +108,7 @@ docker run --rm \
   build
 ```
 
-Replace `build` with `validate` to check the publication without changing `public/`, or with `--version` to report the packaged Snippet version. The official image does not provide preview or draft-creation commands.
+Replace `build` with `validate` to check the publication without changing `public/`, or with `--version` to report the packaged Snippet version. The official image provides only `init`, `validate`, `build`, and `--version`; it does not provide preview or draft-creation commands.
 
 After the first image is published, a repository owner must open the package under the repository's **Packages** section and change its visibility to public once in **Package settings**. Subsequent versions can then be pulled anonymously. Container packages appear under Packages, not Deployments.
 
@@ -237,11 +251,11 @@ Native preview builds the site, serves it over direct HTTP at the complete addre
 bin/snippet preview --host=127.0.0.1 --port=9000
 ```
 
-Composer aliases include `composer app:new -- article first-post`, `composer app:build`, `composer app:content:validate`, and `composer app:preview`. Contributors can run the complete deterministic PHP gate with `composer app:check` and the network-dependent locked dependency audit with `composer app:audit`. The Docker `make docker-check` target additionally checks the project shell scripts and theme JavaScript.
+Composer aliases include `composer app:new -- article first-post`, `composer app:build`, `composer app:content:validate`, and `composer app:preview`. Contributors can run the complete deterministic PHP gate with `composer app:check`, the full-project 100% mutation target with `composer app:test:mutations`, and the network-dependent locked dependency audit with `composer app:audit`. Mutation testing bypasses focused mutation declarations and mutates every source class and line covered by the complete Pest suite. It remains separate from the normal gate because it is resource-intensive and the existing full-project suite has not yet reached that target. The Docker equivalents are `make docker-check`, `make docker-mutations`, and `make docker-audit`; `docker-check` additionally checks the project shell scripts and theme JavaScript.
 
 ## Contributing and releases
 
-All pull requests run the Docker development gate and production validation in GitHub Actions. Before opening one, follow the focused-test, fix, analysis, check, and audit workflow in [CONTRIBUTING.md](CONTRIBUTING.md).
+All pull requests run the canonical Docker development gate and production validation in GitHub Actions. Before opening one, follow the focused-test, fix, analysis, check, and audit workflow in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Snippet uses squash merges and conventional pull-request titles. Release Please converts `fix`, `feat`, and breaking-change commits into Semantic Versioning updates, maintains `CHANGELOG.md`, and creates `vX.Y.Z` releases. Each stable published release builds the tagged source and publishes `ghcr.io/wanted80/snippet` for AMD64 and ARM64 with OCI metadata and provenance. Generated `public/` output is not attached to releases and remains a local publication artifact.
 

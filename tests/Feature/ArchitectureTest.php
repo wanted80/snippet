@@ -57,6 +57,20 @@ arch('keeps authoring independent from output and orchestration')
     ->expect('Snippet\\Authoring')
     ->not->toUse(['Snippet\\Rendering', 'Snippet\\Publishing', 'Snippet\\Preview', Application::class]);
 
+arch('keeps workspace scaffolding independent from the publication engine')
+    ->expect('Snippet\\Scaffolding')
+    ->not->toUse([
+        'Snippet\\Authoring',
+        'Snippet\\Content',
+        'Snippet\\Markdown',
+        'Snippet\\Preview',
+        'Snippet\\Publishing',
+        'Snippet\\Rendering',
+        'Snippet\\Site',
+        'Snippet\\Support',
+        Application::class,
+    ]);
+
 it('uses strict types in non-PSR-4 PHP files', function (): void {
     $root = dirname(__DIR__, 2);
     $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root));
