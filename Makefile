@@ -10,7 +10,7 @@ falsy = $(filter 0 false no off,$(strip $(1)))
 BUILD_OPTIONS = $(if $(call truthy,$(PULL)),--pull) $(if $(call truthy,$(NO_CACHE)),--no-cache)
 ORPHAN_OPTION = $(if $(call falsy,$(REMOVE_ORPHANS)),,--remove-orphans)
 
-.PHONY: help docker-image docker-install docker-validate docker-build docker-preview docker-preview-trust docker-preview-down docker-shell docker-config docker-test docker-analyse docker-audit docker-lint docker-fix docker-check
+.PHONY: help docker-image docker-install docker-validate docker-build docker-preview docker-preview-trust docker-preview-down docker-shell docker-config docker-test docker-mutations docker-analyse docker-audit docker-lint docker-fix docker-check
 
 help:
 	@echo 'Snippet Docker commands'
@@ -25,6 +25,7 @@ help:
 	@echo '  make docker-shell          Open the development environment shell'
 	@echo '  make docker-config         Render and validate the Compose configuration'
 	@echo '  make docker-test           Run tests in development'
+	@echo '  make docker-mutations      Require a 100% full-project mutation score'
 	@echo '  make docker-analyse        Run PHPStan in development'
 	@echo '  make docker-audit          Audit locked Composer dependencies'
 	@echo '  make docker-lint           Check Pint and Rector in development'
@@ -76,6 +77,10 @@ docker-config:
 docker-test:
 	$(MAKE) ENVIRONMENT=development docker-install
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app composer app:test
+
+docker-mutations:
+	$(MAKE) ENVIRONMENT=development docker-install
+	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app composer app:test:mutations
 
 docker-analyse:
 	$(MAKE) ENVIRONMENT=development docker-install

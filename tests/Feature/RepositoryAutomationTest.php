@@ -15,6 +15,7 @@ it('defines stable least-privilege continuous integration and deployment workflo
         "name: Quality\n",
         "permissions:\n  contents: read\n",
         'uses: actions/checkout@',
+        'name: Run development quality gate',
         'run: make docker-check',
         'run: make docker-audit',
         'run: ENVIRONMENT=production make docker-validate',
@@ -175,8 +176,13 @@ it('exposes separate deterministic and network-dependent maintenance gates', fun
     assert(is_string($composer));
     assert(is_string($makefile));
 
-    expect($composer)->toContain('"app:audit": "composer audit --locked"')
+    expect($composer)->toContain(
+        '"app:test:mutations": "php -d memory_limit=512M -d pcov.enabled=1 -d pcov.directory=src vendor/bin/pest --no-tia --mutate --everything --covered-only --min=100"',
+        '"app:audit": "composer audit --locked"',
+    )
         ->and($makefile)->toContain(
+            "docker-mutations:\n\t$(MAKE) ENVIRONMENT=development docker-install",
+            'composer app:test:mutations',
             "docker-audit:\n\t$(MAKE) ENVIRONMENT=development docker-install",
             'shellcheck .devcontainer/post-create.sh docker/devcontainer-entrypoint docker/trust-caddy-ca',
             'node --check resources/theme.js',

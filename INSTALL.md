@@ -251,11 +251,11 @@ Native preview builds the site, serves it over direct HTTP at the complete addre
 bin/snippet preview --host=127.0.0.1 --port=9000
 ```
 
-Composer aliases include `composer app:new -- article first-post`, `composer app:build`, `composer app:content:validate`, and `composer app:preview`. Contributors can run the complete deterministic PHP gate with `composer app:check` and the network-dependent locked dependency audit with `composer app:audit`. The Docker `make docker-check` target additionally checks the project shell scripts and theme JavaScript.
+Composer aliases include `composer app:new -- article first-post`, `composer app:build`, `composer app:content:validate`, and `composer app:preview`. Contributors can run the complete deterministic PHP gate with `composer app:check`, the full-project 100% mutation target with `composer app:test:mutations`, and the network-dependent locked dependency audit with `composer app:audit`. Mutation testing bypasses focused mutation declarations and mutates every source class and line covered by the complete Pest suite. It remains separate from the normal gate because it is resource-intensive and the existing full-project suite has not yet reached that target. The Docker equivalents are `make docker-check`, `make docker-mutations`, and `make docker-audit`; `docker-check` additionally checks the project shell scripts and theme JavaScript.
 
 ## Contributing and releases
 
-All pull requests run the Docker development gate and production validation in GitHub Actions. Before opening one, follow the focused-test, fix, analysis, check, and audit workflow in [CONTRIBUTING.md](CONTRIBUTING.md).
+All pull requests run the canonical Docker development gate and production validation in GitHub Actions. Before opening one, follow the focused-test, fix, analysis, check, and audit workflow in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Snippet uses squash merges and conventional pull-request titles. Release Please converts `fix`, `feat`, and breaking-change commits into Semantic Versioning updates, maintains `CHANGELOG.md`, and creates `vX.Y.Z` releases. Each stable published release builds the tagged source and publishes `ghcr.io/wanted80/snippet` for AMD64 and ARM64 with OCI metadata and provenance. Generated `public/` output is not attached to releases and remains a local publication artifact.
 
