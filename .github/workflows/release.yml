@@ -19,6 +19,15 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      - name: Validate stable release tag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Stable builder releases require a vX.Y.Z tag; received '$RELEASE_TAG'."
+            exit 1
+          fi
+
       - name: Check out released tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -42,6 +51,7 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/wanted80/snippet
+          flavor: latest=false
           tags: |
             type=semver,pattern={{raw}},value=${{ github.event.release.tag_name }}
             type=semver,pattern={{major}}.{{minor}},value=${{ github.event.release.tag_name }}
@@ -59,6 +69,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
+          file: docker/Dockerfile
           target: builder
           platforms: linux/amd64,linux/arm64
           push: true
