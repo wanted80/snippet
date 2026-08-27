@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/wanted80/snippet/compare/v1.3.2...v1.4.0) (2026-08-27)
+
+
+### Features
+
+* Initialize content-only workspaces and enhance mutation testing ([#18](https://github.com/wanted80/snippet/issues/18)) ([#19](https://github.com/wanted80/snippet/issues/19)) ([fa6112c](https://github.com/wanted80/snippet/commit/fa6112cc2b77fa422c8fc9c52c6a2319d1a2420a))
+
 ## [1.3.2](https://github.com/wanted80/snippet/compare/v1.3.1...v1.3.2) (2026-08-27)
 
 
