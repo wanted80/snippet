@@ -54,6 +54,7 @@
         "app:test": "php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/pest",
         "app:test:coverage": "php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/pest --no-tia --coverage --exactly=100",
         "app:test:types": "php -d memory_limit=512M vendor/bin/pest --no-tia --type-coverage --min=100",
+        "app:test:mutations": "php -d memory_limit=512M -d pcov.enabled=1 -d pcov.directory=src vendor/bin/pest --no-tia --mutate --everything --covered-only --min=100",
         "app:analyse": "phpstan analyse --no-progress --memory-limit=512M",
         "app:audit": "composer audit --locked",
         "app:lint": [
@@ -82,6 +83,7 @@
         "app:test": "Run the Pest test suite",
         "app:test:coverage": "Run tests with exact 100% line coverage",
         "app:test:types": "Run tests with 100% type coverage",
+        "app:test:mutations": "Run the complete test suite with a 100% mutation score",
         "app:analyse": "Run PHPStan static analysis",
         "app:audit": "Audit locked dependencies against Composer security advisories",
         "app:lint": "Check formatting and automated refactoring",

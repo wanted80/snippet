@@ -15,7 +15,7 @@ make docker-check
 make docker-audit
 ```
 
-`docker-check` runs the exact coverage, type-coverage, formatting, refactoring, static-analysis, content-validation, shell, and JavaScript checks used by CI. `docker-audit` queries Composer's advisory data separately because it requires network access. Application code must remain free of third-party runtime packages.
+`docker-check` runs the exact line-coverage, type-coverage, formatting, refactoring, static-analysis, content-validation, shell, and JavaScript checks used by CI. `make docker-mutations` is the deliberately separate, resource-intensive target for the complete Pest suite: it bypasses focused mutation declarations, mutates every covered source class, and requires a 100% score. `docker-audit` queries Composer's advisory data separately because it requires network access. Application code must remain free of third-party runtime packages.
 
 Native PHP contributors may use `composer app:fix`, `composer app:analyse`, `composer app:check`, and `composer app:audit`; see [INSTALL.md](INSTALL.md) for requirements.
 
