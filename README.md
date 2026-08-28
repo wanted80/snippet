@@ -25,7 +25,37 @@ I mainly used GPT 5.6 Sol with medium and xhigh reasoning, and GPT 5.6 Luna with
 
 ## Quick start
 
-Docker with Make is the recommended setup:
+The primary workflow is a content-only repository powered by the official builder image. Start in an empty directory with the exact v2 release:
+
+```bash
+mkdir my-site
+cd my-site
+
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$PWD:/workspace" \
+  ghcr.io/wanted80/snippet:v2.0.0 init
+```
+
+`--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path. Edit the generated `site/config.php` and content, then rerun the command with `init` replaced by `validate` or `build`.
+
+The repository needs only `content/`, `site/`, and `resources/`; `public/` is disposable output. The builder image supports `--version`, `init`, `validate`, and `build`. See [INSTALL.md](INSTALL.md) for building another directory, direct PHP use, the contributor preview, customization, CI, and deployment.
+
+### Migrating from v1
+
+v2 intentionally gives built-in and site-owned assets unambiguous names. Legacy files receive no alias, warning, or special publication behavior.
+
+| v1 | v2 | Required migration |
+| --- | --- | --- |
+| `resources/site.css` | `resources/theme.css` | Rename the required built-in stylesheet. |
+| `/assets/site.css` | `/assets/theme.css` | Update authored internal Markdown links to the generated built-in stylesheet. |
+| `site/theme.css` | `site/site.css` | Rename the optional site stylesheet. |
+| `/assets/theme.css` | `/assets/site.css` | Update authored internal Markdown links to the generated customization stylesheet. |
+| no site script | optional `site/site.js` → `/assets/site.js` | Add only when local site JavaScript is needed. |
+| `{{theme_stylesheet}}` | `{{site_stylesheet}}` | Rename the placeholder in a customized `resources/templates/layout.html`. |
+| no social or site-script placeholders | `{{social_metadata}}` and `{{site_script}}` | Add both placeholders to a customized layout; copy the v2 starter layout for their intended positions. |
+
+For a full checkout used to develop Snippet itself, Docker with Make remains the recommended environment:
 
 ```bash
 git clone https://github.com/wanted80/snippet.git
@@ -34,19 +64,7 @@ cp .env.example .env
 make docker-preview-trust
 ```
 
-`make docker-preview-trust` installs Snippet's local development certificate, may ask for your computer password, and starts the preview. Close every browser window, reopen the browser, and visit `https://localhost:8443`. Use `make docker-preview` for later previews. See [INSTALL.md](INSTALL.md) for the complete Docker workflow, devcontainer and native PHP alternatives, writing and deployment steps, and troubleshooting.
-
-For a personal site, the recommended arrangement is a private downstream repository rather than a GitHub fork. Create an empty private repository, then connect it to the public starter:
-
-```bash
-git clone https://github.com/wanted80/snippet.git my-site
-cd my-site
-git remote rename origin upstream
-git remote add origin git@github.com:your-name/my-private-site.git
-git push -u origin main
-```
-
-Keep personal content and customization in the private `origin`; fetch builder improvements from `upstream`. Snippet intentionally has no submodule, plugin API, or template replacement package. An official builder image is also available for content-only repositories; see [INSTALL.md](INSTALL.md#official-builder-image).
+This contributor command installs the local Caddy certificate and opens the live HTTPS preview workflow; it is not required to publish a content-only site.
 
 ## Content
 
@@ -186,7 +204,7 @@ The `language` value sets the document's HTML language tag. The shipped template
 
 `title` is the document identity used in browser titles, descriptions, and the homepage's hidden heading. The required `sitename` is independent trimmed, non-empty UTF-8 text used by the centered wordmark and its “— Home” accessible label. The required `author` is also trimmed, non-empty UTF-8 text and supplies the document's author metadata; every document identifies its running Snippet version as the generator. The starter theme displays the site name in uppercase with the bundled Snippet Logo font; the stored and accessible text is unchanged, and unsupported glyphs fall back to the interface font.
 
-When `build.minify` is enabled, publication conservatively collapses whitespace-only text nodes between HTML tags. It leaves prose, attributes, comments, doctypes, inline spacing, and the contents of `pre`, `code`, `textarea`, `script`, and `style` unchanged. It also stream-minifies `resources/site.css` and optional `site/theme.css`: external whitespace is collapsed, whitespace around `{`, `}`, `;`, and `,` is removed, and strings, escapes, comments, and meaningful token spacing are preserved. Malformed or uncertain CSS is copied unchanged. When minification is disabled, both stylesheets use the direct byte-for-byte copy path. `resources/theme.js`, content assets, and files beneath `site/assets/` remain byte-for-byte copies in either mode.
+When `build.minify` is enabled, publication conservatively collapses whitespace-only text nodes between HTML tags. It leaves prose, attributes, comments, doctypes, inline spacing, and the contents of `pre`, `code`, `textarea`, `script`, and `style` unchanged. It also stream-minifies required `resources/theme.css` and optional `site/site.css`: external whitespace is collapsed, whitespace around `{`, `}`, `;`, and `,` is removed, and strings, escapes, comments, and meaningful token spacing are preserved. Malformed or uncertain CSS is copied unchanged. When minification is disabled, both stylesheets use the direct byte-for-byte copy path. `resources/theme.js`, optional `site/site.js`, content assets, and files beneath `site/assets/` remain byte-for-byte copies in either mode.
 
 ### Site assets
 
@@ -196,13 +214,13 @@ Every regular file under `site/assets/` is copied to `/assets/site/` with its re
 
 ### Templates and theme
 
-The 12 editable HTML files under `resources/templates/` own the author-customizable structural markup. `layout.html` provides the document shell, header, navigation, main region, and footer; the remaining files define the homepage, shared collection and content structures, and repeated items. Small engine-owned fragments remain in PHP when they serialize typed data or depend on validated runtime state: Markdown HTML, date markup, navigation links, resource hints, conditional stylesheet tags, empty states, and optional index links. This keeps loops and conditionals out of the template language without creating one-off fragment templates.
+The 12 editable HTML files under `resources/templates/` own the author-customizable structural markup. `layout.html` provides the document shell, metadata, header, navigation, main region, and footer; the remaining files define the homepage, shared collection and content structures, and repeated items. Small engine-owned fragments remain in PHP when they serialize typed data or depend on validated runtime state: Markdown HTML, social metadata, date markup, navigation links, resource hints, conditional stylesheet and script tags, empty states, and optional index links. This keeps loops and conditionals out of the template language without creating one-off fragment templates.
 
-Templates use named placeholders such as `{{body}}`, `{{title}}`, and `{{items}}`. Surrounding HTML, classes, and text may change, and placeholders may move or repeat, but every placeholder expected by a template must remain and unknown or malformed placeholders are rejected before publication. Placeholder values are either escaped text or trusted HTML produced by the engine or another validated template, so keep them in their intended text or attribute contexts rather than moving them into JavaScript or CSS. The layout's `{{author}}` placeholder supplies author metadata, `{{version}}` supplies the release-managed generator version, `{{base_path}}` prefixes template-owned root links, and the repeatable `{{sitename}}` placeholder supplies both wordmark text and its accessible home label. The generic `{{preloads}}` placeholder belongs in the document head before the stylesheets and remains empty when no validated resource hint applies. The wordmark links home; the adjacent native popover contains Articles, Tags, Pages, ordered `menu_order` pages, and a final `llms.txt` link without widening the header.
+Templates use named placeholders such as `{{body}}`, `{{title}}`, and `{{items}}`. Surrounding HTML, classes, and text may change, and placeholders may move or repeat, but every placeholder expected by a template must remain and unknown or malformed placeholders are rejected before publication. Placeholder values are either escaped text or trusted HTML produced by the engine or another validated template, so keep them in their intended text or attribute contexts rather than moving them into JavaScript or CSS. The layout's `{{author}}` placeholder supplies author metadata, `{{version}}` supplies the release-managed generator version, `{{base_path}}` prefixes template-owned root links, and the repeatable `{{sitename}}` placeholder supplies both wordmark text and its accessible home label. `{{social_metadata}}` emits engine-owned Open Graph and Twitter/X metadata. `{{preloads}}` belongs before the stylesheets, `{{site_stylesheet}}` follows the built-in stylesheet, and `{{site_script}}` follows the built-in script. Each optional placeholder renders an empty string when its validated site asset is absent. The wordmark links home; the adjacent native popover contains Articles, Tags, Pages, ordered `menu_order` pages, and a final `llms.txt` link without widening the header.
 
 The default theme follows the visitor's system light or dark preference until the menu's theme action is used. That choice is stored under `snippet-theme` and synchronized across open same-origin tabs when browser storage is available. The behavior lives in `resources/theme.js`, is copied unchanged to `/assets/theme.js`, and is permitted by the generated same-origin Content Security Policy without `unsafe-inline`.
 
-The builder treats UTF-8 `site/theme.css` as optional, copies it to `/assets/theme.css` when present, and loads it after the default stylesheet. Put downstream rules in the final CSS layer:
+The builder publishes required `resources/theme.css` as `/assets/theme.css`, then loads optional UTF-8 `site/site.css` from `/assets/site.css`. Optional UTF-8 `site/site.js` is copied byte-for-byte to `/assets/site.js` and loaded with `defer` after `/assets/theme.js`. Absent optional files produce neither tags nor output. Put downstream CSS rules in the final layer:
 
 ```css
 @layer overrides {
@@ -212,7 +230,9 @@ The builder treats UTF-8 `site/theme.css` as optional, copies it to `/assets/the
 }
 ```
 
-The starter site self-hosts the upright and italic variable webfonts for [Atkinson Hyperlegible Next](https://www.brailleinstitute.org/freefont/) for reading and interface text, plus the supplied Snippet Logo WOFF2 for the wordmark. The upright interface and wordmark fonts are each preloaded only when both `site/theme.css` and the matching asset are present; the italic interface font remains demand-loaded. These known paths provide an optional preload optimization in the renderer; they do not constrain replacement fonts or require configurable preload machinery. The Atkinson files come from the [official font repository at commit `7925f50`](https://github.com/googlefonts/atkinson-hyperlegible-next/tree/7925f50f649b3813257faf2f4c0b381011f434f1) and are distributed under the SIL Open Font License 1.1 included beside them. No font-service request is made. Remove `site/theme.css` to return all three stable font tokens to their system fallbacks, or replace its `@font-face` declarations and files beneath `site/assets/fonts/` to self-host other families.
+The starter site self-hosts the upright and italic variable webfonts for [Atkinson Hyperlegible Next](https://www.brailleinstitute.org/freefont/) for reading and interface text, plus the supplied Snippet Logo WOFF2 for the wordmark. The upright interface and wordmark fonts are each preloaded only when both `site/site.css` and the matching asset are present; the italic interface font remains demand-loaded. These known paths provide an optional preload optimization in the renderer; they do not constrain replacement fonts or require configurable preload machinery. The Atkinson files come from the [official font repository at commit `7925f50`](https://github.com/googlefonts/atkinson-hyperlegible-next/tree/7925f50f649b3813257faf2f4c0b381011f434f1) and are distributed under the SIL Open Font License 1.1 included beside them. No font-service request is made. Remove `site/site.css` to return all three stable font tokens to their system fallbacks, or replace its `@font-face` declarations and files beneath `site/assets/fonts/` to self-host other families.
+
+Every route keeps its canonical link and receives Open Graph and Twitter/X title, description, URL, and site-name metadata. Articles use `og:type=article`; other routes use `website`. A covered article also emits its validated absolute image URL, MIME type, dimensions, and non-empty authored alt text, and uses the large-image card. No site-wide social image or additional social configuration is implied.
 
 ### Stable CSS API
 

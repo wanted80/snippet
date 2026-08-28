@@ -37,7 +37,7 @@ it('serves the initial build, watches changes, and injects live reload only in p
         $response = file_get_contents("http://127.0.0.1:{$port}/post/");
         $version = file_get_contents("http://127.0.0.1:{$port}/.snippet-preview-version");
         $reload = file_get_contents("http://127.0.0.1:{$port}/.snippet-preview-reload.js");
-        $assetHeaders = get_headers("http://127.0.0.1:{$port}/assets/site.css", true);
+        $assetHeaders = get_headers("http://127.0.0.1:{$port}/assets/theme.css", true);
         $llmsHeaders = get_headers("http://127.0.0.1:{$port}/llms.txt", true);
         file_put_contents($path . '/page.md', 'After!!');
     };
@@ -418,7 +418,7 @@ it('serves only the configured mount path and scopes redirects and live reload b
         ->and($mounted)->toBeString()->toContain(
             'Mounted.',
             '<script src="/snippet/.snippet-preview-reload.js"',
-            '<link rel="stylesheet" href="/snippet/assets/site.css">',
+            '<link rel="stylesheet" href="/snippet/assets/theme.css">',
         )
         ->and($reload)->toBeString()->toContain(
             'const basePath = "/snippet";',

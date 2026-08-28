@@ -11,6 +11,8 @@ use Snippet\Content\ContentType;
 use Snippet\Exception\ContentException;
 use Snippet\Support\Slug;
 
+use function mb_ucfirst;
+
 /**
  * Creates the minimal intentionally incomplete source files for one content item.
  *
@@ -39,22 +41,18 @@ final readonly class DraftCreator
         }
 
         $this->validateSlug($slug);
-        $collection = match ($type) {
-            ContentType::Page => 'content/pages',
-            ContentType::Article => 'content/articles',
-        };
+        $collection = 'content/' . $type->collection();
+        $sourceName = $type->sourceFilename();
         if ($type === ContentType::Page) {
             if ($date !== null) {
                 throw new InvalidArgumentException('New page does not accept --date.');
             }
 
             $dateComponents = [];
-            $sourceName = 'page.md';
             $metadata = self::PAGE_METADATA;
         } else {
             $selectedDate = $this->articleDate($date);
             $dateComponents = explode('-', $selectedDate);
-            $sourceName = 'article.md';
             $metadata = $this->articleMetadata($selectedDate);
         }
 
@@ -116,7 +114,7 @@ final readonly class DraftCreator
     {
         $content = $root . '/content';
         $path = $root . '/' . $collection;
-        $subject = $type === ContentType::Article ? 'Article' : 'Page';
+        $subject = mb_ucfirst($type->value, 'UTF-8');
         if (is_link($content) || !is_dir($path) || is_link($path)) {
             throw new ContentException("{$subject} collection directory '{$path}' does not exist or is not a regular non-symlink directory.");
         }

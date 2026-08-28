@@ -108,7 +108,16 @@ final readonly class HtmlRenderer
             'document' => MarkdownHtmlRenderer::render($item->document, basePath: $this->config->basePath),
         ]);
 
-        return $this->layout($item->title . ' — ' . $this->config->title, $item->description, $item->url(), $body, $item instanceof Page ? $item->slug : null);
+        return $this->layout(
+            $item->title . ' — ' . $this->config->title,
+            $item->description,
+            $item->url(),
+            $body,
+            $item instanceof Page ? $item->slug : null,
+            $item->title,
+            $item instanceof Article ? 'article' : 'website',
+            $item instanceof Article ? $item->image : null,
+        );
     }
 
     public function pages(): string
@@ -192,20 +201,31 @@ final readonly class HtmlRenderer
         return $this->layout($title . ' — ' . $this->config->title, 'Articles tagged ' . $tag->label . '.', $tag->url(), $body, null);
     }
 
-    private function layout(string $title, string $description, string $route, string $body, ?string $currentPage): string
-    {
+    private function layout(
+        string $title,
+        string $description,
+        string $route,
+        string $body,
+        ?string $currentPage,
+        ?string $socialTitle = null,
+        string $socialType = 'website',
+        ?ArticleImage $socialImage = null,
+    ): string {
         $preloads = '';
-        $themeStylesheet = '';
-        if ($this->config->hasTheme) {
+        if ($this->config->hasSiteStylesheet) {
             if (in_array(self::UPRIGHT_FONT_ASSET, $this->config->assets, true)) {
                 $preloads .= '<link rel="preload" href="' . $this->config->publicPath('/assets/site/') . self::UPRIGHT_FONT_ASSET . '" as="font" type="font/woff2" crossorigin>' . "\n";
             }
             if (in_array(self::WORDMARK_FONT_ASSET, $this->config->assets, true)) {
                 $preloads .= '<link rel="preload" href="' . $this->config->publicPath('/assets/site/') . self::WORDMARK_FONT_ASSET . '" as="font" type="font/woff2" crossorigin>' . "\n";
             }
-
-            $themeStylesheet .= '<link rel="stylesheet" href="' . $this->config->publicPath('/assets/theme.css') . "\">\n";
         }
+        $siteStylesheet = $this->config->hasSiteStylesheet
+            ? '<link rel="stylesheet" href="' . $this->config->publicPath('/assets/site.css') . "\">\n"
+            : '';
+        $siteScript = $this->config->hasSiteScript
+            ? '<script src="' . $this->config->publicPath('/assets/site.js') . '" defer></script>' . "\n"
+            : '';
 
         $navigation = $this->navigationLink('/articles/', 'Articles', str_starts_with($route, '/articles/'));
         $navigation .= "\n" . $this->navigationLink('/tags/', 'Tags', str_starts_with($route, '/tags/'));
@@ -224,9 +244,11 @@ final readonly class HtmlRenderer
             'version' => ApplicationVersion::CURRENT,
             'title' => $this->escape($title),
             'canonical' => $this->escape($this->config->canonicalUrl($route)),
+            'social_metadata' => $this->socialMetadata($socialTitle ?? $title, $description, $route, $socialType, $socialImage),
             'base_path' => $this->escape($this->config->basePath),
             'preloads' => $preloads,
-            'theme_stylesheet' => $themeStylesheet,
+            'site_stylesheet' => $siteStylesheet,
+            'site_script' => $siteScript,
             'sitename' => $this->escape($this->config->sitename),
             'navigation' => $navigation,
             'body' => $body,
@@ -258,6 +280,52 @@ final readonly class HtmlRenderer
             'width' => (string) $article->image->width,
             'height' => (string) $article->image->height,
         ]);
+    }
+
+    private function socialMetadata(
+        string $title,
+        string $description,
+        string $route,
+        string $type,
+        ?ArticleImage $image,
+    ): string {
+        $escapedTitle = $this->escape($title);
+        $escapedDescription = $this->escape($description);
+        $metadata = '<meta property="og:type" content="' . $type . "\">\n"
+            . '<meta property="og:title" content="' . $escapedTitle . "\">\n"
+            . '<meta property="og:description" content="' . $escapedDescription . "\">\n"
+            . '<meta property="og:url" content="' . $this->escape($this->config->canonicalUrl($route)) . "\">\n"
+            . '<meta property="og:site_name" content="' . $this->escape($this->config->sitename) . "\">\n";
+
+        if ($image instanceof ArticleImage) {
+            $imageUrl = $this->socialImageUrl($route, $image);
+            $metadata .= '<meta property="og:image" content="' . $imageUrl . "\">\n"
+                . '<meta property="og:image:type" content="' . $image->format->mediaType() . "\">\n"
+                . '<meta property="og:image:width" content="' . $image->width . "\">\n"
+                . '<meta property="og:image:height" content="' . $image->height . "\">\n";
+            if ($image->alt !== '') {
+                $metadata .= '<meta property="og:image:alt" content="' . $this->escape($image->alt) . "\">\n";
+            }
+        }
+
+        $metadata .= '<meta name="twitter:card" content="' . ($image instanceof ArticleImage ? 'summary_large_image' : 'summary') . "\">\n"
+            . '<meta name="twitter:title" content="' . $escapedTitle . "\">\n"
+            . '<meta name="twitter:description" content="' . $escapedDescription . "\">\n";
+        if ($image instanceof ArticleImage) {
+            $metadata .= '<meta name="twitter:image" content="' . $this->socialImageUrl($route, $image) . "\">\n";
+            if ($image->alt !== '') {
+                $metadata .= '<meta name="twitter:image:alt" content="' . $this->escape($image->alt) . "\">\n";
+            }
+        }
+
+        return $metadata;
+    }
+
+    private function socialImageUrl(string $route, ArticleImage $image): string
+    {
+        $path = implode('/', array_map(rawurlencode(...), explode('/', $image->path)));
+
+        return $this->escape($this->config->canonicalUrl($route) . $path);
     }
 
     private function homeArticleSummary(Article $article): string

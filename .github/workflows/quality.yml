@@ -32,6 +32,9 @@ jobs:
       - name: Run development quality gate
         run: make docker-check
 
+      - name: Smoke-test release builder image
+        run: make builder-smoke
+
       - name: Audit locked dependencies
         run: make docker-audit
 

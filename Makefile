@@ -4,17 +4,20 @@ COMPOSE ?= $(shell if docker compose version >/dev/null 2>&1; then printf '%s' '
 PULL ?= 0
 NO_CACHE ?= 0
 REMOVE_ORPHANS ?= 1
+BUILDER_IMAGE ?= snippet-builder:smoke
 
 truthy = $(filter 1 true yes on,$(strip $(1)))
 falsy = $(filter 0 false no off,$(strip $(1)))
 BUILD_OPTIONS = $(if $(call truthy,$(PULL)),--pull) $(if $(call truthy,$(NO_CACHE)),--no-cache)
 ORPHAN_OPTION = $(if $(call falsy,$(REMOVE_ORPHANS)),,--remove-orphans)
 
-.PHONY: help docker-image docker-install docker-validate docker-build docker-preview docker-preview-trust docker-preview-down docker-shell docker-config docker-test docker-mutations docker-analyse docker-audit docker-lint docker-fix docker-check
+.PHONY: help builder-image builder-smoke docker-image docker-install docker-validate docker-build docker-preview docker-preview-trust docker-preview-down docker-shell docker-config docker-test docker-mutations docker-analyse docker-audit docker-lint docker-fix docker-check
 
 help:
 	@echo 'Snippet Docker commands'
 	@echo
+	@echo '  make builder-image         Build the release builder image'
+	@echo '  make builder-smoke         Smoke-test the release builder image'
 	@echo '  make docker-image          Build the selected application image'
 	@echo '  make docker-install        Synchronize its isolated vendor volume'
 	@echo '  make docker-validate       Validate site configuration and content'
@@ -41,6 +44,12 @@ help:
 	@echo 'PULL=1 refreshes base images (and Caddy for preview); NO_CACHE=1 bypasses'
 	@echo 'the application image build cache. Preview removes orphan containers by'
 	@echo 'default; pass REMOVE_ORPHANS=0 to retain them.'
+
+builder-image:
+	docker build $(BUILD_OPTIONS) --file docker/builder.Dockerfile --tag "$(BUILDER_IMAGE)" .
+
+builder-smoke: builder-image
+	sh docker/builder-smoke "$(BUILDER_IMAGE)"
 
 docker-image:
 	$(COMPOSE) build $(BUILD_OPTIONS) app
@@ -101,5 +110,5 @@ docker-fix:
 docker-check:
 	$(MAKE) ENVIRONMENT=development docker-install
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app composer app:check
-	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app shellcheck .devcontainer/post-create.sh docker/devcontainer-entrypoint docker/trust-caddy-ca
+	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app shellcheck .devcontainer/post-create.sh docker/builder-smoke docker/devcontainer-entrypoint docker/trust-caddy-ca
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app node --check resources/theme.js

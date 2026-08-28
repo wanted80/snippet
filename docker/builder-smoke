@@ -1,0 +1,66 @@
+#!/bin/sh
+
+set -eu
+
+image=${1:-snippet-builder:smoke}
+workspace=$(mktemp -d)
+
+cleanup() {
+    rm -rf -- "${workspace}"
+}
+
+trap cleanup EXIT HUP INT TERM
+
+run_builder() {
+    docker run --rm \
+        --network none \
+        --read-only \
+        --cap-drop ALL \
+        --security-opt no-new-privileges \
+        --user "$(id -u):$(id -g)" \
+        --mount "type=bind,source=${workspace},destination=/workspace" \
+        --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
+        "${image}" "$@"
+}
+
+test "$(docker run --rm --entrypoint id "${image}" -u)" != 0
+test "$(docker run --rm --entrypoint php "${image}" -r 'echo ini_get("memory_limit");')" = 512M
+test "$(docker run --rm --entrypoint php "${image}" -r 'echo ini_get("max_execution_time");')" = 0
+test "$(docker run --rm --entrypoint php "${image}" -r 'echo date_default_timezone_get();')" = UTC
+test "$(docker run --rm --entrypoint php "${image}" -r 'echo ini_get("default_charset");')" = UTF-8
+test "$(docker run --rm --entrypoint php "${image}" -r 'echo ini_get("allow_url_fopen");')" = ""
+test "$(docker run --rm --entrypoint php "${image}" -r 'echo ini_get("display_errors");')" = stderr
+test "$(docker run --rm --entrypoint php "${image}" -r 'echo ini_get("error_reporting");')" = "$(docker run --rm --entrypoint php "${image}" -r 'echo E_ALL;')"
+test "$(docker run --rm --entrypoint php "${image}" -r 'echo ini_get("log_errors");')" = ""
+test "$(docker run --rm --entrypoint php "${image}" -r 'echo ini_get("zend.assertions");')" = -1
+
+docker run --rm --entrypoint sh "${image}" -c '
+    ! command -v composer >/dev/null 2>&1
+    ! command -v git >/dev/null 2>&1
+    ! command -v node >/dev/null 2>&1
+    test ! -e /app/tests
+    test ! -e /app/docs
+    test ! -e /app/src/Authoring
+    test ! -e /app/src/Preview
+    test ! -e /app/resources/preview-router.php
+'
+
+run_builder --version
+run_builder init
+run_builder validate
+run_builder build
+
+test -f "${workspace}/public/index.html"
+test -f "${workspace}/public/assets/theme.css"
+test -f "${workspace}/public/assets/theme.js"
+test ! -e "${workspace}/resources/preview-router.php"
+
+if run_builder preview >/dev/null 2>&1; then
+    echo 'Builder unexpectedly accepted preview.' >&2
+    exit 1
+fi
+
+if run_builder new page example >/dev/null 2>&1; then
+    echo 'Builder unexpectedly accepted new.' >&2
+    exit 1
+fi

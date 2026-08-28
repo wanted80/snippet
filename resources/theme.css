@@ -434,8 +434,13 @@
     }
 
     .theme-toggle {
+        display: none;
         grid-column: 3;
         justify-self: end;
+    }
+
+    :root[data-theme] .theme-toggle {
+        display: inline-grid;
     }
 
     .menu-toggle[aria-expanded="true"] {

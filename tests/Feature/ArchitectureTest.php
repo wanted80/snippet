@@ -170,7 +170,7 @@ it('isolates the devcontainer from the host Docker Compose project', function ()
 it('ships its configured interface and wordmark fonts locally', function (): void {
     $root = dirname(__DIR__, 2);
     $fontDirectory = $root . '/site/assets/fonts/atkinson-hyperlegible-next';
-    $theme = file_get_contents($root . '/site/theme.css');
+    $theme = file_get_contents($root . '/site/site.css');
     $upright = file_get_contents($fontDirectory . '/atkinson-hyperlegible-next-variable.woff2');
     $italic = file_get_contents($fontDirectory . '/atkinson-hyperlegible-next-italic-variable.woff2');
     $license = file_get_contents($fontDirectory . '/OFL.txt');

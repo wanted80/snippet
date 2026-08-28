@@ -12,13 +12,14 @@ use Snippet\Support\ApplicationVersion;
  * @param list<string> $arguments
  * @return array{int, string, string}
  */
-function runApplication(string $root, array $arguments, ?PublicationInputLoader $publicationInputLoader = null): array
+function runApplication(string $root, array $arguments, ?PublicationInputLoader $publicationInputLoader = null, ?Closure $nanoseconds = null): array
 {
     $stdout = new SplFileObject('php://memory', 'w+');
     $stderr = new SplFileObject('php://memory', 'w+');
     $status = new Application(
         $root,
         publicationInputLoader: $publicationInputLoader ?? new PublicationInputLoader(),
+        nanoseconds: $nanoseconds,
     )->run($arguments, $stdout, $stderr);
     $stdout->rewind();
     $stderr->rewind();
@@ -35,7 +36,45 @@ it('reports deterministic counts on successful validation', function (): void {
     $this->item('about', ['title' => 'About', 'description' => 'D']);
     $this->resources();
     expect(runApplication($this->directory, ['bin/snippet', 'validate']))
-        ->toBe([0, "Valid site and content: 2 items (1 article, 1 page).\n", '']);
+        ->toBe([0, "Valid site: 1 article, 1 page, 0 tags, 3 assets.\n", '']);
+});
+
+it('reports successful publication counts and rounded full-command duration', function (): void {
+    $article = $this->article('one', ['title' => 'One', 'description' => 'D', 'date' => '2026-01-01', 'tags' => ['One', 'Two']]);
+    file_put_contents($article . '/notes.txt', 'notes');
+    $this->item('about', ['title' => 'About', 'description' => 'D']);
+    $this->resources();
+    $readings = [1_000_000, 14_400_000];
+
+    expect(runApplication(
+        $this->directory,
+        ['bin/snippet', 'build'],
+        nanoseconds: static function () use (&$readings): int {
+            $reading = array_shift($readings);
+            assert(is_int($reading));
+
+            return $reading;
+        },
+    ))->toBe([0, "Built site: 1 article, 1 page, 2 tags, 4 assets, 13 files in 13 ms.\n", '']);
+});
+
+it('uses correct plurals in validation and build summaries', function (): void {
+    $this->content();
+    $this->resources();
+    $readings = [0, 600_000];
+
+    expect(runApplication($this->directory, ['bin/snippet', 'validate']))
+        ->toBe([0, "Valid site: 0 articles, 0 pages, 0 tags, 3 assets.\n", ''])
+        ->and(runApplication(
+            $this->directory,
+            ['bin/snippet', 'build'],
+            nanoseconds: static function () use (&$readings): int {
+                $reading = array_shift($readings);
+                assert(is_int($reading));
+
+                return $reading;
+            },
+        ))->toBe([0, "Built site: 0 articles, 0 pages, 0 tags, 3 assets, 8 files in 1 ms.\n", '']);
 });
 
 it('reports the application version without loading publication inputs', function (): void {
@@ -73,7 +112,7 @@ it('validates publication templates with internal limits before reporting succes
 it('validates required publication assets before reporting success', function (string $fault, string $message): void {
     $this->content();
     $this->resources();
-    $path = $this->directory . '/resources/site.css';
+    $path = $this->directory . '/resources/theme.css';
     if ($fault === 'missing') {
         unlink($path);
     } elseif ($fault === 'encoding') {
@@ -102,7 +141,7 @@ it('validates the required favicon asset', function (string $fault, string $mess
     } else {
         $size = filesize($path);
         assert(is_int($size));
-        file_put_contents($this->directory . '/resources/site.css', 'x');
+        file_put_contents($this->directory . '/resources/theme.css', 'x');
         file_put_contents($this->directory . '/resources/theme.js', 'x');
         $publicationInputLoader = new PublicationInputLoader(limits: new Limits(assetBytes: $size - 1));
         $expectedMessage = 'exceeds the ' . ($size - 1) . '-byte asset limit.';
@@ -234,7 +273,7 @@ it('resolves the real CLI root independently from the caller working directory',
     fclose($pipes[1]);
     fclose($pipes[2]);
     expect(proc_close($process))->toBe(0)
-        ->and($stdout)->toMatch('/^Valid site and content: \\d+ items? \\(\\d+ articles?, \\d+ pages?\\)\\.\\n$/')
+        ->and($stdout)->toMatch('/^Valid site: \\d+ articles?, \\d+ pages?, \\d+ tags?, \\d+ assets?\\.\\n$/')
         ->and($stderr)->toBe('');
 });
 

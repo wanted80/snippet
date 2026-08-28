@@ -33,12 +33,15 @@ final readonly class Publisher
     {
         $limits ??= new Limits();
         $templates = $this->templateLoader->load($root . '/resources/templates', $limits);
-        $this->validateAsset($root . '/resources/site.css', $limits, true);
+        $this->validateAsset($root . '/resources/theme.css', $limits, true);
         $this->validateAsset($root . '/resources/theme.js', $limits, true);
         $this->validateAsset($root . '/site/favicon.svg', $limits, true);
 
-        if ($config->hasTheme) {
-            $this->validateAsset($root . '/site/theme.css', $limits, true);
+        if ($config->hasSiteStylesheet) {
+            $this->validateAsset($root . '/site/site.css', $limits, true);
+        }
+        if ($config->hasSiteScript) {
+            $this->validateAsset($root . '/site/site.js', $limits, true);
         }
 
         foreach ($config->assets as $asset) {
@@ -56,7 +59,7 @@ final readonly class Publisher
         ?Limits $limits = null,
         ?Templates $templates = null,
         ?string $previewVersion = null,
-    ): void {
+    ): BuildReport {
         $public = $root . '/public';
         if (is_link($public) || (file_exists($public) && !is_dir($public))) {
             throw new ContentException("Publication target '{$public}' must be a regular directory or absent.");
@@ -80,6 +83,8 @@ final readonly class Publisher
             $this->removeIfPresent($temporary);
             throw new ContentException('Unable to publish site: ' . $throwable->getMessage(), 0, $throwable);
         }
+
+        return $budget->report($catalog);
     }
 
     private function buildTree(
@@ -119,12 +124,15 @@ final readonly class Publisher
             $this->writeFile($path, $contents);
         }
 
-        $this->publishCss($root . '/resources/site.css', $output . '/assets/site.css', $config->minify, $budget);
+        $this->publishCss($root . '/resources/theme.css', $output . '/assets/theme.css', $config->minify, $budget);
         $this->copy($root . '/resources/theme.js', $output . '/assets/theme.js', $budget);
         $this->copy($root . '/site/favicon.svg', $output . '/favicon.svg', $budget);
 
-        if ($config->hasTheme) {
-            $this->publishCss($root . '/site/theme.css', $output . '/assets/theme.css', $config->minify, $budget);
+        if ($config->hasSiteStylesheet) {
+            $this->publishCss($root . '/site/site.css', $output . '/assets/site.css', $config->minify, $budget);
+        }
+        if ($config->hasSiteScript) {
+            $this->copy($root . '/site/site.js', $output . '/assets/site.js', $budget);
         }
 
         foreach ($config->assets as $asset) {
@@ -140,11 +148,13 @@ final readonly class Publisher
         Article|Page $item,
         BuildBudget $budget,
     ): void {
-        $routePrefix = $item instanceof Article ? '/articles/' : '/';
-        $directory = $output . $routePrefix . $item->slug . '/';
-        $sourceDirectory = $item instanceof Article
-            ? $root . '/content/articles/' . str_replace('-', '/', $item->date) . '/' . $item->slug
-            : $root . '/content/pages/' . $item->slug;
+        $directory = $output . $item->url();
+        $type = $item->type();
+        $sourceDirectory = $root . '/content/' . $type->collection();
+        if ($item instanceof Article) {
+            $sourceDirectory .= '/' . str_replace('-', '/', $item->date);
+        }
+        $sourceDirectory .= '/' . $item->slug;
         $this->writeHtml($directory . 'index.html', $renderer->content($item), $config->minify, $budget);
         foreach ($item->assets as $asset) {
             $this->copy($sourceDirectory . '/' . $asset->path, $directory . $asset->path, $budget);

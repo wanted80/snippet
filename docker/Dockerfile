@@ -39,22 +39,6 @@ USER snippet
 
 CMD ["bin/snippet", "validate"]
 
-FROM production AS builder
-
-USER root
-
-COPY docker/builder-entrypoint /usr/local/bin/snippet
-RUN chmod 0755 /usr/local/bin/snippet \
-    && mkdir /workspace \
-    && chown snippet:snippet /workspace
-
-WORKDIR /workspace
-
-USER snippet
-
-ENTRYPOINT ["snippet"]
-CMD ["--version"]
-
 FROM php-base AS development
 
 RUN apt-get update \

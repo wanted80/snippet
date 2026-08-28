@@ -16,11 +16,14 @@ final readonly class PublicationInventory
     public function __construct(Config $config, Catalog $catalog)
     {
         $targets = [];
-        foreach (['/', '/index.html', '/llms.txt', '/favicon.svg', '/articles/', '/articles/index.html', '/pages/', '/pages/index.html', '/tags/', '/tags/index.html', '/assets/site.css', '/assets/theme.js'] as $target) {
+        foreach (['/', '/index.html', '/llms.txt', '/favicon.svg', '/articles/', '/articles/index.html', '/pages/', '/pages/index.html', '/tags/', '/tags/index.html', '/assets/theme.css', '/assets/theme.js'] as $target) {
             $targets[$target] = true;
         }
-        if ($config->hasTheme) {
-            $targets['/assets/theme.css'] = true;
+        if ($config->hasSiteStylesheet) {
+            $targets['/assets/site.css'] = true;
+        }
+        if ($config->hasSiteScript) {
+            $targets['/assets/site.js'] = true;
         }
         foreach ($config->assets as $asset) {
             $targets[$this->canonical('/assets/site/' . $asset)] = true;

@@ -11,6 +11,7 @@ use Snippet\Markdown\Block;
 use Snippet\Markdown\Document;
 use Snippet\Markdown\InlineArena;
 use Snippet\Markdown\Parser;
+use Snippet\Publishing\BuildReport;
 use Snippet\Publishing\CssMinifier;
 use Snippet\Publishing\HtmlMinifier;
 use Snippet\Publishing\LlmsTxtRenderer;
@@ -68,7 +69,7 @@ it('builds the complete deterministic site with escaped semantic HTML and every 
 
     mkdir($this->directory . '/site/assets/media', 0777, true);
     file_put_contents($this->directory . '/site/assets/media/custom.bin', "asset\0");
-    file_put_contents($this->directory . '/site/theme.css', '@layer overrides { :root { --color-accent: #fff; } }');
+    file_put_contents($this->directory . '/site/site.css', '@layer overrides { :root { --color-accent: #fff; } }');
     $this->site(['title' => 'Brand & Co', 'sitename' => 'Snippet']);
     $this->resources();
     $layoutPath = $this->directory . '/resources/templates/layout.html';
@@ -112,7 +113,7 @@ it('builds the complete deterministic site with escaped semantic HTML and every 
     $tagsIndex = $first['tags/index.html'];
     $tagArchive = $first['tags/php-web/index.html'];
     $multilingualTagArchive = $first['tags/日本語/index.html'];
-    $css = $first['assets/site.css'];
+    $css = $first['assets/theme.css'];
     $llms = $first['llms.txt'];
     expect($llms)->toBe(<<<'TXT'
 # Brand & Co
@@ -134,7 +135,7 @@ TXT . "\n")
         ->toContain('<meta name="generator" content="Snippet ' . ApplicationVersion::CURRENT . '">')
         ->toContain('<link rel="canonical" href="https://example.test/articles/post/">')
         ->toContain('<article class="content-article">')
-        ->toMatch('~<link rel="stylesheet" href="/assets/site\.css">\s+<link rel="stylesheet" href="/assets/theme\.css">~')
+        ->toMatch('~<link rel="stylesheet" href="/assets/theme\.css">\s+<link rel="stylesheet" href="/assets/site\.css">~')
         ->toContain("style-src 'self'", "font-src 'self'", "img-src 'self'")->not->toContain('fonts.bunny.net', 'frame-ancestors')
         ->toContain('<footer class="site-footer">', '<p class="site-footer-row">', '<span class="site-footer-heart" aria-hidden="true">♥</span>', '<a href="https://github.com/wanted80/snippet"><svg class="site-footer-github"')
         ->toContain('<h1>Post &lt;one&gt;</h1>')
@@ -226,7 +227,7 @@ it('builds an empty catalog through the CLI', function (): void {
     $stderr->rewind();
 
     expect($status)->toBe(0)
-        ->and($stdout->fgets())->toBe("Built site: 0 items.\n")
+        ->and($stdout->fgets())->toMatch('/^Built site: 0 articles, 0 pages, 0 tags, 3 assets, 8 files in \\d+ ms\\.\\n$/')
         ->and($stderr->fgets())->toBeEmpty()
         ->and(file_get_contents($this->directory . '/public/index.html'))->toContain('No articles have been published yet.')
         ->and(file_get_contents($this->directory . '/public/llms.txt'))->toBe("# Test Site\n\n> A test site.\n\nAuthor: Test Author\n")
@@ -276,7 +277,7 @@ it('enforces publication resource ceilings before replacing the current site', f
     $templates = $boundary === 'asset'
         ? new TemplateLoader()->load($this->directory . '/resources/templates')
         : null;
-    expect(fn() => $publisher->publish($this->directory, $config, $catalog, $limits, $templates))->toThrow(ContentException::class, $message)
+    expect(fn(): BuildReport => $publisher->publish($this->directory, $config, $catalog, $limits, $templates))->toThrow(ContentException::class, $message)
         ->and(publicationBytes($this->directory))->toBe(['index.html' => 'old publication'])
         ->and(glob($this->directory . '/.snippet-*'))->toBe([]);
 })->with([
@@ -379,14 +380,14 @@ it('preserves the current publication when minified stylesheet publication fails
     file_put_contents($this->directory . '/public/index.html', 'old publication');
 
     if ($removeStylesheet) {
-        unlink($this->directory . '/resources/site.css');
+        unlink($this->directory . '/resources/theme.css');
     }
 
     foreach ($faults as $operation => $outcomes) {
         PublisherFaults::set($operation, $outcomes);
     }
 
-    expect(fn() => $publisher->publish($this->directory, $config, $catalog, templates: $templates))
+    expect(fn(): BuildReport => $publisher->publish($this->directory, $config, $catalog, templates: $templates))
         ->toThrow(ContentException::class, $message)
         ->and(publicationBytes($this->directory))->toBe(['index.html' => 'old publication'])
         ->and(glob($this->directory . '/.snippet-*'))->toBe([]);
@@ -449,7 +450,7 @@ it('hides the homepage grid when no secondary collection exists', function (): v
     expect(file_get_contents($this->directory . '/public/index.html'))
         ->toContain('<div class="home-grid home-grid-empty">')
         ->not->toContain('home-archive', 'home-tags')
-        ->and(file_get_contents($this->directory . '/public/assets/site.css'))
+        ->and(file_get_contents($this->directory . '/public/assets/theme.css'))
         ->toMatch('/\.home-grid-empty\s*\{[^}]*display: none;/s');
 });
 
@@ -480,7 +481,7 @@ it('ships a storage-safe system-aware theme script as a dedicated asset', functi
     expect(mb_substr_count($html, '<script src="/assets/theme.js"></script>'))->toBe(1)
         ->and($html)->toContain("script-src 'self'")
         ->toContain('<header class="site-header" data-site-header>', '<script src="/assets/theme.js"></script>')
-        ->toMatch('~<meta charset="utf-8">.*<meta http-equiv="Content-Security-Policy".*<meta name="theme-color" content="#08090a">.*<link rel="icon" href="/favicon\.svg" type="image/svg\+xml">.*<script src="/assets/theme.js"></script>.*<link rel="stylesheet" href="/assets/site.css">~s')
+        ->toMatch('~<meta charset="utf-8">.*<meta http-equiv="Content-Security-Policy".*<meta name="theme-color" content="#08090a">.*<link rel="icon" href="/favicon\.svg" type="image/svg\+xml">.*<script src="/assets/theme.js"></script>.*<link rel="stylesheet" href="/assets/theme.css">~s')
         ->toContain('<button class="menu-toggle icon-button" type="button" popovertarget="site-navigation" aria-expanded="false" aria-controls="site-navigation" aria-label="Open navigation" title="Open navigation">')
         ->toContain('<button class="theme-toggle icon-button" type="button" data-theme-toggle aria-label="Toggle color theme" title="Toggle color theme">')
         ->toContain('<svg class="menu-icon theme-icon-light"', '<svg class="menu-icon theme-icon-dark"')
@@ -502,7 +503,7 @@ it('preloads each bundled upright font only when the theme and matching asset ar
     $this->content();
     $this->resources();
     if ($theme) {
-        file_put_contents($this->directory . '/site/theme.css', '@layer overrides {}');
+        file_put_contents($this->directory . '/site/site.css', '@layer overrides {}');
     }
     if ($upright) {
         $fontDirectory = $this->directory . '/site/assets/fonts/atkinson-hyperlegible-next';
@@ -529,7 +530,7 @@ it('preloads each bundled upright font only when the theme and matching asset ar
     assert(is_int($count));
     expect($matches[0])->toBe($expectedPreloads);
 
-    $stylesheet = mb_strpos($html, '<link rel="stylesheet" href="/assets/site.css">');
+    $stylesheet = mb_strpos($html, '<link rel="stylesheet" href="/assets/theme.css">');
     assert(is_int($stylesheet));
     foreach ($expectedPreloads as $preload) {
         $position = mb_strpos($html, $preload);
@@ -537,22 +538,22 @@ it('preloads each bundled upright font only when the theme and matching asset ar
         expect($position)->toBeLessThan($stylesheet);
     }
 })->with([
-    'theme and both fonts' => [true, true, true, ['fonts/atkinson-hyperlegible-next/atkinson-hyperlegible-next-variable.woff2', 'fonts/snippet-logo/snippet-logo.woff2']],
-    'theme and interface font' => [true, true, false, ['fonts/atkinson-hyperlegible-next/atkinson-hyperlegible-next-variable.woff2']],
-    'theme and wordmark font' => [true, false, true, ['fonts/snippet-logo/snippet-logo.woff2']],
-    'theme without fonts' => [true, false, false, []],
-    'fonts without theme' => [false, true, true, []],
+    'site stylesheet and both fonts' => [true, true, true, ['fonts/atkinson-hyperlegible-next/atkinson-hyperlegible-next-variable.woff2', 'fonts/snippet-logo/snippet-logo.woff2']],
+    'site stylesheet and interface font' => [true, true, false, ['fonts/atkinson-hyperlegible-next/atkinson-hyperlegible-next-variable.woff2']],
+    'site stylesheet and wordmark font' => [true, false, true, ['fonts/snippet-logo/snippet-logo.woff2']],
+    'site stylesheet without fonts' => [true, false, false, []],
+    'fonts without site stylesheet' => [false, true, true, []],
 ]);
 
 it('minifies generated HTML and first-party CSS while preserving copied assets', function (): void {
     $this->item('page', ['title' => 'Page', 'description' => 'D'], "Text  with *inline* spacing.\n\n```js\nconst  value = '<tag>';\n```");
-    $theme = "@layer overrides {\n    :root { --custom:  one; }\n}\n";
+    $siteStylesheet = "@layer overrides {\n    :root { --custom:  one; }\n}\n";
     $arbitraryCss = "custom { bytes:  unchanged; }\n";
     mkdir($this->directory . '/site/assets');
-    file_put_contents($this->directory . '/site/theme.css', $theme);
+    file_put_contents($this->directory . '/site/site.css', $siteStylesheet);
     file_put_contents($this->directory . '/site/assets/copied.css', $arbitraryCss);
     $this->resources();
-    $css = file_get_contents($this->directory . '/resources/site.css');
+    $css = file_get_contents($this->directory . '/resources/theme.css');
     $javascript = file_get_contents($this->directory . '/resources/theme.js');
     assert(is_string($css));
     assert(is_string($javascript));
@@ -560,8 +561,8 @@ it('minifies generated HTML and first-party CSS while preserving copied assets',
     $config = new ConfigLoader()->load($this->directory . '/site');
     new Publisher()->publish($this->directory, $config, $this->catalog());
     $readable = file_get_contents($this->directory . '/public/page/index.html');
-    $readableCss = file_get_contents($this->directory . '/public/assets/site.css');
-    $readableTheme = file_get_contents($this->directory . '/public/assets/theme.css');
+    $readableCss = file_get_contents($this->directory . '/public/assets/theme.css');
+    $readableTheme = file_get_contents($this->directory . '/public/assets/site.css');
     $readableArbitraryCss = file_get_contents($this->directory . '/public/assets/site/copied.css');
     assert(is_string($readable));
     assert(is_string($readableCss));
@@ -570,8 +571,8 @@ it('minifies generated HTML and first-party CSS while preserving copied assets',
     $config = new ConfigLoader()->load($this->directory . '/site');
     new Publisher()->publish($this->directory, $config, $this->catalog());
     $compact = file_get_contents($this->directory . '/public/page/index.html');
-    $compactCss = file_get_contents($this->directory . '/public/assets/site.css');
-    $compactTheme = file_get_contents($this->directory . '/public/assets/theme.css');
+    $compactCss = file_get_contents($this->directory . '/public/assets/theme.css');
+    $compactTheme = file_get_contents($this->directory . '/public/assets/site.css');
     assert(is_string($compact));
     assert(is_string($compactCss));
     assert(is_string($compactTheme));
@@ -580,7 +581,7 @@ it('minifies generated HTML and first-party CSS while preserving copied assets',
         ->and($compact)->toContain('<html lang="en"> <head>', "Text  with <em>inline</em> spacing.", "const  value = &apos;&lt;tag&gt;&apos;;", '<script src="/assets/theme.js"></script>')
         ->and(mb_strlen($compact, '8bit'))->toBeLessThan(mb_strlen($readable, '8bit'))
         ->and($readableCss)->toBe($css)
-        ->and($readableTheme)->toBe($theme)
+        ->and($readableTheme)->toBe($siteStylesheet)
         ->and($readableArbitraryCss)->toBe($arbitraryCss)
         ->and($compactCss)->not->toBe($css)
         ->and(mb_strlen($compactCss, '8bit'))->toBeLessThan(mb_strlen($css, '8bit'))
@@ -603,7 +604,7 @@ it('publishes every browser-facing URL beneath the configured deployment path wi
     $this->image($articlePath . '/cover.webp');
     mkdir($this->directory . '/site/assets/fonts/snippet-logo', 0777, true);
     file_put_contents($this->directory . '/site/assets/fonts/snippet-logo/snippet-logo.woff2', 'font');
-    file_put_contents($this->directory . '/site/theme.css', '@font-face { src: url("site/fonts/snippet-logo/snippet-logo.woff2"); }');
+    file_put_contents($this->directory . '/site/site.css', '@font-face { src: url("site/fonts/snippet-logo/snippet-logo.woff2"); }');
     $this->resources();
 
     expect(validatePublication($this->directory, 'build')[0])->toBe(0);
@@ -611,10 +612,10 @@ it('publishes every browser-facing URL beneath the configured deployment path wi
     $home = file_get_contents($this->directory . '/public/index.html');
     $article = file_get_contents($this->directory . '/public/articles/post/index.html');
     $llms = file_get_contents($this->directory . '/public/llms.txt');
-    $theme = file_get_contents($this->directory . '/public/assets/theme.css');
+    $theme = file_get_contents($this->directory . '/public/assets/site.css');
     expect([$home, $article])->each->toBeString()
         ->and($home)->toContain('<link rel="icon" href="/snippet/favicon.svg" type="image/svg+xml">')
-        ->and($home)->toContain('<link rel="canonical" href="https://example.test/snippet/">', '<script src="/snippet/assets/theme.js"></script>', '<link rel="stylesheet" href="/snippet/assets/site.css">', '<link rel="stylesheet" href="/snippet/assets/theme.css">', '<link rel="preload" href="/snippet/assets/site/fonts/snippet-logo/snippet-logo.woff2"', '<a class="site-brand" href="/snippet/"', '<a class="menu-link" href="/snippet/articles/">', '<a href="/snippet/tags/caf%C3%A9/"', '<img src="/snippet/articles/post/cover.webp"', '<a href="/snippet/articles/post/notes.txt">asset</a>')
+        ->and($home)->toContain('<link rel="canonical" href="https://example.test/snippet/">', '<script src="/snippet/assets/theme.js"></script>', '<link rel="stylesheet" href="/snippet/assets/theme.css">', '<link rel="stylesheet" href="/snippet/assets/site.css">', '<link rel="preload" href="/snippet/assets/site/fonts/snippet-logo/snippet-logo.woff2"', '<a class="site-brand" href="/snippet/"', '<a class="menu-link" href="/snippet/articles/">', '<a href="/snippet/tags/caf%C3%A9/"', '<img src="/snippet/articles/post/cover.webp"', '<a href="/snippet/articles/post/notes.txt">asset</a>')
         ->and($article)->toBeString()
         ->toContain('<link rel="icon" href="/snippet/favicon.svg" type="image/svg+xml">')
         ->toContain('<link rel="canonical" href="https://example.test/snippet/articles/post/">', '<a href="/snippet/about/">about</a>', '<a href="notes.txt">asset</a>', '<a href="#part">fragment</a>', '<a href="https://outside.test/">external</a>', '<img src="/snippet/articles/post/cover.webp"')

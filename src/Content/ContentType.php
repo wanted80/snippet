@@ -12,6 +12,11 @@ enum ContentType: string
     case Article = 'article';
     case Page = 'page';
 
+    public function collection(): string
+    {
+        return $this->value . 's';
+    }
+
     /** @return list<string> */
     public function metadataFields(): array
     {
@@ -19,6 +24,11 @@ enum ContentType: string
             self::Article => ['title', 'description', 'date', 'tags'],
             self::Page => ['title', 'description'],
         };
+    }
+
+    public function sourceFilename(): string
+    {
+        return $this->value . '.md';
     }
 
     public function url(string $slug): string

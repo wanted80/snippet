@@ -19,7 +19,7 @@ it('renders independent document, author, and multilingual wordmark identities',
     new Publisher()->publish($this->directory, $config, $this->catalog());
 
     $home = file_get_contents($this->directory . '/public/index.html');
-    $css = file_get_contents($this->directory . '/public/assets/site.css');
+    $css = file_get_contents($this->directory . '/public/assets/theme.css');
     assert(is_string($home));
     assert(is_string($css));
 
@@ -47,13 +47,13 @@ it('ships and copies the configured wordmark font byte for byte', function (): v
     $source = file_get_contents(dirname(__DIR__, 2) . '/site/assets/fonts/snippet-logo/snippet-logo.woff2');
     assert(is_string($source));
     file_put_contents($fontDirectory . '/snippet-logo.woff2', $source);
-    copy(dirname(__DIR__, 2) . '/site/theme.css', $this->directory . '/site/theme.css');
+    copy(dirname(__DIR__, 2) . '/site/site.css', $this->directory . '/site/site.css');
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
     new Publisher()->publish($this->directory, $config, $this->catalog());
     $published = file_get_contents($this->directory . '/public/assets/site/fonts/snippet-logo/snippet-logo.woff2');
-    $theme = file_get_contents($this->directory . '/public/assets/theme.css');
+    $theme = file_get_contents($this->directory . '/public/assets/site.css');
     assert(is_string($published));
     assert(is_string($theme));
 

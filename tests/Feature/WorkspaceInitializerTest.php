@@ -24,6 +24,7 @@ function workspaceScaffold(string $root): string
     file_put_contents($source . '/content/nested/post.md', "Starter post.\n");
     file_put_contents($source . '/site/config.php', "starter config\n");
     file_put_contents($source . '/resources/templates/layout.html', "<main>{{body}}</main>\n");
+    file_put_contents($source . '/resources/preview-router.php', "engine preview support\n");
 
     return $source;
 }
@@ -52,6 +53,7 @@ it('synchronizes a deterministic scaffold into an empty workspace', function ():
         ->and(file_get_contents($workspace . '/content/nested/post.md'))->toBe("Starter post.\n")
         ->and(file_get_contents($workspace . '/site/config.php'))->toBe("starter config\n")
         ->and(file_get_contents($workspace . '/resources/templates/layout.html'))->toBe("<main>{{body}}</main>\n")
+        ->and($workspace . '/resources/preview-router.php')->not->toBeFile()
         ->and(PublisherFaults::calls('scaffolding_fclose'))->toBe(6)
         ->and($workspace . '/public')->not->toBeDirectory();
 });

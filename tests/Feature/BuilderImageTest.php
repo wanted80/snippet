@@ -66,12 +66,15 @@ it('runs version, validation, and builds against a content-only workspace', func
     $this->item('about', ['title' => 'About', 'description' => 'About this site.']);
     $this->resources();
 
+    $build = runBuilderEntrypoint($this->directory, 'build');
+
     expect(runBuilderEntrypoint($this->directory, '--version'))
         ->toBe([0, 'Snippet ' . ApplicationVersion::CURRENT . "\n", ''])
         ->and(runBuilderEntrypoint($this->directory, 'validate'))
-        ->toBe([0, "Valid site and content: 1 items (0 articles, 1 page).\n", ''])
-        ->and(runBuilderEntrypoint($this->directory, 'build'))
-        ->toBe([0, "Built site: 1 items.\n", ''])
+        ->toBe([0, "Valid site: 0 articles, 1 page, 0 tags, 3 assets.\n", ''])
+        ->and($build[0])->toBe(0)
+        ->and($build[1])->toMatch('/^Built site: 0 articles, 1 page, 0 tags, 3 assets, 9 files in \\d+ ms\\.\\n$/')
+        ->and($build[2])->toBeEmpty()
         ->and(file_get_contents($this->directory . '/public/about/index.html'))
         ->toContain('<h1>About</h1>')
         ->and($this->directory . '/vendor')->not->toBeDirectory()
@@ -95,10 +98,14 @@ it('initializes an empty content-only workspace from the bundled starter', funct
     $root = dirname(__DIR__, 2);
     foreach (['content', 'site', 'resources'] as $input) {
         foreach (builderScaffoldFiles($root . '/' . $input) as $file) {
+            if ($input . '/' . $file === 'resources/preview-router.php') {
+                continue;
+            }
             expect(file_get_contents($this->directory . '/' . $input . '/' . $file))
                 ->toBe(file_get_contents($root . '/' . $input . '/' . $file));
         }
     }
+    expect($this->directory . '/resources/preview-router.php')->not->toBeFile();
 });
 
 it('adds missing scaffold files without changing existing files or public output', function (): void {
@@ -163,10 +170,10 @@ it('does not follow workspace symlinks while initializing', function (): void {
 it('reports validation failures from the mounted workspace', function (): void {
     $this->content();
     $this->resources();
-    unlink($this->directory . '/resources/site.css');
+    unlink($this->directory . '/resources/theme.css');
 
     expect(runBuilderEntrypoint($this->directory, 'validate'))
-        ->toBe([1, '', "Error: Publication asset '{$this->directory}/resources/site.css' must be a regular non-symlink file.\n"]);
+        ->toBe([1, '', "Error: Publication asset '{$this->directory}/resources/theme.css' must be a regular non-symlink file.\n"]);
 });
 
 it('rejects commands outside the builder image contract', function (array $arguments): void {
@@ -179,3 +186,54 @@ it('rejects commands outside the builder image contract', function (array $argum
     'draft creation' => [['new', 'page', 'about']],
     'extra argument' => [['build', 'extra']],
 ]);
+
+it('defines a dedicated minimal builder image and runtime configuration', function (): void {
+    $root = dirname(__DIR__, 2);
+    $dockerfile = file_get_contents($root . '/docker/builder.Dockerfile');
+    $configuration = file_get_contents($root . '/docker/builder.ini');
+    $developmentDockerfile = file_get_contents($root . '/docker/Dockerfile');
+
+    expect($dockerfile)->toBeString()
+        ->and($configuration)->toBeString()
+        ->and($developmentDockerfile)->toBeString();
+
+    assert(is_string($dockerfile));
+    assert(is_string($configuration));
+    assert(is_string($developmentDockerfile));
+
+    expect($dockerfile)->toContain(
+        'FROM composer:2 AS dependencies',
+        'FROM php:8.5-cli-alpine AS builder',
+        'docker-php-ext-install -j"$(nproc)" mbstring',
+        'COPY --from=dependencies /app/vendor /app/vendor',
+        'COPY src/Application.php src/Application.php',
+        'COPY src/Content src/Content',
+        'COPY src/Scaffolding src/Scaffolding',
+        'COPY resources/theme.css resources/theme.css',
+        'COPY resources/theme.js resources/theme.js',
+        'COPY resources/templates resources/templates',
+        'COPY docker/builder-entrypoint /usr/local/bin/snippet',
+        'USER snippet',
+        'WORKDIR /workspace',
+        'ENTRYPOINT ["snippet"]',
+    )
+        ->not->toContain(
+            'COPY . .',
+            'src/Authoring',
+            'src/Preview',
+            'resources/preview-router.php',
+            'EXPOSE',
+        )
+        ->and($configuration)->toBe(
+            "memory_limit=512M\n"
+            . "max_execution_time=0\n"
+            . "date.timezone=UTC\n"
+            . "default_charset=UTF-8\n"
+            . "allow_url_fopen=Off\n"
+            . "display_errors=stderr\n"
+            . "error_reporting=E_ALL\n"
+            . "log_errors=Off\n"
+            . "zend.assertions=-1\n",
+        )
+        ->and($developmentDockerfile)->not->toContain(' AS builder');
+});

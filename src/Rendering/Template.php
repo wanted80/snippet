@@ -24,7 +24,7 @@ enum Template: string
     public function placeholders(): array
     {
         return match ($this) {
-            self::Layout => ['language', 'description', 'author', 'version', 'title', 'canonical', 'base_path', 'preloads', 'theme_stylesheet', 'sitename', 'navigation', 'body'],
+            self::Layout => ['language', 'description', 'author', 'version', 'title', 'canonical', 'social_metadata', 'base_path', 'preloads', 'site_stylesheet', 'site_script', 'sitename', 'navigation', 'body'],
             self::Home => ['site_title', 'featured_article', 'archive_section', 'tag_section', 'empty_state', 'home_grid_class'],
             self::FeaturedArticle => ['url', 'title', 'date', 'tags', 'figure', 'document'],
             self::ArticleFigure => ['url', 'alt', 'width', 'height'],

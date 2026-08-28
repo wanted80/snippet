@@ -13,6 +13,9 @@ final readonly class WorkspaceInitializer
     /** @var list<'content'|'site'|'resources'> */
     private const array INPUTS = ['content', 'site', 'resources'];
 
+    /** @var list<string> */
+    private const array EXCLUDED_FILES = ['resources/preview-router.php'];
+
     public function __construct(
         private string $scaffoldRoot,
         private string $workspace,
@@ -92,6 +95,9 @@ final readonly class WorkspaceInitializer
         foreach (array_diff($entries, ['.', '..']) as $entry) {
             $child = $relative . '/' . $entry;
             $childSource = $this->scaffoldRoot . '/' . $child;
+            if (in_array($child, self::EXCLUDED_FILES, true)) {
+                continue;
+            }
             if (is_link($childSource)) {
                 throw new RuntimeException("Bundled scaffold entry '{$child}' must not be a symbolic link.");
             }

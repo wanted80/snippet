@@ -109,7 +109,7 @@ it('creates drafts that fail while incomplete and validate after only required c
     file_put_contents($this->directory . '/' . $relative . '/meta.php', $metadata);
 
     expect(runDraftApplication($this->directory, ['bin/snippet', 'validate']))
-        ->toBe([0, "Valid site and content: 1 items (" . ($type === 'article' ? '1 article, 0 pages' : '0 articles, 1 page') . ").\n", '']);
+        ->toBe([0, 'Valid site: ' . ($type === 'article' ? '1 article, 0 pages' : '0 articles, 1 page') . ", 0 tags, 3 assets.\n", '']);
 })->with([
     'page' => [
         'page',

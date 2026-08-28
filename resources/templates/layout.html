@@ -11,11 +11,13 @@
         <meta name="theme-color" content="#08090a">
         <link rel="icon" href="{{base_path}}/favicon.svg" type="image/svg+xml">
         <script src="{{base_path}}/assets/theme.js"></script>
+        {{site_script}}
         <title>{{title}}</title>
         <link rel="canonical" href="{{canonical}}">
+        {{social_metadata}}
         {{preloads}}
-        <link rel="stylesheet" href="{{base_path}}/assets/site.css">
-        {{theme_stylesheet}}
+        <link rel="stylesheet" href="{{base_path}}/assets/theme.css">
+        {{site_stylesheet}}
     </head>
     <body>
         <a class="skip-link" href="#main">Skip to content</a>

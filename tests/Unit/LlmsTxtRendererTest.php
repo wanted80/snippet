@@ -30,7 +30,7 @@ it('streams deterministic escaped metadata in catalog order without reading docu
         url: 'https://example.test',
         language: 'en',
         assets: [],
-        hasTheme: false,
+        hasSiteStylesheet: false,
     );
 
     $chunks = iterator_to_array(new LlmsTxtRenderer($config, $catalog)->render(), false);

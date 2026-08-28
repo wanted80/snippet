@@ -39,7 +39,7 @@ MARKDOWN);
     file_put_contents($this->directory . '/site/assets/downloads/guide.pdf', 'PDF');
     $markdown = file_get_contents($path . '/article.md');
     assert(is_string($markdown));
-    file_put_contents($path . '/article.md', $markdown . "\n[site asset](/assets/site/downloads/guide.pdf)\n[theme](/assets/site.css)\n");
+    file_put_contents($path . '/article.md', $markdown . "\n[site asset](/assets/site/downloads/guide.pdf)\n[theme](/assets/theme.css)\n");
     $this->resources();
 
     expect(validatePublication($this->directory)[0])->toBe(0);
@@ -92,7 +92,8 @@ it('exposes a sorted deterministic publication inventory', function (): void {
         'date' => '2026-01-01',
         'tags' => ['Café'],
     ]);
-    file_put_contents($this->directory . '/site/theme.css', '/* theme */');
+    file_put_contents($this->directory . '/site/site.css', '/* site */');
+    file_put_contents($this->directory . '/site/site.js', '/* site */');
     file_put_contents($path . '/notes.txt', 'notes');
     $this->resources();
 
@@ -102,7 +103,7 @@ it('exposes a sorted deterministic publication inventory', function (): void {
     sort($sorted, SORT_STRING);
 
     expect($paths)->toBe($sorted)
-        ->toContain('/articles/post/', '/articles/post/index.html', '/articles/post/notes.txt', '/favicon.svg', '/llms.txt', '/tags/caf%C3%A9/');
+        ->toContain('/articles/post/', '/articles/post/index.html', '/articles/post/notes.txt', '/assets/theme.css', '/assets/theme.js', '/assets/site.css', '/assets/site.js', '/favicon.svg', '/llms.txt', '/tags/caf%C3%A9/');
 });
 
 it('fails explicitly if URL parsing invariants are bypassed', function (string $kind, string $message): void {
@@ -114,7 +115,7 @@ it('fails explicitly if URL parsing invariants are bypassed', function (string $
         url: $kind === 'origin' ? 'https://' : 'https://example.test',
         language: 'en',
         assets: [],
-        hasTheme: false,
+        hasSiteStylesheet: false,
     );
     $target = $kind === 'target' ? 'https://' : 'https://example.test/';
     $inlines = new InlineBuilder();

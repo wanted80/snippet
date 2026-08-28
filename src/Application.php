@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Snippet;
 
+use Closure;
 use InvalidArgumentException;
 use Snippet\Authoring\DraftCreator;
+use Snippet\Content\ContentType;
 use Snippet\Exception\ContentException;
 use Snippet\Preview\Previewer;
 use Snippet\Preview\PreviewServer;
+use Snippet\Publishing\BuildReport;
 use Snippet\Publishing\PublicationInputLoader;
 use Snippet\Publishing\Publisher;
 use Snippet\Support\ApplicationVersion;
@@ -25,9 +28,11 @@ final readonly class Application
     public function __construct(
         private string $root,
         private Publisher $publisher = new Publisher(),
-        private Previewer $previewer = new PreviewServer(),
+        private ?Previewer $previewer = null,
         private PublicationInputLoader $publicationInputLoader = new PublicationInputLoader(),
-        private DraftCreator $draftCreator = new DraftCreator(),
+        private ?DraftCreator $draftCreator = null,
+        /** @var (Closure(): int)|null */
+        private ?Closure $nanoseconds = null,
     ) {}
 
     /**
@@ -67,25 +72,38 @@ final readonly class Application
             return 2;
         }
 
+        $started = $command === 'build' ? $this->nanoseconds() : null;
+        $report = null;
         try {
             if ($command === 'preview') {
-                return $this->previewer->run($this->root, $stdout, $stderr, ...$previewAddress);
+                $previewer = $this->previewer ?? new PreviewServer();
+                return $previewer->run($this->root, $stdout, $stderr, ...$previewAddress);
             }
 
             $inputs = $this->publicationInputLoader->load($this->root);
             $catalog = $inputs->catalog;
             if ($command === 'build') {
-                $this->publisher->publish($this->root, $inputs->config, $catalog, $inputs->limits, $inputs->templates);
+                $report = $this->publisher->publish($this->root, $inputs->config, $catalog, $inputs->limits, $inputs->templates);
             }
         } catch (ContentException $contentException) {
             $stderr->fwrite('Error: ' . $contentException->getMessage() . "\n");
             return 1;
         }
 
-        if ($command === 'build') {
-            $stdout->fwrite("Built site: {$catalog->count()} items.\n");
+        if ($report instanceof BuildReport && is_int($started)) {
+            $milliseconds = intdiv($this->nanoseconds() - $started + 500_000, 1_000_000);
+            $stdout->fwrite('Built site: '
+                . $this->plural($report->articles, 'article') . ', '
+                . $this->plural($report->pages, 'page') . ', '
+                . $this->plural($report->tags, 'tag') . ', '
+                . $this->plural($report->assets, 'asset') . ', '
+                . $this->plural($report->files, 'file') . " in {$milliseconds} ms.\n");
         } else {
-            $stdout->fwrite("Valid site and content: {$catalog->count()} items ({$this->plural(count($catalog->articles), 'article')}, {$this->plural(count($catalog->pages), 'page')}).\n");
+            $stdout->fwrite('Valid site: '
+                . $this->plural(count($catalog->articles), 'article') . ', '
+                . $this->plural(count($catalog->pages), 'page') . ', '
+                . $this->plural(count($catalog->tags()), 'tag') . ', '
+                . $this->plural($inputs->assetCount(), 'asset') . ".\n");
         }
         return 0;
     }
@@ -102,7 +120,8 @@ final readonly class Application
 
         [$type, $slug, $date] = $parsed;
         try {
-            $destination = $this->draftCreator->create($this->root, $type, $slug, $date);
+            $draftCreator = $this->draftCreator ?? new DraftCreator();
+            $destination = $draftCreator->create($this->root, $type, $slug, $date);
         } catch (InvalidArgumentException $invalidArgumentException) {
             $this->usageError($stderr, $invalidArgumentException->getMessage());
             return 2;
@@ -111,7 +130,7 @@ final readonly class Application
             return 1;
         }
 
-        $source = $type === 'article' ? 'article.md' : 'page.md';
+        $source = ContentType::from($type)->sourceFilename();
         $stdout->fwrite("Created incomplete draft: {$destination}\n");
         $stdout->fwrite("Complete {$destination}/{$source} and {$destination}/meta.php before validating or building.\n");
         return 0;
@@ -227,5 +246,14 @@ final readonly class Application
     private function plural(int $count, string $word): string
     {
         return $count . ' ' . $word . ($count === 1 ? '' : 's');
+    }
+
+    private function nanoseconds(): int
+    {
+        if ($this->nanoseconds instanceof Closure) {
+            return ($this->nanoseconds)();
+        }
+
+        return (int) hrtime(true);
     }
 }
