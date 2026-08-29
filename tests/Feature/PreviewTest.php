@@ -90,7 +90,7 @@ it('keeps serving the last valid build when a watched edit is invalid', function
     $stderr->rewind();
 
     expect(file_get_contents($this->directory . '/public/post/index.html'))->toContain('Valid.')
-        ->and($stderr->fread(8192))->toContain("Build failed: Internal link target '/missing/' in '{$path}/page.md' at line 1 does not exist in the generated site.");
+        ->and($stderr->fread(8192))->toBe("Build failed: Internal link target '/missing/' in 'content/pages/post/page.md' at line 1 does not exist in the generated site. Keeping the last valid site.\n");
 });
 
 it('requests a fresh preview process when runtime source changes', function (): void {
@@ -280,7 +280,7 @@ it('reports when the local PHP server cannot stay running', function (): void {
 
     $stderr->rewind();
     expect($status)->toBe(1)
-        ->and($stderr->fread(8192))->toContain('Preview server stopped unexpectedly');
+        ->and($stderr->fread(8192))->toBe("Preview server failed: The local PHP server stopped unexpectedly.\n");
 });
 
 it('does not start a server when the initial build is invalid', function (): void {

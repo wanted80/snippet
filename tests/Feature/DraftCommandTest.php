@@ -135,7 +135,7 @@ it('reports actionable new-command usage errors without changing content or publ
 
     expect($status)->toBe(2)
         ->and($output)->toBeEmpty()
-        ->and($error)->toStartWith("Error: {$message}\nUsage:\n")
+        ->and($error)->toStartWith("Error: {$message}\n\nUsage:\n")
         ->and(scandir($this->directory . '/content/pages'))->toBe(['.', '..'])
         ->and(scandir($this->directory . '/content/articles'))->toBe(['.', '..'])
         ->and(file_get_contents($this->directory . '/public/index.html'))->toBe('published');
@@ -217,7 +217,7 @@ it('atomically refuses an existing destination and preserves its files and publi
 
     expect($status)->toBe(1)
         ->and($output)->toBeEmpty()
-        ->and($error)->toBe("Error: Draft destination '{$destination}' already exists.\n")
+        ->and($error)->toBe("Draft creation failed: Draft destination '{$destination}' already exists.\n")
         ->and(file_get_contents($path . '/keep.txt'))->toBe('keep')
         ->and(file_get_contents($this->directory . '/public/index.html'))->toBe('published');
 })->with([
@@ -255,7 +255,7 @@ it('cleans up article date directories after a directory creation failure', func
 
     expect($status)->toBe(1)
         ->and($output)->toBeEmpty()
-        ->and($error)->toBe("Error: Unable to create draft directory '{$relative}'.\n")
+        ->and($error)->toBe("Draft creation failed: Unable to create draft directory '{$relative}'.\n")
         ->and(file_exists($this->directory . '/content/articles/2026'))->toBeFalse();
 })->with([
     'first date directory' => [['fail'], 'content/articles/2026'],

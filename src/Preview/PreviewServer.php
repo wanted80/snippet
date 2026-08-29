@@ -6,6 +6,7 @@ namespace Snippet\Preview;
 
 use Closure;
 use Generator;
+use Snippet\Cli\ErrorReporter;
 use Snippet\Exception\ContentException;
 use Snippet\Publishing\PublicationInputLoader;
 use Snippet\Publishing\Publisher;
@@ -35,6 +36,7 @@ final class PreviewServer implements Previewer
         private readonly ?int $maximumPolls = null,
         private readonly ?Closure $afterPoll = null,
         private readonly ?Closure $processStarter = null,
+        private readonly ErrorReporter $errorReporter = new ErrorReporter(),
     ) {}
 
     public function run(
@@ -92,7 +94,12 @@ final class PreviewServer implements Previewer
                 ++$poll;
                 $status = proc_get_status($process);
                 if (!$status['running']) {
-                    $stderr->fwrite("Error: Preview server stopped unexpectedly.\n");
+                    $this->errorReporter->failure(
+                        $stderr,
+                        'Preview server',
+                        'The local PHP server stopped unexpectedly.',
+                        $root,
+                    );
                     return 1;
                 }
 
@@ -102,7 +109,7 @@ final class PreviewServer implements Previewer
                 } catch (ContentException $contentException) {
                     $message = $contentException->getMessage();
                     if ($message !== $watchError) {
-                        $stderr->fwrite("Watch failed: {$message} Retrying.\n");
+                        $this->errorReporter->warning($stderr, 'Watch', "{$message} Retrying.", $root);
                         $watchError = $message;
                     }
 
@@ -126,7 +133,12 @@ final class PreviewServer implements Previewer
                     }
                     $stdout->fwrite("Rebuilt site.\n");
                 } catch (ContentException $contentException) {
-                    $stderr->fwrite('Build failed: ' . $contentException->getMessage() . "\n");
+                    $this->errorReporter->warning(
+                        $stderr,
+                        'Build',
+                        $contentException->getMessage() . ' Keeping the last valid site.',
+                        $root,
+                    );
                 }
 
                 $fingerprints = $current;

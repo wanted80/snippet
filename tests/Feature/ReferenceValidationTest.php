@@ -57,7 +57,7 @@ it('reports missing internal targets with the Markdown source path and exact lin
     [$status, , $error] = validatePublication($this->directory);
 
     expect($status)->toBe(1)
-        ->and($error)->toBe("Error: Internal link target '../missing/?x=1#part' in '{$path}/article.md' at line 9 does not exist in the generated site.\n");
+        ->and($error)->toBe("Validation failed: Internal link target '../missing/?x=1#part' in 'content/articles/2026/01/01/post/article.md' at line 9 does not exist in the generated site.\n");
 });
 
 it('checks missing same-origin absolute links instead of treating them as external', function (): void {
@@ -72,7 +72,7 @@ it('checks missing same-origin absolute links instead of treating them as extern
     [$status, , $error] = validatePublication($this->directory);
 
     expect($status)->toBe(1)
-        ->and($error)->toBe("Error: Internal link target 'HTTPS://EXAMPLE.TEST:443/missing/#part' in '{$path}/article.md' at line 1 does not exist in the generated site.\n");
+        ->and($error)->toBe("Validation failed: Internal link target 'HTTPS://EXAMPLE.TEST:443/missing/#part' in 'content/articles/2026/01/01/post/article.md' at line 1 does not exist in the generated site.\n");
 });
 
 it('reports the page source path for a missing page reference', function (): void {
@@ -82,7 +82,7 @@ it('reports the page source path for a missing page reference', function (): voi
     [$status, , $error] = validatePublication($this->directory);
 
     expect($status)->toBe(1)
-        ->and($error)->toBe("Error: Internal link target '/missing/' in '{$path}/page.md' at line 1 does not exist in the generated site.\n");
+        ->and($error)->toBe("Validation failed: Internal link target '/missing/' in 'content/pages/about/page.md' at line 1 does not exist in the generated site.\n");
 });
 
 it('exposes a sorted deterministic publication inventory', function (): void {
@@ -161,7 +161,7 @@ it('rejects internal traversal above the site root', function (string $target): 
     [$status, , $error] = validatePublication($this->directory);
 
     expect($status)->toBe(1)
-        ->and($error)->toBe("Error: Internal link target '{$target}' in '{$path}/article.md' at line 1 traverses above the site root.\n");
+        ->and($error)->toBe("Validation failed: Internal link target '{$target}' in 'content/articles/2026/01/01/post/article.md' at line 1 traverses above the site root.\n");
 })->with([
     'root relative' => '/../../outside',
     'item relative' => '../../../outside',
@@ -203,7 +203,7 @@ MARKDOWN);
 
 it('checks same-origin targets beneath the deployment path and ignores targets outside it', function (string $target, bool $valid): void {
     $this->site(['url' => 'https://example.test/snippet']);
-    $path = $this->article('post', [
+    $this->article('post', [
         'title' => 'Post',
         'description' => 'D',
         'date' => '2026-01-01',
@@ -219,7 +219,7 @@ it('checks same-origin targets beneath the deployment path and ignores targets o
     }
 
     expect($status)->toBe(1)
-        ->and($error)->toContain("Internal link target '{$target}' in '{$path}/article.md' at line 1");
+        ->and($error)->toContain("Internal link target '{$target}' in 'content/articles/2026/01/01/post/article.md' at line 1");
 })->with([
     'missing beneath base' => ['https://example.test/snippet/missing/', false],
     'deployment root' => ['https://example.test/snippet', true],

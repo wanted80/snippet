@@ -137,7 +137,7 @@ it('fails cleanly for an invalid workspace', function (): void {
     file_put_contents($workspace, 'not a directory');
 
     expect(runBuilderEntrypoint($workspace, 'init'))
-        ->toBe([1, '', "Error: Workspace '{$workspace}' must be a writable non-symlink directory.\n"]);
+        ->toBe([1, '', "Workspace initialization failed: Workspace '{$workspace}' must be a writable non-symlink directory.\n"]);
 });
 
 it('fails cleanly for an unwritable workspace', function (): void {
@@ -146,7 +146,7 @@ it('fails cleanly for an unwritable workspace', function (): void {
 
     try {
         expect(runBuilderEntrypoint($this->directory, 'init'))
-            ->toBe([1, '', "Error: Workspace '{$this->directory}' must be a writable non-symlink directory.\n"]);
+            ->toBe([1, '', "Workspace initialization failed: Workspace '{$this->directory}' must be a writable non-symlink directory.\n"]);
     } finally {
         chmod($this->directory, 0755);
     }
@@ -160,7 +160,7 @@ it('does not follow workspace symlinks while initializing', function (): void {
 
     try {
         expect(runBuilderEntrypoint($this->directory, 'init'))
-            ->toBe([1, '', "Error: Cannot initialize 'content': the destination is a symbolic link.\n"])
+            ->toBe([1, '', "Workspace initialization failed: Cannot initialize 'content': the destination is a symbolic link.\n"])
             ->and(builderScaffoldFiles($outside))->toBeEmpty();
     } finally {
         rmdir($outside);
@@ -173,7 +173,7 @@ it('reports validation failures from the mounted workspace', function (): void {
     unlink($this->directory . '/resources/theme.css');
 
     expect(runBuilderEntrypoint($this->directory, 'validate'))
-        ->toBe([1, '', "Error: Publication asset '{$this->directory}/resources/theme.css' must be a regular non-symlink file.\n"]);
+        ->toBe([1, '', "Validation failed: Publication asset 'resources/theme.css' must be a regular non-symlink file.\n"]);
 });
 
 it('creates page and article drafts in an initialized content-only workspace', function (): void {
@@ -202,20 +202,20 @@ it('refuses draft creation when the required content structure is missing', func
         ->toBe([
             1,
             '',
-            "Error: Article collection directory '{$this->directory}/content/articles' does not exist or is not a regular non-symlink directory.\n",
+            "Draft creation failed: Article collection directory 'content/articles' does not exist or is not a regular non-symlink directory.\n",
         ])
         ->and($this->directory . '/content')->not->toBeDirectory()
         ->and($this->directory . '/public')->not->toBeDirectory();
 });
 
-it('rejects commands outside the builder image contract', function (array $arguments): void {
+it('rejects commands outside the builder image contract', function (array $arguments, string $message): void {
     /** @var list<string> $arguments */
     expect(runBuilderEntrypoint($this->directory, ...$arguments))
-        ->toBe([2, '', "Usage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n"]);
+        ->toBe([2, '', "Error: {$message}\n\nUsage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n"]);
 })->with([
-    'no command' => [[]],
-    'preview' => [['preview']],
-    'extra argument' => [['build', 'extra']],
+    'no command' => [[], 'A command is required.'],
+    'preview' => [['preview'], "Unknown command 'preview'."],
+    'extra argument' => [['build', 'extra'], "Command 'build' does not accept arguments."],
 ]);
 
 it('reports new-command usage through the builder interface', function (): void {
@@ -223,7 +223,7 @@ it('reports new-command usage through the builder interface', function (): void 
         ->toBe([
             2,
             '',
-            "Error: New command requires a content type and slug.\nUsage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n",
+            "Error: New command requires a content type and slug.\n\nUsage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n",
         ]);
 });
 
@@ -248,6 +248,7 @@ it('defines a dedicated minimal builder image and runtime configuration', functi
         'COPY --from=dependencies /app/vendor /app/vendor',
         'COPY src/Application.php src/Application.php',
         'COPY src/Authoring src/Authoring',
+        'COPY src/Cli src/Cli',
         'COPY src/Content src/Content',
         'COPY src/Scaffolding src/Scaffolding',
         'COPY resources/theme.css resources/theme.css',

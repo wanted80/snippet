@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 use Snippet\Application;
+use Snippet\Cli\ErrorReporter;
 use Snippet\Preview\PreviewServer;
 
 $root = dirname(__DIR__);
@@ -14,8 +15,13 @@ require $root . '/vendor/autoload.php';
 $arguments = $_SERVER['argv'];
 $stdout = new SplFileObject('php://stdout', 'w');
 $stderr = new SplFileObject('php://stderr', 'w');
+$errorReporter = new ErrorReporter(
+    decorated: getenv('NO_COLOR') === false
+        && getenv('TERM') !== 'dumb'
+        && stream_isatty(STDERR),
+);
 
-$status = new Application($root)->run(
+$status = new Application($root, errorReporter: $errorReporter)->run(
     $arguments,
     $stdout,
     $stderr,
@@ -26,7 +32,7 @@ if ($status !== PreviewServer::RESTART_EXIT_CODE) {
 }
 
 if (!function_exists('pcntl_exec')) {
-    $stderr->fwrite("Error: PCNTL is unavailable; restart preview manually to load the runtime changes.\n");
+    $errorReporter->failure($stderr, 'Preview restart', 'PCNTL is unavailable; restart preview manually to load the runtime changes.');
     exit(1);
 }
 
@@ -35,5 +41,5 @@ pcntl_exec(PHP_BINARY, [
     $root . '/bin/snippet',
     ...array_slice($arguments, 1),
 ]);
-$stderr->fwrite("Error: Unable to restart preview with fresh runtime code.\n");
+$errorReporter->failure($stderr, 'Preview restart', 'Unable to restart preview with fresh runtime code.');
 exit(1);

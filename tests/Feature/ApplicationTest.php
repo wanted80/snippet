@@ -106,7 +106,7 @@ it('validates publication templates with internal limits before reporting succes
     $publicationInputLoader = new PublicationInputLoader(limits: new Limits(templateBytes: 1));
 
     expect(runApplication($this->directory, ['bin/snippet', 'validate'], $publicationInputLoader))
-        ->toBe([1, '', "Error: HTML template '{$this->directory}/resources/templates/layout.html' exceeds the configured template size limits.\n"]);
+        ->toBe([1, '', "Validation failed: HTML template 'resources/templates/layout.html' exceeds the configured template size limits.\n"]);
 });
 
 it('validates required publication assets before reporting success', function (string $fault, string $message): void {
@@ -122,7 +122,7 @@ it('validates required publication assets before reporting success', function (s
     }
 
     expect(runApplication($this->directory, ['bin/snippet', 'validate'], $publicationInputLoader ?? null))
-        ->toBe([1, '', "Error: Publication asset '{$path}' {$message}\n"]);
+        ->toBe([1, '', "Validation failed: Publication asset 'resources/theme.css' {$message}\n"]);
 })->with([
     'missing stylesheet' => ['missing', 'must be a regular non-symlink file.'],
     'invalid stylesheet encoding' => ['encoding', 'must be readable UTF-8 text.'],
@@ -148,22 +148,25 @@ it('validates the required favicon asset', function (string $fault, string $mess
     }
 
     expect(runApplication($this->directory, ['bin/snippet', 'validate'], $publicationInputLoader ?? null))
-        ->toBe([1, '', "Error: Publication asset '{$path}' {$expectedMessage}\n"]);
+        ->toBe([1, '', "Validation failed: Publication asset 'site/favicon.svg' {$expectedMessage}\n"]);
 })->with([
     'missing favicon' => ['missing', 'must be a regular non-symlink file.'],
     'invalid favicon encoding' => ['encoding', 'must be readable UTF-8 text.'],
     'oversized favicon' => ['size', 'exceeds the 1-byte asset limit.'],
 ]);
 
-it('writes usage errors only to stderr', function (array $arguments): void {
+it('writes actionable usage errors only to stderr', function (array $arguments, string $message): void {
     /** @var list<string> $arguments */
     expect(runApplication($this->directory, $arguments))
-        ->toBe([2, '', "Usage:\n  bin/snippet --version\n  bin/snippet validate\n  bin/snippet build\n  bin/snippet preview [--host=<host>] [--port=<port>]\n  bin/snippet new page <slug>\n  bin/snippet new article <slug> [--date=YYYY-MM-DD]\n"]);
+        ->toBe([2, '', "Error: {$message}\n\nUsage:\n  bin/snippet --version\n  bin/snippet validate\n  bin/snippet build\n  bin/snippet preview [--host=<host>] [--port=<port>]\n  bin/snippet new page <slug>\n  bin/snippet new article <slug> [--date=YYYY-MM-DD]\n"]);
 })->with([
-    [[]],
-    [['bin/snippet']],
-    [['bin/snippet', 'validate', 'extra']],
-    [['bin/snippet', '--version', 'extra']],
+    'missing executable and command' => [[], 'A command is required.'],
+    'missing command' => [['bin/snippet'], 'A command is required.'],
+    'unknown command' => [['bin/snippet', 'deploy'], "Unknown command 'deploy'."],
+    'terminal control in command' => [['bin/snippet', "\e[31mdeploy"], "Unknown command '\\x1B[31mdeploy'."],
+    'validate argument' => [['bin/snippet', 'validate', 'extra'], "Command 'validate' does not accept arguments."],
+    'build argument' => [['bin/snippet', 'build', 'extra'], "Command 'build' does not accept arguments."],
+    'version argument' => [['bin/snippet', '--version', 'extra'], "Command '--version' does not accept arguments."],
 ]);
 
 it('rejects invalid and duplicate preview options', function (array $arguments, string $message): void {
@@ -172,7 +175,7 @@ it('rejects invalid and duplicate preview options', function (array $arguments, 
 
     expect($status)->toBe(2)
         ->and($output)->toBeEmpty()
-        ->and($error)->toStartWith("Error: {$message}\nUsage:\n");
+        ->and($error)->toStartWith("Error: {$message}\n\nUsage:\n");
 })->with([
     'empty host' => [['bin/snippet', 'preview', '--host='], 'Preview host must be a valid IP address or hostname.'],
     'host with scheme' => [['bin/snippet', 'preview', '--host=https://localhost'], 'Preview host must be a valid IP address or hostname.'],
@@ -183,6 +186,7 @@ it('rejects invalid and duplicate preview options', function (array $arguments, 
     'duplicate host' => [['bin/snippet', 'preview', '--host=localhost', '--host=0.0.0.0'], 'Preview option --host may be provided only once.'],
     'duplicate port' => [['bin/snippet', 'preview', '--port=8080', '--port=8081'], 'Preview option --port may be provided only once.'],
     'unknown option' => [['bin/snippet', 'preview', '--listen=localhost'], "Unknown preview option '--listen=localhost'."],
+    'unexpected argument' => [['bin/snippet', 'preview', 'extra'], "Unexpected preview argument 'extra'."],
 ]);
 
 it('delegates the long-running preview command without building through the normal CLI path', function (): void {
@@ -253,10 +257,14 @@ it('passes valid preview host and port overrides to the preview server', functio
         ->and($previewer->address)->toBe(['0.0.0.0', 9000]);
 });
 
-it('writes actionable content errors only to stderr', function (): void {
-    expect(runApplication($this->directory, ['bin/snippet', 'validate']))
-        ->toBe([1, '', "Error: Content directory '{$this->directory}/content' does not exist.\n"]);
-});
+it('identifies the failed operation in actionable content errors', function (string $command, string $operation): void {
+    expect(runApplication($this->directory, ['bin/snippet', $command]))
+        ->toBe([1, '', "{$operation} failed: Content directory 'content' does not exist.\n"]);
+})->with([
+    'validation' => ['validate', 'Validation'],
+    'build' => ['build', 'Build'],
+    'preview' => ['preview', 'Preview'],
+]);
 
 it('resolves the real CLI root independently from the caller working directory', function (): void {
     $root = dirname(__DIR__, 2);

@@ -30,6 +30,7 @@ WORKDIR /app
 COPY --from=dependencies /app/vendor /app/vendor
 COPY src/Application.php src/Application.php
 COPY src/Authoring src/Authoring
+COPY src/Cli src/Cli
 COPY src/Content src/Content
 COPY src/Exception src/Exception
 COPY src/Markdown src/Markdown
