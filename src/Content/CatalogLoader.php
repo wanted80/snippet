@@ -175,7 +175,16 @@ final readonly class CatalogLoader
     private function directories(string $directory, string $subject): array
     {
         $directories = [];
-        foreach ($this->entries($directory) as $entry) {
+        $entries = @scandir($directory, SCANDIR_SORT_ASCENDING);
+        if ($entries === false) {
+            throw new ContentException(sprintf("Unable to read directory '%s'.", $directory));
+        }
+
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
             $path = $directory . '/' . $entry;
             if (is_link($path)) {
                 throw new ContentException(mb_ucfirst($subject, 'UTF-8') . " entry '{$entry}' is a symlink; symlinks are not allowed.");
@@ -295,21 +304,6 @@ final readonly class CatalogLoader
         }
 
         return new Page($slug, $title, $description, $document, $assets, $menuOrder);
-    }
-
-    /**
-     * Return sorted directory entries without the special dot entries.
-     *
-     * @return list<string>
-     */
-    private function entries(string $directory): array
-    {
-        $entries = @scandir($directory, SCANDIR_SORT_ASCENDING);
-        if ($entries === false) {
-            throw new ContentException(sprintf("Unable to read directory '%s'.", $directory));
-        }
-
-        return array_values(array_diff($entries, ['.', '..']));
     }
 
     private function validateSlug(string $slug): void

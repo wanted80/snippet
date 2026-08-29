@@ -53,22 +53,20 @@ function fread(mixed $stream, int $length): string|false
 /** @param resource $stream */
 function fwrite(mixed $stream, string $data): int|false
 {
-    return PublisherFaults::fails('publishing_fwrite') ? false : \fwrite($stream, $data);
+    PublisherFaults::record('publishing_fwrite');
+
+    return match (PublisherFaults::outcome('publishing_fwrite')) {
+        'fail' => false,
+        'partial' => \fwrite($stream, mb_substr($data, 0, 1, '8bit')),
+        'zero' => 0,
+        default => \fwrite($stream, $data),
+    };
 }
 
 /** @param resource $stream */
 function rewind(mixed $stream): bool
 {
     return !PublisherFaults::fails('publishing_rewind') && \rewind($stream);
-}
-
-/**
- * @param resource $stream
- * @param non-negative-int $size
- */
-function ftruncate(mixed $stream, int $size): bool
-{
-    return !PublisherFaults::fails('publishing_ftruncate') && \ftruncate($stream, $size);
 }
 
 /** @param resource $stream */

@@ -339,7 +339,11 @@ final readonly class Publisher
             throw new ContentException("Unable to read temporary directory '{$path}'.");
         }
 
-        foreach (array_diff($entries, ['.', '..']) as $entry) {
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
             $this->remove($path . '/' . $entry);
         }
 

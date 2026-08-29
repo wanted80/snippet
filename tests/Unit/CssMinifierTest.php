@@ -9,7 +9,7 @@ use Snippet\Tests\PublisherFaults;
 mutates(CssMinifier::class);
 
 /** @return array{string, int} */
-function minifiedCss(string $css): array
+function minifiedCss(string $css, ?CssMinifier $minifier = null): array
 {
     $source = fopen('php://memory', 'w+b');
     $destination = fopen('php://memory', 'w+b');
@@ -18,7 +18,7 @@ function minifiedCss(string $css): array
     fwrite($source, $css);
     rewind($source);
 
-    $bytes = new CssMinifier()->minify($source, $destination);
+    $bytes = ($minifier ?? new CssMinifier())->minify($source, $destination);
     rewind($destination);
     $output = stream_get_contents($destination);
     fclose($source);
@@ -65,6 +65,7 @@ it('handles complete escape forms and end-of-input scanner states', function (st
 })->with([
     'empty input' => ['', ''],
     'trailing slash' => ['a /', 'a /'],
+    'slash between tokens' => ['a / b', 'a / b'],
     'non-hexadecimal escape' => ['.a\\g { }', '.a\\g{}'],
     'short hexadecimal escape at end' => ['\\1', '\\1'],
     'six-digit hexadecimal escape at end' => ['\\123456', '\\123456'],
@@ -76,14 +77,61 @@ it('handles complete escape forms and end-of-input scanner states', function (st
 ]);
 
 it('bounds delimiter state and falls back beyond the fixed nesting ceiling', function (): void {
-    $valid = str_repeat('(', 256) . 'x' . str_repeat(')', 256);
+    $valid = 'a,  b ' . str_repeat('(', 256) . 'x' . str_repeat(')', 256);
     $uncertain = 'a,  b ' . str_repeat('(', 257) . 'x' . str_repeat(')', 257);
 
     [$validOutput] = minifiedCss($valid);
     [$uncertainOutput] = minifiedCss($uncertain);
 
-    expect($validOutput)->toBe($valid)
+    expect($validOutput)->toBe('a,b ' . str_repeat('(', 256) . 'x' . str_repeat(')', 256))
         ->and($uncertainOutput)->toBe($uncertain);
+});
+
+it('resets scanner and byte-counting state when one minifier is reused', function (): void {
+    $minifier = new CssMinifier();
+
+    minifiedCss(str_repeat('a', 8_193), $minifier);
+    [$output, $bytes] = minifiedCss('b { color: blue; }', $minifier);
+
+    expect($output)->toBe('b{color: blue;}')
+        ->and($bytes)->toBe(mb_strlen($output, '8bit'));
+});
+
+it('flushes at exact output buffer boundaries', function (int $length, array $outcomes, int $writes, bool $fails): void {
+    /** @var list<'fail'|'pass'> $outcomes */
+    $source = fopen('php://memory', 'w+b');
+    $destination = fopen('php://memory', 'w+b');
+    assert(is_resource($source));
+    assert(is_resource($destination));
+    fwrite($source, str_repeat('a', $length));
+    rewind($source);
+    PublisherFaults::set('publishing_fwrite', $outcomes);
+
+    $minify = fn(): int => new CssMinifier()->minify($source, $destination);
+    if ($fails) {
+        expect($minify)->toThrow(ContentException::class, 'Unable to write stylesheet while minifying it.');
+    } else {
+        expect($minify())->toBe($length);
+    }
+
+    expect(PublisherFaults::calls('publishing_fwrite'))->toBe($writes);
+    fclose($source);
+    fclose($destination);
+})->with([
+    'one complete buffer' => [8_192, ['pass', 'fail'], 1, false],
+    'one buffer and one byte' => [8_193, ['pass', 'fail'], 2, true],
+    'two complete buffers' => [16_384, ['pass', 'pass', 'fail'], 2, false],
+    'two buffers and one byte' => [16_385, ['pass', 'pass', 'fail'], 3, true],
+]);
+
+it('completes partial stylesheet writes', function (): void {
+    PublisherFaults::set('publishing_fwrite', ['partial']);
+
+    [$output, $bytes] = minifiedCss('abc');
+
+    expect($output)->toBe('abc')
+        ->and($bytes)->toBe(3)
+        ->and(PublisherFaults::calls('publishing_fwrite'))->toBe(2);
 });
 
 it('keeps scanner state across fixed-size input and output buffer boundaries', function (): void {
@@ -110,6 +158,61 @@ it('rewinds and copies malformed or uncertain CSS byte for byte', function (stri
     'crossed delimiters' => 'a { width: calc([100%)); }',
 ]);
 
+it('routes every malformed lexical state through the fallback copy', function (string $css): void {
+    PublisherFaults::set('publishing_rewind', ['fail']);
+
+    expect(fn(): array => minifiedCss($css))
+        ->toThrow(ContentException::class, 'Unable to rewind stylesheet streams after malformed CSS.');
+})->with([
+    'unterminated comment' => 'a,  b /* no end',
+    'unterminated double-quoted string' => 'a,  b "no end',
+    'unterminated single-quoted string' => "a,  b 'no end",
+    'line feed in string' => "a,  b \"line\nbreak\"",
+    'carriage return in string' => "a,  b \"line\rbreak\"",
+    'form feed in string' => "a,  b \"line\fbreak\"",
+    'line feed in final string' => "a,  b \"line\nbreak",
+    'carriage return in final string' => "a,  b \"line\rbreak",
+    'form feed in final string' => "a,  b \"line\fbreak",
+    'unterminated string escape' => 'a,  b "escape\\',
+    'unterminated top-level escape' => 'a,  b \\',
+    'line feed after top-level escape' => "a,  b \\\n",
+    'carriage return after top-level escape' => "a,  b \\\r",
+    'form feed after top-level escape' => "a,  b \\\f",
+]);
+
+it('does not enter malformed fallback for complete end-of-input states', function (string $css): void {
+    PublisherFaults::set('publishing_rewind', ['fail']);
+
+    [$output, $bytes] = minifiedCss($css);
+
+    expect($output)->toBe($css)
+        ->and($bytes)->toBe(mb_strlen($css, '8bit'));
+})->with([
+    'trailing slash' => 'a/',
+    'short hexadecimal escape' => '\\1',
+    'six-digit hexadecimal escape' => '\\123456',
+]);
+
+it('preserves required whitespace after hexadecimal escape boundary bytes', function (string $hexadecimal): void {
+    $css = '\\' . $hexadecimal . '  x';
+
+    [$output] = minifiedCss($css);
+
+    expect($output)->toBe($css);
+})->with(['0', '9', 'A', 'F', 'a', 'f']);
+
+it('does not consume a seventh hexadecimal escape digit', function (): void {
+    [$output] = minifiedCss('\\1234567  x');
+
+    expect($output)->toBe('\\1234567 x');
+});
+
+it('keeps comment contents intact until the actual closing pair', function (): void {
+    [$output] = minifiedCss('a/*/  b */  c');
+
+    expect($output)->toBe('a/*/  b */ c');
+});
+
 it('is idempotent with output bounded by large input', function (): void {
     $rule = ".item, .other { width: calc(100% - 1rem); color: red; }\n";
     $css = str_repeat($rule, 20_000);
@@ -124,7 +227,7 @@ it('is idempotent with output bounded by large input', function (): void {
 });
 
 it('reports deterministic stylesheet stream failures', function (string $operation, array $outcomes, string $css, string $message): void {
-    /** @var list<'fail'|'pass'|'throw'> $outcomes */
+    /** @var list<'fail'|'pass'|'throw'|'zero'> $outcomes */
     $source = fopen('php://memory', 'w+b');
     $destination = fopen('php://memory', 'w+b');
     assert(is_resource($source));
@@ -141,7 +244,7 @@ it('reports deterministic stylesheet stream failures', function (string $operati
 })->with([
     'scan read' => ['publishing_fread', ['fail'], 'a { color: red; }', 'Unable to read stylesheet while minifying it.'],
     'fallback rewind' => ['publishing_rewind', ['fail'], '{', 'Unable to rewind stylesheet streams after malformed CSS.'],
-    'fallback truncate' => ['publishing_ftruncate', ['fail'], '{', 'Unable to rewind stylesheet streams after malformed CSS.'],
     'fallback read' => ['publishing_fread', ['pass', 'pass', 'fail'], '{', 'Unable to read the original stylesheet after malformed CSS.'],
     'write' => ['publishing_fwrite', ['fail'], 'a { color: red; }', 'Unable to write stylesheet while minifying it.'],
+    'zero-byte write' => ['publishing_fwrite', ['zero'], 'a { color: red; }', 'Unable to write stylesheet while minifying it.'],
 ]);

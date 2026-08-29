@@ -30,6 +30,8 @@ final class CssMinifier
 
     private string $outputBuffer = '';
 
+    private int $outputBufferBytes = 0;
+
     private int $outputBytes = 0;
 
     private ?string $lastOutputByte = null;
@@ -67,7 +69,8 @@ final class CssMinifier
             if ($slash) {
                 $slash = false;
                 if ($byte === '*') {
-                    $this->emit('/*');
+                    $this->emitByte('/');
+                    $this->emitByte('*');
                     if (!$this->comment()) {
                         return false;
                     }
@@ -75,7 +78,7 @@ final class CssMinifier
                     continue;
                 }
 
-                $this->emit('/');
+                $this->emitByte('/');
             }
 
             if ($this->isWhitespace($byte)) {
@@ -91,7 +94,7 @@ final class CssMinifier
 
             $this->flushWhitespace($byte);
             if ($byte === '"' || $byte === "'") {
-                $this->emit($byte);
+                $this->emitByte($byte);
                 if (!$this->string($byte)) {
                     return false;
                 }
@@ -100,7 +103,7 @@ final class CssMinifier
             }
 
             if ($byte === '\\') {
-                $this->emit($byte);
+                $this->emitByte($byte);
                 if (!$this->escape()) {
                     return false;
                 }
@@ -109,7 +112,7 @@ final class CssMinifier
             }
 
             if (str_contains('{[(', $byte)) {
-                if (mb_strlen($this->delimiters, '8bit') >= self::MAX_DELIMITER_DEPTH) {
+                if (isset($this->delimiters[self::MAX_DELIMITER_DEPTH - 1])) {
                     return false;
                 }
 
@@ -127,11 +130,11 @@ final class CssMinifier
                 $this->delimiters = mb_substr($this->delimiters, 0, -1, '8bit');
             }
 
-            $this->emit($byte);
+            $this->emitByte($byte);
         }
 
         if ($slash) {
-            $this->emit('/');
+            $this->emitByte('/');
         }
 
         return $this->delimiters === '';
@@ -139,14 +142,14 @@ final class CssMinifier
 
     private function comment(): bool
     {
-        $previous = '';
+        $previousWasAsterisk = false;
         while (($byte = $this->read()) !== null) {
-            $this->emit($byte);
-            if ($previous === '*' && $byte === '/') {
+            $this->emitByte($byte);
+            if ($previousWasAsterisk && $byte === '/') {
                 return true;
             }
 
-            $previous = $byte;
+            $previousWasAsterisk = $byte === '*';
         }
 
         return false;
@@ -159,7 +162,7 @@ final class CssMinifier
                 return false;
             }
 
-            $this->emit($byte);
+            $this->emitByte($byte);
             if ($byte === $quote) {
                 return true;
             }
@@ -173,7 +176,7 @@ final class CssMinifier
                 return false;
             }
 
-            $this->emit($escaped);
+            $this->emitByte($escaped);
             if ($escaped === "\r") {
                 $this->emitOptionalLineFeed();
             }
@@ -189,7 +192,7 @@ final class CssMinifier
             return false;
         }
 
-        $this->emit($byte);
+        $this->emitByte($byte);
         if (!$this->isHexadecimal($byte)) {
             return true;
         }
@@ -206,7 +209,7 @@ final class CssMinifier
                 break;
             }
 
-            $this->emit($next);
+            $this->emitByte($next);
         }
 
         if ($following === null) {
@@ -217,7 +220,7 @@ final class CssMinifier
         }
 
         if ($this->isWhitespace($following)) {
-            $this->emit($following);
+            $this->emitByte($following);
             if ($following === "\r") {
                 $this->emitOptionalLineFeed();
             }
@@ -233,7 +236,7 @@ final class CssMinifier
     {
         $next = $this->read();
         if ($next === "\n") {
-            $this->emit($next);
+            $this->emitByte($next);
         } elseif ($next !== null) {
             $this->push($next);
         }
@@ -246,30 +249,28 @@ final class CssMinifier
         }
 
         if (!$this->isSeparator($current) && ($this->lastOutputByte === null || !$this->isSeparator($this->lastOutputByte))) {
-            $this->emit(' ');
+            $this->emitByte(' ');
         }
 
         $this->pendingWhitespace = false;
     }
 
-    private function emit(string $bytes): void
+    private function emitByte(string $byte): void
     {
-        $this->outputBuffer .= $bytes;
-        $this->outputBytes += mb_strlen($bytes, '8bit');
-        $this->lastOutputByte = $bytes[-1];
-        if (mb_strlen($this->outputBuffer, '8bit') >= self::BUFFER_BYTES) {
+        $this->outputBuffer .= $byte;
+        ++$this->outputBufferBytes;
+        ++$this->outputBytes;
+        $this->lastOutputByte = $byte;
+        if ($this->outputBufferBytes >= self::BUFFER_BYTES) {
             $this->flush();
         }
     }
 
     private function flush(): void
     {
-        if ($this->outputBuffer === '') {
-            return;
-        }
-
         $this->write($this->outputBuffer);
         $this->outputBuffer = '';
+        $this->outputBufferBytes = 0;
     }
 
     private function read(): ?string
@@ -280,7 +281,7 @@ final class CssMinifier
             return $byte;
         }
 
-        if ($this->inputOffset >= mb_strlen($this->inputBuffer, '8bit')) {
+        if (!isset($this->inputBuffer[$this->inputOffset])) {
             $chunk = fread($this->input, self::BUFFER_BYTES);
             if ($chunk === false) {
                 throw new ContentException('Unable to read stylesheet while minifying it.');
@@ -304,7 +305,7 @@ final class CssMinifier
 
     private function copyOriginal(): int
     {
-        if (!rewind($this->input) || !rewind($this->output) || !ftruncate($this->output, 0)) {
+        if (!rewind($this->input) || !rewind($this->output)) {
             throw new ContentException('Unable to rewind stylesheet streams after malformed CSS.');
         }
 
@@ -330,7 +331,10 @@ final class CssMinifier
         $length = mb_strlen($bytes, '8bit');
         while ($offset < $length) {
             $written = fwrite($this->output, mb_substr($bytes, $offset, null, '8bit'));
-            if (!is_int($written) || $written < 1) {
+            if (!is_int($written)) {
+                throw new ContentException('Unable to write stylesheet while minifying it.');
+            }
+            if ($written < 1) {
                 throw new ContentException('Unable to write stylesheet while minifying it.');
             }
 
@@ -341,9 +345,9 @@ final class CssMinifier
     private function reset(): void
     {
         $this->inputBuffer = '';
-        $this->inputOffset = 0;
         $this->pushedByte = null;
         $this->outputBuffer = '';
+        $this->outputBufferBytes = 0;
         $this->outputBytes = 0;
         $this->lastOutputByte = null;
         $this->pendingWhitespace = false;

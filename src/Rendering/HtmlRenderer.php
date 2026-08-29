@@ -21,11 +21,25 @@ final readonly class HtmlRenderer
 
     private const string WORDMARK_FONT_ASSET = 'fonts/snippet-logo/snippet-logo.woff2';
 
+    /** @var list<Page> */
+    private array $menuPages;
+
+    private string $preloads;
+
+    private string $siteStylesheet;
+
+    private string $siteScript;
+
     public function __construct(
         private Config $config,
         private Catalog $catalog,
         private Templates $templates,
-    ) {}
+    ) {
+        $this->menuPages = $this->orderedMenuPages();
+        $this->preloads = $this->renderPreloads();
+        $this->siteStylesheet = $this->renderSiteStylesheet();
+        $this->siteScript = $this->renderSiteScript();
+    }
 
     public function home(): string
     {
@@ -201,6 +215,52 @@ final readonly class HtmlRenderer
         return $this->layout($title . ' — ' . $this->config->title, 'Articles tagged ' . $tag->label . '.', $tag->url(), $body, null);
     }
 
+    /** @return list<Page> */
+    private function orderedMenuPages(): array
+    {
+        $menuPages = [];
+        foreach ($this->catalog->pages as $page) {
+            if ($page->menuOrder !== null) {
+                $menuPages[] = $page;
+            }
+        }
+        usort($menuPages, static function (Page $left, Page $right): int {
+            $order = $left->menuOrder <=> $right->menuOrder;
+            return $order !== 0 ? $order : strcmp($left->slug, $right->slug);
+        });
+
+        return $menuPages;
+    }
+
+    private function renderPreloads(): string
+    {
+        $preloads = '';
+        if ($this->config->hasSiteStylesheet) {
+            if (in_array(self::UPRIGHT_FONT_ASSET, $this->config->assets, true)) {
+                $preloads .= '<link rel="preload" href="' . $this->config->publicPath('/assets/site/') . self::UPRIGHT_FONT_ASSET . '" as="font" type="font/woff2" crossorigin>' . "\n";
+            }
+            if (in_array(self::WORDMARK_FONT_ASSET, $this->config->assets, true)) {
+                $preloads .= '<link rel="preload" href="' . $this->config->publicPath('/assets/site/') . self::WORDMARK_FONT_ASSET . '" as="font" type="font/woff2" crossorigin>' . "\n";
+            }
+        }
+
+        return $preloads;
+    }
+
+    private function renderSiteStylesheet(): string
+    {
+        return $this->config->hasSiteStylesheet
+            ? '<link rel="stylesheet" href="' . $this->config->publicPath('/assets/site.css') . "\">\n"
+            : '';
+    }
+
+    private function renderSiteScript(): string
+    {
+        return $this->config->hasSiteScript
+            ? '<script src="' . $this->config->publicPath('/assets/site.js') . '" defer></script>' . "\n"
+            : '';
+    }
+
     private function layout(
         string $title,
         string $description,
@@ -211,28 +271,10 @@ final readonly class HtmlRenderer
         string $socialType = 'website',
         ?ArticleImage $socialImage = null,
     ): string {
-        $preloads = '';
-        if ($this->config->hasSiteStylesheet) {
-            if (in_array(self::UPRIGHT_FONT_ASSET, $this->config->assets, true)) {
-                $preloads .= '<link rel="preload" href="' . $this->config->publicPath('/assets/site/') . self::UPRIGHT_FONT_ASSET . '" as="font" type="font/woff2" crossorigin>' . "\n";
-            }
-            if (in_array(self::WORDMARK_FONT_ASSET, $this->config->assets, true)) {
-                $preloads .= '<link rel="preload" href="' . $this->config->publicPath('/assets/site/') . self::WORDMARK_FONT_ASSET . '" as="font" type="font/woff2" crossorigin>' . "\n";
-            }
-        }
-        $siteStylesheet = $this->config->hasSiteStylesheet
-            ? '<link rel="stylesheet" href="' . $this->config->publicPath('/assets/site.css') . "\">\n"
-            : '';
-        $siteScript = $this->config->hasSiteScript
-            ? '<script src="' . $this->config->publicPath('/assets/site.js') . '" defer></script>' . "\n"
-            : '';
-
         $navigation = $this->navigationLink('/articles/', 'Articles', str_starts_with($route, '/articles/'));
         $navigation .= "\n" . $this->navigationLink('/tags/', 'Tags', str_starts_with($route, '/tags/'));
         $navigation .= "\n" . $this->navigationLink('/pages/', 'Pages', $currentPage === 'pages');
-        $menuPages = array_values(array_filter($this->catalog->pages, static fn(Page $page): bool => $page->menuOrder !== null));
-        usort($menuPages, static fn(Page $left, Page $right): int => ($left->menuOrder <=> $right->menuOrder) !== 0 ? ($left->menuOrder <=> $right->menuOrder) : strcmp($left->slug, $right->slug));
-        foreach ($menuPages as $page) {
+        foreach ($this->menuPages as $page) {
             $navigation .= "\n" . $this->navigationLink($page->url(), $page->title, $currentPage === $page->slug);
         }
         $navigation .= "\n" . $this->navigationLink('/llms.txt', 'llms.txt', false);
@@ -246,9 +288,9 @@ final readonly class HtmlRenderer
             'canonical' => $this->escape($this->config->canonicalUrl($route)),
             'social_metadata' => $this->socialMetadata($socialTitle ?? $title, $description, $route, $socialType, $socialImage),
             'base_path' => $this->escape($this->config->basePath),
-            'preloads' => $preloads,
-            'site_stylesheet' => $siteStylesheet,
-            'site_script' => $siteScript,
+            'preloads' => $this->preloads,
+            'site_stylesheet' => $this->siteStylesheet,
+            'site_script' => $this->siteScript,
             'sitename' => $this->escape($this->config->sitename),
             'navigation' => $navigation,
             'body' => $body,
