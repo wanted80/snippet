@@ -40,12 +40,20 @@ docker run --rm --entrypoint sh "${image}" -c '
     ! command -v node >/dev/null 2>&1
     test ! -e /app/tests
     test ! -e /app/docs
-    test ! -e /app/src/Authoring
+    test -e /app/src/Authoring/DraftCreator.php
     test ! -e /app/src/Preview
     test ! -e /app/resources/preview-router.php
 '
 
 run_builder --version
+
+if run_builder new article before-init --date=2026-08-17 >/dev/null 2>&1; then
+    echo 'Builder created a draft before workspace initialization.' >&2
+    exit 1
+fi
+
+test ! -e "${workspace}/content"
+
 run_builder init
 run_builder validate
 run_builder build
@@ -55,12 +63,15 @@ test -f "${workspace}/public/assets/theme.css"
 test -f "${workspace}/public/assets/theme.js"
 test ! -e "${workspace}/resources/preview-router.php"
 
+run_builder new page contact
+run_builder new article first-post --date=2026-08-17
+
+test -f "${workspace}/content/pages/contact/page.md"
+test -f "${workspace}/content/pages/contact/meta.php"
+test -f "${workspace}/content/articles/2026/08/17/first-post/article.md"
+grep -Fq "'date' => '2026-08-17'" "${workspace}/content/articles/2026/08/17/first-post/meta.php"
+
 if run_builder preview >/dev/null 2>&1; then
     echo 'Builder unexpectedly accepted preview.' >&2
-    exit 1
-fi
-
-if run_builder new page example >/dev/null 2>&1; then
-    echo 'Builder unexpectedly accepted new.' >&2
     exit 1
 fi

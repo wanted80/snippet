@@ -20,9 +20,21 @@ docker run --rm \
 
 `init` safely creates missing starter files beneath `content/`, `site/`, and `resources/`. Existing files win, nothing is deleted, `public/` is untouched, and the engine-development preview router is not scaffolded. Repeating `init` after changing the pinned image adds new starter files without replacing customization.
 
-Set the complete public HTTPS URL in `site/config.php` and replace the example content. Rerun the command with `init` replaced by `validate` to check the site without changing `public/`, or by `build` to create the static publication.
+Set the complete public HTTPS URL in `site/config.php` and replace the example content. Rerun the command with `init` replaced by `validate` to check the site without changing `public/`, or by `build` to create the static publication. The same image creates later drafts:
 
-The image exposes only `--version`, `init`, `validate`, and `build`. It deliberately omits preview, draft creation, Composer, development tools, and source that those commands alone require. `validate` reports the catalog and prospective asset count. `build` measures validation plus transactional publication and reports the actual promoted asset and file counts. Failures retain the existing `public/` directory.
+```bash
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$PWD:/workspace" \
+  ghcr.io/wanted80/snippet:v2.0.0 new page contact
+
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$PWD:/workspace" \
+  ghcr.io/wanted80/snippet:v2.0.0 new article first-post
+```
+
+The image exposes only `--version`, `init`, `new page`, `new article`, `validate`, and `build`. Draft creation requires the relevant collection created by `init`, refuses symlinked or existing destinations, and leaves `public/` unchanged. The image deliberately omits preview, Composer, development tools, and source outside those commands' runtime paths. `validate` reports the catalog and prospective asset count. `build` measures validation plus transactional publication and reports the actual promoted asset and file counts. Failures retain the existing `public/` directory.
 
 Moving release aliases and `latest` are convenient for evaluation but unsuitable for reproducible publication. Pin a full release such as `v2.0.0` or an immutable image digest.
 

@@ -6,13 +6,13 @@ declare(strict_types=1);
 use Snippet\Application;
 use Snippet\Scaffolding\WorkspaceInitializer;
 
-const USAGE = "Usage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n";
+const USAGE = "Usage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n";
 
 /** @var list<string> $arguments */
 $arguments = $_SERVER['argv'];
 $command = $arguments[1] ?? null;
 
-if (count($arguments) !== 2 || !in_array($command, ['--version', 'init', 'validate', 'build'], true)) {
+if (($command !== 'new' && count($arguments) !== 2) || !in_array($command, ['--version', 'init', 'validate', 'build', 'new'], true)) {
     fwrite(STDERR, USAGE);
     exit(2);
 }
@@ -51,8 +51,8 @@ if ($command === 'init') {
 $stdout = new SplFileObject('php://stdout', 'w');
 $stderr = new SplFileObject('php://stderr', 'w');
 
-exit(new Application($workspace)->run(
-    ['snippet', $command],
+exit(new Application($workspace, usage: USAGE)->run(
+    $arguments,
     $stdout,
     $stderr,
 ));

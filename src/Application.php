@@ -33,6 +33,7 @@ final readonly class Application
         private ?DraftCreator $draftCreator = null,
         /** @var (Closure(): int)|null */
         private ?Closure $nanoseconds = null,
+        private string $usage = self::USAGE,
     ) {}
 
     /**
@@ -43,14 +44,14 @@ final readonly class Application
     public function run(array $arguments, SplFileObject $stdout, SplFileObject $stderr): int
     {
         if (count($arguments) < 2 || !in_array($arguments[1], ['--version', 'validate', 'build', 'preview', 'new'], true)) {
-            $stderr->fwrite(self::USAGE);
+            $stderr->fwrite($this->usage);
             return 2;
         }
 
         $command = $arguments[1];
         if ($command === '--version') {
             if (count($arguments) !== 2) {
-                $stderr->fwrite(self::USAGE);
+                $stderr->fwrite($this->usage);
                 return 2;
             }
 
@@ -63,7 +64,7 @@ final readonly class Application
         }
 
         if ($command !== 'preview' && count($arguments) !== 2) {
-            $stderr->fwrite(self::USAGE);
+            $stderr->fwrite($this->usage);
             return 2;
         }
 
@@ -233,13 +234,13 @@ final readonly class Application
 
     private function optionError(SplFileObject $stderr, string $message): null
     {
-        $stderr->fwrite("Error: {$message}\n" . self::USAGE);
+        $stderr->fwrite("Error: {$message}\n" . $this->usage);
         return null;
     }
 
     private function usageError(SplFileObject $stderr, string $message): null
     {
-        $stderr->fwrite("Error: {$message}\n" . self::USAGE);
+        $stderr->fwrite("Error: {$message}\n" . $this->usage);
         return null;
     }
 

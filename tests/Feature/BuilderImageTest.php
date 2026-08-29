@@ -176,16 +176,56 @@ it('reports validation failures from the mounted workspace', function (): void {
         ->toBe([1, '', "Error: Publication asset '{$this->directory}/resources/theme.css' must be a regular non-symlink file.\n"]);
 });
 
+it('creates page and article drafts in an initialized content-only workspace', function (): void {
+    expect(runBuilderEntrypoint($this->directory, 'init')[0])->toBe(0)
+        ->and(runBuilderEntrypoint($this->directory, 'new', 'page', 'contact'))
+        ->toBe([
+            0,
+            "Created incomplete draft: content/pages/contact\nComplete content/pages/contact/page.md and content/pages/contact/meta.php before validating or building.\n",
+            '',
+        ])
+        ->and(runBuilderEntrypoint($this->directory, 'new', 'article', 'first-post', '--date=2026-08-17'))
+        ->toBe([
+            0,
+            "Created incomplete draft: content/articles/2026/08/17/first-post\nComplete content/articles/2026/08/17/first-post/article.md and content/articles/2026/08/17/first-post/meta.php before validating or building.\n",
+            '',
+        ])
+        ->and(file_get_contents($this->directory . '/content/pages/contact/page.md'))->toBe('')
+        ->and(file_get_contents($this->directory . '/content/articles/2026/08/17/first-post/article.md'))->toBe('')
+        ->and(file_get_contents($this->directory . '/content/articles/2026/08/17/first-post/meta.php'))
+        ->toContain("'date' => '2026-08-17'")
+        ->and($this->directory . '/public')->not->toBeDirectory();
+});
+
+it('refuses draft creation when the required content structure is missing', function (): void {
+    expect(runBuilderEntrypoint($this->directory, 'new', 'article', 'first-post', '--date=2026-08-17'))
+        ->toBe([
+            1,
+            '',
+            "Error: Article collection directory '{$this->directory}/content/articles' does not exist or is not a regular non-symlink directory.\n",
+        ])
+        ->and($this->directory . '/content')->not->toBeDirectory()
+        ->and($this->directory . '/public')->not->toBeDirectory();
+});
+
 it('rejects commands outside the builder image contract', function (array $arguments): void {
     /** @var list<string> $arguments */
     expect(runBuilderEntrypoint($this->directory, ...$arguments))
-        ->toBe([2, '', "Usage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n"]);
+        ->toBe([2, '', "Usage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n"]);
 })->with([
     'no command' => [[]],
     'preview' => [['preview']],
-    'draft creation' => [['new', 'page', 'about']],
     'extra argument' => [['build', 'extra']],
 ]);
+
+it('reports new-command usage through the builder interface', function (): void {
+    expect(runBuilderEntrypoint($this->directory, 'new', 'article'))
+        ->toBe([
+            2,
+            '',
+            "Error: New command requires a content type and slug.\nUsage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n",
+        ]);
+});
 
 it('defines a dedicated minimal builder image and runtime configuration', function (): void {
     $root = dirname(__DIR__, 2);
@@ -207,6 +247,7 @@ it('defines a dedicated minimal builder image and runtime configuration', functi
         'docker-php-ext-install -j"$(nproc)" mbstring',
         'COPY --from=dependencies /app/vendor /app/vendor',
         'COPY src/Application.php src/Application.php',
+        'COPY src/Authoring src/Authoring',
         'COPY src/Content src/Content',
         'COPY src/Scaffolding src/Scaffolding',
         'COPY resources/theme.css resources/theme.css',
@@ -219,7 +260,6 @@ it('defines a dedicated minimal builder image and runtime configuration', functi
     )
         ->not->toContain(
             'COPY . .',
-            'src/Authoring',
             'src/Preview',
             'resources/preview-router.php',
             'EXPOSE',

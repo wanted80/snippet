@@ -37,9 +37,9 @@ docker run --rm \
   ghcr.io/wanted80/snippet:v2.0.0 init
 ```
 
-`--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path. Edit the generated `site/config.php` and content, then rerun the command with `init` replaced by `validate` or `build`.
+`--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path. Edit the generated `site/config.php` and content, then rerun the command with `init` replaced by `validate` or `build`. Create later drafts through the same image, for example by replacing `init` with `new article first-post`.
 
-The repository needs only `content/`, `site/`, and `resources/`; `public/` is disposable output. The builder image supports `--version`, `init`, `validate`, and `build`. See [INSTALL.md](INSTALL.md) for building another directory, direct PHP use, the contributor preview, customization, CI, and deployment.
+The repository needs only `content/`, `site/`, and `resources/`; `public/` is disposable output. The builder image supports `--version`, `init`, `new page`, `new article`, `validate`, and `build`. See [INSTALL.md](INSTALL.md) for building another directory, direct PHP use, the contributor preview, customization, CI, and deployment.
 
 ### Migrating from v1
 
@@ -88,7 +88,7 @@ Article directories must use a real, zero-padded calendar date that matches the 
 
 Page and article directory slugs are author-chosen lowercase ASCII letters and numbers separated by single hyphens. Titles are independent and may use any language: a page titled `日本語`, for example, can use the directory slug `nihongo`. Snippet never transliterates a title automatically because pronunciation and convention are language-dependent.
 
-Start a page or article with the minimal draft command:
+Start a page or article with the minimal draft command in a full source checkout:
 
 ```bash
 bin/snippet new page contact
@@ -97,7 +97,16 @@ bin/snippet new article older-note --date=2026-07-01
 composer app:new -- article first-post
 ```
 
-An article without `--date` uses the current UTC date. The command creates an empty Markdown file and a `meta.php` with empty title and description fields; articles also receive the selected date and an empty tag list. The result is intentionally incomplete, so finish both files before validating, building, or previewing. Draft creation does not validate the existing catalog or change `public/`, and it never replaces an existing content directory. Docker users can run the canonical command after entering `make docker-shell`; there is deliberately no separate Make target.
+Content-only repositories use the equivalent builder-image command:
+
+```bash
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$PWD:/workspace" \
+  ghcr.io/wanted80/snippet:v2.0.0 new article first-post
+```
+
+An article without `--date` uses the current UTC date. The command creates an empty Markdown file and a `meta.php` with empty title and description fields; articles also receive the selected date and an empty tag list. The result is intentionally incomplete, so finish both files before validating, building, or previewing. Draft creation checks that the relevant content collection is a regular non-symlink directory, does not validate the existing catalog or change `public/`, and never replaces an existing content directory. Run `snippet init` first when using an empty content-only workspace. Contributors can also run the canonical command after entering `make docker-shell`; there is deliberately no separate Make target.
 
 Every `meta.php` starts with `declare(strict_types=1);` and returns one literal associative array. Article metadata has these required fields:
 
