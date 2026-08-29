@@ -185,7 +185,7 @@ Inside the container, use the canonical `bin/snippet` commands. Run only one dir
 
 ## Optional CSS and JavaScript customization
 
-v2 publishes assets with ownership-reflecting names:
+Snippet publishes assets with ownership-reflecting names:
 
 | Source | Output | Behavior |
 | --- | --- | --- |
@@ -199,20 +199,6 @@ Both optional files must be regular non-symlink UTF-8 files within the asset-siz
 The no-JavaScript site remains readable and navigable. Authored content, links, and native-popover navigation work normally; the system color preference applies, and the inactive manual theme control stays hidden.
 
 Files beneath `site/assets/` publish beneath `/assets/site/`. `site/favicon.svg` publishes at `/favicon.svg`. Content assets remain beside their generated page or article.
-
-If `resources/templates/layout.html` was customized in v1, migrate all of its v2 placeholders:
-
-| v1 source or output | v2 source or output |
-| --- | --- |
-| `resources/site.css` | `resources/theme.css` |
-| `/assets/site.css` | `/assets/theme.css` |
-| `site/theme.css` | `site/site.css` |
-| `/assets/theme.css` | `/assets/site.css` |
-| `{{theme_stylesheet}}` | `{{site_stylesheet}}` |
-| none | add `{{social_metadata}}` in `<head>` |
-| none | add `{{site_script}}` after the built-in script |
-
-Also update internal Markdown links that point to either renamed generated asset. Legacy filenames are simply ordinary unreferenced files: they are not published, aliased, warned about, or treated as migration errors. Copying the v2 starter layout is the safest way to see the intended placeholder ordering.
 
 ## CI validation, build, and GitHub Pages
 

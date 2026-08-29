@@ -41,20 +41,6 @@ docker run --rm \
 
 The repository needs only `content/`, `site/`, and `resources/`; `public/` is disposable output. The builder image supports `--version`, `init`, `new page`, `new article`, `validate`, and `build`. See [INSTALL.md](INSTALL.md) for building another directory, direct PHP use, the contributor preview, customization, CI, and deployment.
 
-### Migrating from v1
-
-v2 intentionally gives built-in and site-owned assets unambiguous names. Legacy files receive no alias, warning, or special publication behavior.
-
-| v1 | v2 | Required migration |
-| --- | --- | --- |
-| `resources/site.css` | `resources/theme.css` | Rename the required built-in stylesheet. |
-| `/assets/site.css` | `/assets/theme.css` | Update authored internal Markdown links to the generated built-in stylesheet. |
-| `site/theme.css` | `site/site.css` | Rename the optional site stylesheet. |
-| `/assets/theme.css` | `/assets/site.css` | Update authored internal Markdown links to the generated customization stylesheet. |
-| no site script | optional `site/site.js` → `/assets/site.js` | Add only when local site JavaScript is needed. |
-| `{{theme_stylesheet}}` | `{{site_stylesheet}}` | Rename the placeholder in a customized `resources/templates/layout.html`. |
-| no social or site-script placeholders | `{{social_metadata}}` and `{{site_script}}` | Add both placeholders to a customized layout; copy the v2 starter layout for their intended positions. |
-
 For a full checkout used to develop Snippet itself, Docker with Make remains the recommended environment:
 
 ```bash
