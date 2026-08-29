@@ -20,8 +20,10 @@ it('renders independent document, author, and multilingual wordmark identities',
 
     $home = file_get_contents($this->directory . '/public/index.html');
     $css = file_get_contents($this->directory . '/public/assets/theme.css');
+    $javascript = file_get_contents($this->directory . '/public/assets/theme.js');
     assert(is_string($home));
     assert(is_string($css));
+    assert(is_string($javascript));
 
     expect($home)
         ->toContain('<title>Document &amp; Identity</title>')
@@ -29,15 +31,25 @@ it('renders independent document, author, and multilingual wordmark identities',
         ->toContain('<meta name="generator" content="Snippet ' . ApplicationVersion::CURRENT . '">')
         ->toContain('<h1 class="visually-hidden">Document &amp; Identity</h1>')
         ->toContain('<a class="site-brand" href="/" aria-label="日本語 &amp; Snippet — Home"><span class="site-wordmark">日本語 &amp; Snippet</span></a>')
-        ->toContain('<button class="menu-toggle icon-button" type="button" popovertarget="site-navigation" aria-expanded="false" aria-controls="site-navigation" aria-label="Open navigation" title="Open navigation">')
+        ->toContain('<button class="menu-toggle icon-button" type="button" popovertarget="site-navigation" aria-controls="site-navigation" aria-label="Open navigation" title="Open navigation">')
         ->toContain('<button class="theme-toggle icon-button" type="button" data-theme-toggle aria-label="Toggle color theme" title="Toggle color theme">')
         ->toMatch('~class="menu-toggle icon-button"[\s\S]*class="site-brand"[\s\S]*class="theme-toggle icon-button"[\s\S]*class="site-navigation"~')
+        ->not->toContain('aria-expanded=')
         ->and($css)->toContain('min-inline-size: 320px;', '--font-wordmark: var(--font-interface);')
+        ->toContain('.site-header:has(.site-navigation:popover-open) .menu-toggle')
         ->toMatch('/\.site-header\s*\{[^}]*grid-template-columns: minmax\(2\.75rem, 1fr\) minmax\(0, auto\) minmax\(2\.75rem, 1fr\)/s')
         ->toMatch('/\.menu-toggle\s*\{[^}]*grid-column: 1;[^}]*justify-self: start/s')
         ->toMatch('/\.theme-toggle\s*\{[^}]*grid-column: 3;[^}]*justify-self: end/s')
         ->toMatch('/\.site-brand\s*\{[^}]*min-inline-size: 0;[^}]*max-inline-size: 100%;[^}]*overflow: clip visible;/s')
-        ->toMatch('/\.site-wordmark\s*\{[^}]*display: block;[^}]*max-inline-size: 100%;[^}]*overflow: clip visible;[^}]*font-family: var\(--font-wordmark\);[^}]*font-size: clamp\(1rem, 3\.8vw, 1\.6rem\);[^}]*font-kerning: normal;[^}]*font-synthesis: none;[^}]*font-weight: 400;[^}]*line-height: 1\.15;[^}]*text-transform: uppercase;[^}]*white-space: nowrap;/s');
+        ->toMatch('/\.site-wordmark\s*\{[^}]*display: block;[^}]*max-inline-size: 100%;[^}]*overflow: clip visible;[^}]*font-family: var\(--font-wordmark\);[^}]*font-size: clamp\(1rem, 3\.8vw, 1\.6rem\);[^}]*font-kerning: normal;[^}]*font-synthesis: none;[^}]*font-weight: 400;[^}]*line-height: 1\.15;[^}]*text-transform: uppercase;[^}]*white-space: nowrap;/s')
+        ->toMatch('/\.article-figure\s*\{[^}]*inline-size: min\(100%, var\(--measure-prose\)\);[^}]*margin: 0 0 var\(--space-4\);/s')
+        ->toMatch('/\.article-figure img\s*\{[^}]*inline-size: 100%;/s')
+        ->toMatch('/\.prose\s*\{[^}]*hyphens: manual;/s')
+        ->and($javascript)->not->toContain(
+            "menuButton.setAttribute('aria-expanded'",
+            'syncScrollState();',
+            "window.addEventListener('pageshow', syncScrollState)",
+        );
 });
 
 it('ships and copies the configured wordmark font byte for byte', function (): void {

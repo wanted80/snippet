@@ -54,7 +54,10 @@ it('loads every HTML template and substitutes trusted rendered values', function
             'alt' => 'Alt',
             'width' => '1',
             'height' => '1',
-        ]))->toContain('<figure class="article-figure">')
+        ]))->toContain(
+            '<figure class="article-figure">',
+            '<img src="/articles/post/cover.webp" alt="Alt" width="1" height="1" fetchpriority="high">',
+        )
         ->not->toContain('{{alt}}', '{{width}}', '{{height}}');
 });
 
