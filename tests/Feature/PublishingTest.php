@@ -493,8 +493,8 @@ it('ships a storage-safe system-aware theme script as a dedicated asset', functi
         ->toContain("navigation.addEventListener('toggle'", "menuButton.setAttribute('aria-label', label)")
         ->toContain("navigation.addEventListener('keydown'", "event.key === 'Escape'", 'navigation.hidePopover()', 'menuButton.focus()')
         ->toContain("case 'ArrowDown':", "case 'ArrowUp':", "case 'Home':", "case 'End':")
-        ->toContain("document.querySelector('[data-site-header]')", "header.toggleAttribute('data-scrolled', scrolled)", "window.addEventListener('scroll', syncScrollState, { passive: true })")
-        ->not->toContain("menuButton.setAttribute('aria-expanded'", 'syncScrollState();', "window.addEventListener('pageshow', syncScrollState)")
+        ->toContain("document.querySelector('[data-site-header]')", "header.toggleAttribute('data-scrolled', scrolled)", "window.addEventListener('scroll', syncScrollState, { passive: true })", 'syncScrollState();', "window.addEventListener('pageshow', syncScrollState)")
+        ->not->toContain("menuButton.setAttribute('aria-expanded'")
         ->and($script)->toBe(file_get_contents($this->directory . '/resources/theme.js'))
         ->and(mb_substr_count($script, 'window.requestAnimationFrame'))->toBe(2);
 });

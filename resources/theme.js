@@ -43,6 +43,8 @@
             };
 
             window.addEventListener('scroll', syncScrollState, { passive: true });
+            window.addEventListener('pageshow', syncScrollState);
+            syncScrollState();
         }
 
         if (menuButton !== null && navigation !== null) {

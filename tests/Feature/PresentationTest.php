@@ -45,11 +45,8 @@ it('renders independent document, author, and multilingual wordmark identities',
         ->toMatch('/\.article-figure\s*\{[^}]*inline-size: min\(100%, var\(--measure-prose\)\);[^}]*margin: 0 0 var\(--space-4\);/s')
         ->toMatch('/\.article-figure img\s*\{[^}]*inline-size: 100%;/s')
         ->toMatch('/\.prose\s*\{[^}]*hyphens: manual;/s')
-        ->and($javascript)->not->toContain(
-            "menuButton.setAttribute('aria-expanded'",
-            'syncScrollState();',
-            "window.addEventListener('pageshow', syncScrollState)",
-        );
+        ->and($javascript)->toContain('syncScrollState();', "window.addEventListener('pageshow', syncScrollState)")
+        ->not->toContain("menuButton.setAttribute('aria-expanded'");
 });
 
 it('ships and copies the configured wordmark font byte for byte', function (): void {
