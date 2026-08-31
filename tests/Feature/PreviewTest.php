@@ -295,7 +295,7 @@ it('preserves the current publication when the preview version cannot be written
     $this->resources();
     mkdir($this->directory . '/public');
     file_put_contents($this->directory . '/public/index.html', 'old publication');
-    PublisherFaults::set('file_put_contents', ['pass', 'pass', 'pass', 'pass', 'fail']);
+    PublisherFaults::set('file_put_contents', ['pass', 'pass', 'pass', 'pass', 'pass', 'fail']);
 
     expect(fn(): int => new PreviewServer(port: availablePreviewPort(), maximumPolls: 0)->run(
         $this->directory,
@@ -392,13 +392,15 @@ it('serves only the configured mount path and scopes redirects and live reload b
     $reload = null;
     $unmountedHeaders = null;
     $missingHeaders = null;
-    $afterPoll = function () use ($port, &$rootHeaders, &$mounted, &$reload, &$unmountedHeaders, &$missingHeaders): void {
+    $missing = null;
+    $afterPoll = function () use ($port, &$rootHeaders, &$mounted, &$reload, &$unmountedHeaders, &$missingHeaders, &$missing): void {
         $context = stream_context_create(['http' => ['follow_location' => 0, 'ignore_errors' => true]]);
         $rootHeaders = get_headers("http://127.0.0.1:{$port}/", false, $context);
         $mounted = file_get_contents("http://127.0.0.1:{$port}/snippet/post/");
         $reload = file_get_contents("http://127.0.0.1:{$port}/snippet/.snippet-preview-reload.js");
         $unmountedHeaders = get_headers("http://127.0.0.1:{$port}/post/", false, $context);
         $missingHeaders = get_headers("http://127.0.0.1:{$port}/snippet/missing/", false, $context);
+        $missing = file_get_contents("http://127.0.0.1:{$port}/snippet/missing/", false, $context);
     };
     $stdout = new SplFileObject('php://memory', 'w+');
 
@@ -428,5 +430,11 @@ it('serves only the configured mount path and scopes redirects and live reload b
         ->and($unmountedHeaders[0] ?? null)->toContain('404')
         ->and($missingHeaders)->toBeArray()
         ->and($missingHeaders[0] ?? null)->toContain('404')
+        ->and($missing)->toBeString()->toContain(
+            '<h1 id="not-found-title">Page not found</h1>',
+            '<a class="button-link" href="/snippet/">Return home',
+            '<link rel="stylesheet" href="/snippet/assets/theme.css">',
+            '<script src="/snippet/.snippet-preview-reload.js"',
+        )
         ->and($stdout->fread(8192))->toContain("Preview available at http://127.0.0.1:{$port}/snippet/");
 });

@@ -69,10 +69,15 @@ $candidate = $documentRoot . '/' . mb_ltrim(rawurldecode($publicRequestPath), '/
 if (is_dir($candidate)) {
     $candidate .= '/index.html';
 }
+$notFound = false;
 $resolved = realpath($candidate);
 if ($resolved === false || !str_starts_with($resolved, $documentRoot . '/') || !is_file($resolved)) {
-    http_response_code(404);
-    return true;
+    $resolved = realpath($documentRoot . '/404.html');
+    if ($resolved === false || !str_starts_with($resolved, $documentRoot . '/') || !is_file($resolved)) {
+        http_response_code(404);
+        return true;
+    }
+    $notFound = true;
 }
 $extension = mb_strtolower(pathinfo($resolved, PATHINFO_EXTENSION));
 if ($extension !== 'html') {
@@ -115,6 +120,9 @@ if (!is_string($version) || preg_match('/\A[a-f0-9]{16}\n?\z/D', $version) !== 1
 $baseline = mb_trim($version);
 $reloadPath = $basePath . '/.snippet-preview-reload.js';
 
+if ($notFound) {
+    http_response_code(404);
+}
 header('Content-Type: text/html; charset=utf-8');
 echo str_replace('</body>', "<script src=\"{$reloadPath}\" data-version=\"{$baseline}\"></script>\n</body>", $html);
 return true;

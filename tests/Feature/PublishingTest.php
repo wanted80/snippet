@@ -84,6 +84,7 @@ it('builds the complete deterministic site with escaped semantic HTML and every 
     new Publisher()->publish($this->directory, $config, $catalog);
 
     expect(array_keys($first))->toBe([
+        '404.html',
         'about/index.html',
         'about/note.txt',
         'articles/index.html',
@@ -106,6 +107,7 @@ it('builds the complete deterministic site with escaped semantic HTML and every 
     ])->and(publicationBytes($this->directory))->toBe($first);
 
     $article = $first['articles/post/index.html'];
+    $notFound = $first['404.html'];
     $untagged = $first['articles/untagged/index.html'];
     $home = $first['index.html'];
     $articlesIndex = $first['articles/index.html'];
@@ -115,7 +117,16 @@ it('builds the complete deterministic site with escaped semantic HTML and every 
     $multilingualTagArchive = $first['tags/日本語/index.html'];
     $css = $first['assets/theme.css'];
     $llms = $first['llms.txt'];
-    expect($llms)->toBe(<<<'TXT'
+    expect($notFound)->toContain(
+        '<meta name="robots" content="noindex, follow">',
+        '<link rel="canonical" href="https://example.test/404.html">',
+        '<p class="eyebrow">Error 404</p>',
+        '<h1 id="not-found-title">Page not found</h1>',
+        '<a class="button-link" href="/">Return home',
+        '<header class="site-header" data-site-header>',
+        '<footer class="site-footer">',
+    )->not->toContain('aria-current="page"')
+        ->and($llms)->toBe(<<<'TXT'
 # Brand & Co
 
 > A test site.
@@ -227,7 +238,7 @@ it('builds an empty catalog through the CLI', function (): void {
     $stderr->rewind();
 
     expect($status)->toBe(0)
-        ->and($stdout->fgets())->toMatch('/^Built site: 0 articles, 0 pages, 0 tags, 3 assets, 8 files in \\d+ ms\\.\\n$/')
+        ->and($stdout->fgets())->toMatch('/^Built site: 0 articles, 0 pages, 0 tags, 3 assets, 9 files in \\d+ ms\\.\\n$/')
         ->and($stderr->fgets())->toBeEmpty()
         ->and(file_get_contents($this->directory . '/public/index.html'))->toContain('No articles have been published yet.')
         ->and(file_get_contents($this->directory . '/public/llms.txt'))->toBe("# Test Site\n\n> A test site.\n\nAuthor: Test Author\n")
@@ -333,7 +344,7 @@ it('reports transactional publication and cleanup failures deterministically', f
         'publishing_fwrite' => ['fail'],
     ], false, 'Unable to write generated file'],
     'llms chmod' => [[
-        'chmod' => ['pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'fail'],
+        'chmod' => ['pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'fail'],
     ], false, 'Unable to write generated file'],
     'directory creation' => [[
         'mkdir' => ['fail'],
@@ -400,7 +411,7 @@ it('preserves the current publication when minified stylesheet publication fails
         'publishing_fopen' => ['pass', 'pass', 'fail'],
     ], false, 'Unable to minify'],
     'output chmod' => [[
-        'chmod' => ['pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'fail'],
+        'chmod' => ['pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'fail'],
     ], false, 'Unable to minify'],
 ]);
 
@@ -611,15 +622,17 @@ it('publishes every browser-facing URL beneath the configured deployment path wi
     expect(validatePublication($this->directory, 'build')[0])->toBe(0);
 
     $home = file_get_contents($this->directory . '/public/index.html');
+    $notFound = file_get_contents($this->directory . '/public/404.html');
     $article = file_get_contents($this->directory . '/public/articles/post/index.html');
     $llms = file_get_contents($this->directory . '/public/llms.txt');
     $theme = file_get_contents($this->directory . '/public/assets/site.css');
-    expect([$home, $article])->each->toBeString()
+    expect([$home, $notFound, $article])->each->toBeString()
         ->and($home)->toContain('<link rel="icon" href="/snippet/favicon.svg" type="image/svg+xml">')
         ->and($home)->toContain('<link rel="canonical" href="https://example.test/snippet/">', '<script src="/snippet/assets/theme.js"></script>', '<link rel="stylesheet" href="/snippet/assets/theme.css">', '<link rel="stylesheet" href="/snippet/assets/site.css">', '<link rel="preload" href="/snippet/assets/site/fonts/snippet-logo/snippet-logo.woff2"', '<a class="site-brand" href="/snippet/"', '<a class="menu-link" href="/snippet/articles/">', '<a href="/snippet/tags/caf%C3%A9/"', '<img src="/snippet/articles/post/cover.webp"', '<a href="/snippet/articles/post/notes.txt">asset</a>')
         ->and($article)->toBeString()
         ->toContain('<link rel="icon" href="/snippet/favicon.svg" type="image/svg+xml">')
         ->toContain('<link rel="canonical" href="https://example.test/snippet/articles/post/">', '<a href="/snippet/about/">about</a>', '<a href="notes.txt">asset</a>', '<a href="#part">fragment</a>', '<a href="https://outside.test/">external</a>', '<img src="/snippet/articles/post/cover.webp"')
+        ->and($notFound)->toContain('<link rel="canonical" href="https://example.test/snippet/404.html">', '<a class="button-link" href="/snippet/">Return home', '<script src="/snippet/assets/theme.js"></script>', '<link rel="stylesheet" href="/snippet/assets/theme.css">')
         ->and($llms)->toBeString()
         ->toContain('https://example.test/snippet/articles/post/', 'https://example.test/snippet/about/')
         ->and($theme)->toBe('@font-face { src: url("site/fonts/snippet-logo/snippet-logo.woff2"); }')

@@ -107,6 +107,22 @@ final readonly class HtmlRenderer
         return $this->layout($this->config->title, $this->config->description, '/', $body, null);
     }
 
+    public function notFound(): string
+    {
+        $body = $this->templates->render(Template::NotFound, [
+            'home_url' => $this->config->publicPath('/'),
+        ]);
+
+        return $this->layout(
+            'Page not found — ' . $this->config->title,
+            'The requested page could not be found.',
+            '/404.html',
+            $body,
+            null,
+            noIndex: true,
+        );
+    }
+
     public function content(Article|Page $item): string
     {
         $metadata = '';
@@ -270,6 +286,7 @@ final readonly class HtmlRenderer
         ?string $socialTitle = null,
         string $socialType = 'website',
         ?ArticleImage $socialImage = null,
+        bool $noIndex = false,
     ): string {
         $navigation = $this->navigationLink('/articles/', 'Articles', str_starts_with($route, '/articles/'));
         $navigation .= "\n" . $this->navigationLink('/tags/', 'Tags', str_starts_with($route, '/tags/'));
@@ -286,7 +303,8 @@ final readonly class HtmlRenderer
             'version' => ApplicationVersion::CURRENT,
             'title' => $this->escape($title),
             'canonical' => $this->escape($this->config->canonicalUrl($route)),
-            'social_metadata' => $this->socialMetadata($socialTitle ?? $title, $description, $route, $socialType, $socialImage),
+            'social_metadata' => ($noIndex ? '<meta name="robots" content="noindex, follow">' . "\n" : '')
+                . $this->socialMetadata($socialTitle ?? $title, $description, $route, $socialType, $socialImage),
             'base_path' => $this->escape($this->config->basePath),
             'preloads' => $this->preloads,
             'site_stylesheet' => $this->siteStylesheet,

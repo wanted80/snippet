@@ -55,7 +55,7 @@ it('reports successful publication counts and rounded full-command duration', fu
 
             return $reading;
         },
-    ))->toBe([0, "Built site: 1 article, 1 page, 2 tags, 4 assets, 13 files in 13 ms.\n", '']);
+    ))->toBe([0, "Built site: 1 article, 1 page, 2 tags, 4 assets, 14 files in 13 ms.\n", '']);
 });
 
 it('uses correct plurals in validation and build summaries', function (): void {
@@ -74,7 +74,7 @@ it('uses correct plurals in validation and build summaries', function (): void {
 
                 return $reading;
             },
-        ))->toBe([0, "Built site: 0 articles, 0 pages, 0 tags, 3 assets, 8 files in 1 ms.\n", '']);
+        ))->toBe([0, "Built site: 0 articles, 0 pages, 0 tags, 3 assets, 9 files in 1 ms.\n", '']);
 });
 
 it('reports the application version without loading publication inputs', function (): void {

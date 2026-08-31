@@ -9,7 +9,7 @@ use Snippet\Support\ApplicationVersion;
 
 mutates(TemplateLoader::class);
 
-it('defines the consolidated twelve-template interface', function (): void {
+it('defines the consolidated thirteen-template interface', function (): void {
     $contracts = [];
     foreach (Template::cases() as $template) {
         $contracts[$template->value] = $template->placeholders();
@@ -28,6 +28,7 @@ it('defines the consolidated twelve-template interface', function (): void {
         'collection-page.html' => ['eyebrow', 'title', 'introduction', 'collection_label', 'list_class', 'items', 'empty_state'],
         'content-summary.html' => ['url', 'title', 'date', 'description', 'tags'],
         'tag-list.html' => ['items'],
+        'not-found.html' => ['home_url'],
     ]);
 
     $this->resources();

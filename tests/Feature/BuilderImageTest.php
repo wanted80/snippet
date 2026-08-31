@@ -73,7 +73,7 @@ it('runs version, validation, and builds against a content-only workspace', func
         ->and(runBuilderEntrypoint($this->directory, 'validate'))
         ->toBe([0, "Valid site: 0 articles, 1 page, 0 tags, 3 assets.\n", ''])
         ->and($build[0])->toBe(0)
-        ->and($build[1])->toMatch('/^Built site: 0 articles, 1 page, 0 tags, 3 assets, 9 files in \\d+ ms\\.\\n$/')
+        ->and($build[1])->toMatch('/^Built site: 0 articles, 1 page, 0 tags, 3 assets, 10 files in \\d+ ms\\.\\n$/')
         ->and($build[2])->toBeEmpty()
         ->and(file_get_contents($this->directory . '/public/about/index.html'))
         ->toContain('<h1>About</h1>')

@@ -98,6 +98,7 @@ final readonly class Publisher
     ): void {
         $renderer = new HtmlRenderer($config, $catalog, $templates);
         $this->writeHtml($output . '/index.html', $renderer->home(), $config->minify, $budget);
+        $this->writeHtml($output . '/404.html', $renderer->notFound(), $config->minify, $budget);
 
         $this->writeHtml($output . "/pages/index.html", $renderer->pages(), $config->minify, $budget);
         $this->writeHtml($output . "/articles/index.html", $renderer->articles(), $config->minify, $budget);

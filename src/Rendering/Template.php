@@ -19,6 +19,7 @@ enum Template: string
     case CollectionPage = 'collection-page.html';
     case ContentSummary = 'content-summary.html';
     case TagList = 'tag-list.html';
+    case NotFound = 'not-found.html';
 
     /** @return list<non-empty-string> */
     public function placeholders(): array
@@ -36,6 +37,7 @@ enum Template: string
             self::CollectionPage => ['eyebrow', 'title', 'introduction', 'collection_label', 'list_class', 'items', 'empty_state'],
             self::ContentSummary => ['url', 'title', 'date', 'description', 'tags'],
             self::TagList => ['items'],
+            self::NotFound => ['home_url'],
         };
     }
 }
