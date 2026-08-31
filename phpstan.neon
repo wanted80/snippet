@@ -4,4 +4,5 @@ parameters:
         - src
         - tests
         - bin/snippet
+        - docker/builder/entrypoint.sh
     tmpDir: /tmp/phpstan

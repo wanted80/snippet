@@ -44,17 +44,14 @@
         }
     },
     "scripts": {
-        "app:build": "bin/snippet build",
-        "app:content:validate": "bin/snippet validate",
-        "app:new": "bin/snippet new",
-        "app:preview": [
-            "Composer\\Config::disableProcessTimeout",
-            "bin/snippet preview"
-        ],
+        "app:content:validate": "sh docker/demo/validate.sh",
         "app:test": "php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/pest",
         "app:test:coverage": "php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/pest --no-tia --coverage --exactly=100",
         "app:test:types": "php -d memory_limit=512M vendor/bin/pest --no-tia --type-coverage --min=100",
-        "app:test:mutations": "php -d memory_limit=512M -d pcov.enabled=1 -d pcov.directory=src vendor/bin/pest --no-tia --mutate --everything --covered-only --min=100",
+        "app:test:mutations": [
+            "Composer\\Config::disableProcessTimeout",
+            "sh docker/quality/mutations.sh"
+        ],
         "app:analyse": "phpstan analyse --no-progress --memory-limit=512M",
         "app:audit": "composer audit --locked",
         "app:lint": [
@@ -71,15 +68,10 @@
             "@app:lint",
             "@app:analyse",
             "@app:content:validate"
-        ],
-        "app:benchmark": "/usr/bin/time -v bin/snippet validate",
-        "app:benchmark:build": "/usr/bin/time -v bin/snippet build"
+        ]
     },
     "scripts-descriptions": {
-        "app:build": "Build the static site",
-        "app:content:validate": "Validate the site configuration and content catalog",
-        "app:new": "Create an incomplete page or article draft",
-        "app:preview": "Build, serve, and watch the site for local development",
+        "app:content:validate": "Compose and validate the demo site",
         "app:test": "Run the Pest test suite",
         "app:test:coverage": "Run tests with exact 100% line coverage",
         "app:test:types": "Run tests with 100% type coverage",
@@ -88,9 +80,7 @@
         "app:audit": "Audit locked dependencies against Composer security advisories",
         "app:lint": "Check formatting and automated refactoring",
         "app:fix": "Apply automated refactoring and formatting",
-        "app:check": "Run the complete application quality gate",
-        "app:benchmark": "Report validation resource usage without enforcing timing thresholds",
-        "app:benchmark:build": "Report build resource usage without enforcing timing thresholds"
+        "app:check": "Run the complete application quality gate"
     },
     "config": {
         "bump-after-update": true,

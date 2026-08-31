@@ -17,7 +17,7 @@ return RectorConfig::configure()
     )
     ->withPaths([
         __DIR__ . '/bin/snippet',
-        __DIR__ . '/docker/builder-entrypoint',
+        __DIR__ . '/docker/builder/entrypoint.sh',
         __DIR__ . '/src',
         __DIR__ . '/tests',
     ])

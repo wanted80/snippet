@@ -35,8 +35,8 @@ jobs:
       - name: Smoke-test release builder image
         run: make builder-smoke
 
+      - name: Validate and build the composed demo site
+        run: make demo-check
+
       - name: Audit locked dependencies
         run: make docker-audit
-
-      - name: Validate with the production image
-        run: ENVIRONMENT=production make docker-validate

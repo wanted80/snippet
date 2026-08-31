@@ -101,8 +101,8 @@ it('uses strict types in non-PSR-4 PHP files', function (): void {
 it('keeps Docker development entry points and build dependencies out of production use', function (): void {
     $root = dirname(__DIR__, 2);
     $makefile = file_get_contents($root . '/Makefile');
-    $dockerfile = file_get_contents($root . '/docker/Dockerfile');
-    $caddyfile = file_get_contents($root . '/docker/Caddyfile');
+    $dockerfile = file_get_contents($root . '/docker/development/Dockerfile');
+    $caddyfile = file_get_contents($root . '/docker/preview/Caddyfile');
     assert(is_string($makefile));
     assert(is_string($dockerfile));
     assert(is_string($caddyfile));
@@ -114,7 +114,8 @@ it('keeps Docker development entry points and build dependencies out of producti
         '$$(id -u):$$(id -g)',
         ' app bin/snippet build',
     )
-        ->and($dockerfile)->toContain('apt-mark manual libonig5', 'apt-get purge -y --auto-remove')
+        ->and($dockerfile)->toContain('docker-php-ext-install -j"$(nproc)" pcntl', 'apt-get purge -y --auto-remove')
+        ->not->toContain('libonig-dev', 'apt-mark manual libonig5')
         ->and($caddyfile)->toContain('Content-Security-Policy "frame-ancestors \'none\'"', 'X-Content-Type-Options "nosniff"');
 });
 
@@ -123,8 +124,8 @@ it('isolates the devcontainer from the host Docker Compose project', function ()
     $compose = file_get_contents($root . '/compose.yaml');
     $developmentCompose = file_get_contents($root . '/compose.dev.yaml');
     $devcontainer = file_get_contents($root . '/.devcontainer/devcontainer.json');
-    $dockerfile = file_get_contents($root . '/docker/Dockerfile');
-    $entrypoint = file_get_contents($root . '/docker/devcontainer-entrypoint');
+    $dockerfile = file_get_contents($root . '/docker/development/Dockerfile');
+    $entrypoint = file_get_contents($root . '/docker/development/entrypoint.sh');
     $postCreate = file_get_contents($root . '/.devcontainer/post-create.sh');
     assert(is_string($compose));
     assert(is_string($developmentCompose));
@@ -149,7 +150,7 @@ it('isolates the devcontainer from the host Docker Compose project', function ()
             'type=bind',
         )
         ->and($dockerfile)->toContain(
-            'COPY docker/devcontainer-entrypoint /usr/local/bin/snippet-devcontainer-entrypoint',
+            'COPY docker/development/entrypoint.sh /usr/local/bin/snippet-devcontainer-entrypoint',
             "        bindfs \\\n",
         )
         ->and($entrypoint)->toContain(

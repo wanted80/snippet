@@ -3,7 +3,8 @@
 set -eu
 
 image=${1:-snippet-builder:smoke}
-workspace=$(mktemp -d)
+repository=$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd -P)
+workspace=$(mktemp -d "${repository}/.snippet-builder-smoke.XXXXXX")
 
 cleanup() {
     rm -rf -- "${workspace}"
@@ -34,6 +35,23 @@ test "$(docker run --rm --entrypoint php "${image}" -r 'echo ini_get("error_repo
 test "$(docker run --rm --entrypoint php "${image}" -r 'echo ini_get("log_errors");')" = ""
 test "$(docker run --rm --entrypoint php "${image}" -r 'echo ini_get("zend.assertions");')" = -1
 
+extensions=$(docker run --rm --entrypoint php "${image}" -m 2>&1)
+printf '%s\n' "${extensions}" | grep -Fxq mbstring
+if printf '%s\n' "${extensions}" | grep -Fq 'Module "mbstring" is already loaded'; then
+    echo 'Builder loads mbstring more than once.' >&2
+    exit 1
+fi
+
+test "$(docker run --rm \
+    --network none \
+    --read-only \
+    --cap-drop ALL \
+    --security-opt no-new-privileges \
+    --user 12345:23456 \
+    --entrypoint php \
+    "${image}" \
+    -r 'require "/app/vendor/autoload.php"; echo Snippet\Support\ApplicationVersion::CURRENT;')" != ''
+
 docker run --rm --entrypoint sh "${image}" -c '
     ! command -v composer >/dev/null 2>&1
     ! command -v git >/dev/null 2>&1
@@ -55,6 +73,10 @@ fi
 test ! -e "${workspace}/content"
 
 run_builder init
+test "$(find "${workspace}/content/articles" -name article.md -type f | wc -l | tr -d ' ')" = 0
+test "$(find "${workspace}/content/pages" -name page.md -type f | wc -l | tr -d ' ')" = 0
+test -f "${workspace}/site/site.css"
+test -f "${workspace}/site/assets/fonts/snippet-logo/snippet-logo.woff2"
 run_builder validate
 run_builder build
 

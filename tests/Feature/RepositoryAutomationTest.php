@@ -19,8 +19,9 @@ it('defines stable least-privilege continuous integration and deployment workflo
         'run: make docker-check',
         'name: Smoke-test release builder image',
         'run: make builder-smoke',
+        'name: Validate and build the composed demo site',
+        'run: make demo-check',
         'run: make docker-audit',
-        'run: ENVIRONMENT=production make docker-validate',
         "    concurrency:\n      group: quality-\${{ github.workflow }}-\${{ github.ref }}\n      cancel-in-progress: true\n",
     )
         ->and($quality)->not->toContain('pull_request_target', 'permissions: write-all', 'path: .', 'gh-pages')
@@ -28,12 +29,12 @@ it('defines stable least-privilege continuous integration and deployment workflo
         ->and($pages)->toContain(
             "name: Pages\n",
             "  workflow_run:\n    workflows:\n      - Quality\n    types:\n      - completed\n",
-            "    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'\n",
+            "github.event.workflow_run.conclusion == 'success'\n      && github.event.workflow_run.event == 'push'\n      && github.event.workflow_run.head_branch == 'main'\n      && github.event.workflow_run.head_repository.full_name == github.repository",
             "        with:\n          ref: \${{ github.event.workflow_run.head_sha }}\n",
             "    permissions:\n      contents: read\n",
-            'run: ENVIRONMENT=production make docker-build',
+            'sh docker/demo/check.sh snippet-builder:smoke "$RUNNER_TEMP/snippet-public"',
             'uses: actions/upload-pages-artifact@',
-            "with:\n          path: public/\n",
+            "with:\n          path: \${{ runner.temp }}/snippet-public/\n",
             "  deploy:\n    name: Deploy GitHub Pages\n",
             "    needs: pages\n",
             "    concurrency:\n      group: github-pages\n      cancel-in-progress: false\n",
@@ -44,7 +45,9 @@ it('defines stable least-privilege continuous integration and deployment workflo
         ->and($pages)->not->toContain('pull_request_target', 'permissions: write-all', 'path: .', 'gh-pages')
         ->and($pages)->toMatch('~uses: actions/checkout@[0-9a-f]{40}~')
         ->and($pages)->toMatch('~uses: actions/upload-pages-artifact@[0-9a-f]{40}~')
-        ->and($pages)->toMatch('~uses: actions/deploy-pages@[0-9a-f]{40}~');
+        ->and($pages)->toMatch('~uses: actions/deploy-pages@[0-9a-f]{40}~')
+        ->and(mb_substr_count($pages, "github.event.workflow_run.event == 'push'"))->toBe(2)
+        ->and(mb_substr_count($pages, 'github.event.workflow_run.head_repository.full_name == github.repository'))->toBe(2);
 });
 
 it('keeps Release Please source-only and independently guarded', function (): void {
@@ -70,6 +73,10 @@ it('keeps Release Please source-only and independently guarded', function (): vo
 it('publishes stable released builder tags with provenance and least privilege', function (): void {
     $release = file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/release.yml');
     assert(is_string($release));
+    $smokePosition = mb_strpos($release, 'name: Smoke-test native builder image');
+    $loginPosition = mb_strpos($release, 'name: Log in to GitHub Container Registry');
+    assert(is_int($smokePosition));
+    assert(is_int($loginPosition));
 
     expect($release)->toContain(
         "name: Builder Image\n",
@@ -81,6 +88,8 @@ it('publishes stable released builder tags with provenance and least privilege',
         'Stable builder releases require a vX.Y.Z tag',
         "          ref: \${{ github.event.release.tag_name }}\n",
         'uses: actions/checkout@',
+        'name: Smoke-test native builder image',
+        'run: make builder-smoke',
         'uses: docker/setup-qemu-action@',
         'uses: docker/setup-buildx-action@',
         'uses: docker/login-action@',
@@ -101,7 +110,7 @@ it('publishes stable released builder tags with provenance and least privilege',
         'org.opencontainers.image.licenses=MIT',
         'uses: docker/build-push-action@',
         "          context: .\n",
-        "          file: docker/builder.Dockerfile\n",
+        "          file: docker/builder/Dockerfile\n",
         "          platforms: linux/amd64,linux/arm64\n",
         "          push: true\n",
         "          tags: \${{ steps.metadata.outputs.tags }}\n",
@@ -113,7 +122,8 @@ it('publishes stable released builder tags with provenance and least privilege',
     )
         ->not->toContain('workflow_dispatch', 'push:', 'pull_request_target', 'permissions: write-all', 'contents: write')
         ->and(mb_substr_count($release, 'uses:'))->toBe(7)
-        ->and(preg_match_all('~uses: [^@\\s]+@[0-9a-f]{40}~', $release))->toBe(7);
+        ->and(preg_match_all('~uses: [^@\\s]+@[0-9a-f]{40}~', $release))->toBe(7)
+        ->and($smokePosition)->toBeLessThan($loginPosition);
 });
 it('configures the first stable source release across bootstrap and subsequent runs', function (): void {
     $root = dirname(__DIR__, 2);
@@ -150,6 +160,14 @@ it('configures the first stable source release across bootstrap and subsequent r
                         'type' => 'generic',
                         'path' => 'src/Support/ApplicationVersion.php',
                     ],
+                    [
+                        'type' => 'generic',
+                        'path' => 'README.md',
+                    ],
+                    [
+                        'type' => 'generic',
+                        'path' => 'INSTALL.md',
+                    ],
                 ],
             ],
         ],
@@ -178,15 +196,98 @@ it('exposes separate deterministic and network-dependent maintenance gates', fun
     assert(is_string($makefile));
 
     expect($composer)->toContain(
-        '"app:test:mutations": "php -d memory_limit=512M -d pcov.enabled=1 -d pcov.directory=src vendor/bin/pest --no-tia --mutate --everything --covered-only --min=100"',
+        '"app:test:mutations": [',
+        '"Composer\\\\Config::disableProcessTimeout"',
+        '"sh docker/quality/mutations.sh"',
         '"app:audit": "composer audit --locked"',
     )
         ->and($makefile)->toContain(
             "docker-mutations:\n\t$(MAKE) ENVIRONMENT=development docker-install",
             'composer app:test:mutations',
             "docker-audit:\n\t$(MAKE) ENVIRONMENT=development docker-install",
-            "builder-smoke: builder-image\n\tsh docker/builder-smoke \"$(BUILDER_IMAGE)\"",
-            'shellcheck .devcontainer/post-create.sh docker/builder-smoke docker/devcontainer-entrypoint docker/trust-caddy-ca',
+            "builder-smoke: builder-image\n\tsh docker/builder/smoke.sh \"$(BUILDER_IMAGE)\"",
+            "demo-check: builder-image\n\tsh docker/demo/check.sh \"$(BUILDER_IMAGE)\"",
+            'shellcheck .devcontainer/post-create.sh docker/builder/smoke.sh docker/demo/check.sh docker/demo/validate.sh docker/demo/workspace.sh docker/development/entrypoint.sh docker/preview/trust-caddy-ca.sh docker/quality/mutations.sh',
             'node --check resources/theme.js',
         );
+});
+
+it('groups Docker support by responsibility and names shell sources explicitly', function (): void {
+    $docker = dirname(__DIR__, 2) . '/docker';
+
+    foreach (['builder', 'demo', 'development', 'preview', 'quality'] as $responsibility) {
+        expect($docker . '/' . $responsibility)->toBeDirectory();
+    }
+
+    $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($docker));
+    foreach ($files as $file) {
+        assert($file instanceof SplFileInfo);
+        if (!$file->isFile()) {
+            continue;
+        }
+
+        $source = file_get_contents($file->getPathname(), false, null, 0, 10);
+        if ($source === '#!/bin/sh\n') {
+            expect($file->getExtension())->toBe('sh');
+        }
+    }
+});
+
+it('composes and validates the complete demo from canonical shared inputs', function (): void {
+    $root = dirname(__DIR__, 2);
+    $workspace = $this->directory . '/demo-workspace';
+    $process = proc_open(
+        [$root . '/docker/demo/workspace.sh', $workspace],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        $root,
+    );
+    expect($process)->toBeResource();
+    assert(is_resource($process));
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+
+    expect(proc_close($process))->toBe(0)
+        ->and($stdout)->toBe('')
+        ->and($stderr)->toBe('')
+        ->and(file_get_contents($workspace . '/site/config.php'))
+        ->toBe(file_get_contents($root . '/demo/site/config.php'))
+        ->not->toBe(file_get_contents($root . '/site/config.php'))
+        ->and(file_get_contents($workspace . '/resources/templates/layout.html'))
+        ->toBe(file_get_contents($root . '/resources/templates/layout.html'))
+        ->and($workspace . '/content/articles/2026/07/25/year-of-small-projects/article.md')->toBeFile()
+        ->and($workspace . '/content/articles/2026/08/26/welcome/article.md')->toBeFile()
+        ->and($workspace . '/content/pages/about/page.md')->toBeFile()
+        ->and(validatePublication($workspace)[0])->toBe(0)
+        ->and(validatePublication($workspace)[1])->toMatch('/^Valid site: 17 articles, 1 page, \d+ tags, \d+ assets[.]\n$/');
+});
+
+it('isolates mutation testing from the host checkout and detects any host change', function (): void {
+    $wrapper = file_get_contents(dirname(__DIR__, 2) . '/docker/quality/mutations.sh');
+    assert(is_string($wrapper));
+
+    expect($wrapper)->toContain(
+        'mutation_root=$(mktemp -d /tmp/snippet-mutations.XXXXXX)',
+        'git -C "${source_root}" status --porcelain=v1 --untracked-files=all',
+        'rsync -a',
+        '--exclude=.git/',
+        'cd "${mutation_root}"',
+        'vendor/bin/pest --no-tia --mutate --everything --covered-only --min=100',
+        'cmp -s "${before_status}" "${after_status}"',
+        'Host checkout changed during isolated mutation testing.',
+    );
+});
+
+it('keeps exact builder-image examples release-managed', function (): void {
+    $root = dirname(__DIR__, 2);
+
+    foreach (['README.md', 'INSTALL.md'] as $document) {
+        $contents = file_get_contents($root . '/' . $document);
+        assert(is_string($contents));
+        $count = preg_match_all('/^.*v2[.]0[.]0.*$/m', $contents, $matches);
+        expect($count)->toBeGreaterThan(0)
+            ->and($matches[0])->each->toContain('x-release-please-version');
+    }
 });

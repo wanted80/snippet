@@ -25,21 +25,12 @@ $errorReporter = new ErrorReporter(
         && getenv('TERM') !== 'dumb'
         && stream_isatty(STDERR),
 );
-$command = $arguments[1] ?? null;
-if ($command === null) {
-    $errorReporter->usageError($stderr, 'A command is required.', USAGE);
-    exit(2);
-}
-if (!in_array($command, ['--version', 'init', 'validate', 'build', 'new'], true)) {
-    $errorReporter->usageError($stderr, "Unknown command '{$command}'.", USAGE);
-    exit(2);
-}
-if ($command !== 'new' && count($arguments) !== 2) {
-    $errorReporter->usageError($stderr, "Command '{$command}' does not accept arguments.", USAGE);
-    exit(2);
-}
+if (($arguments[1] ?? null) === 'init') {
+    if (count($arguments) !== 2) {
+        $errorReporter->usageError($stderr, "Command 'init' does not accept arguments.", USAGE);
+        exit(2);
+    }
 
-if ($command === 'init') {
     try {
         $result = new WorkspaceInitializer($engineRoot, $workspace)->initialize();
     } catch (RuntimeException $runtimeException) {
@@ -68,7 +59,7 @@ if ($command === 'init') {
     exit(0);
 }
 
-exit(new Application($workspace, usage: USAGE, errorReporter: $errorReporter)->run(
+exit(new Application($workspace, usage: USAGE, errorReporter: $errorReporter, previewEnabled: false)->run(
     $arguments,
     $stdout,
     $stderr,

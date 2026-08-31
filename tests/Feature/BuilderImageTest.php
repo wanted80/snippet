@@ -9,7 +9,7 @@ function runBuilderEntrypoint(string $workspace, string ...$arguments): array
 {
     $root = dirname(__DIR__, 2);
     /** @var list<string> $command */
-    $command = [PHP_BINARY, $root . '/docker/builder-entrypoint', ...$arguments];
+    $command = [PHP_BINARY, $root . '/docker/builder/entrypoint.sh', ...$arguments];
     $process = proc_open(
         $command,
         [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
@@ -82,21 +82,21 @@ it('runs version, validation, and builds against a content-only workspace', func
         ->and($this->directory . '/bin')->not->toBeDirectory();
 });
 
-it('initializes an empty content-only workspace from the bundled starter', function (): void {
+it('initializes an empty workspace from canonical shared inputs without demo content', function (): void {
     removeBuilderTestSite($this->directory);
 
     [$status, $stdout, $stderr] = runBuilderEntrypoint($this->directory, 'init');
 
     expect($status)->toBe(0)
         ->and($stdout)->toStartWith("Initializing Snippet workspace.\n\n")
-        ->and($stdout)->toContain("Created: content/pages/about/page.md\n")
+        ->and($stdout)->not->toContain('demo/', 'article.md', 'page.md')
         ->and($stdout)->toContain("Created: resources/templates/layout.html\n")
         ->and($stdout)->toEndWith("\nWorkspace initialized.\nExisting files were not overwritten.\n")
         ->and($stderr)->toBeEmpty()
         ->and($this->directory . '/public')->not->toBeDirectory();
 
     $root = dirname(__DIR__, 2);
-    foreach (['content', 'site', 'resources'] as $input) {
+    foreach (['site', 'resources'] as $input) {
         foreach (builderScaffoldFiles($root . '/' . $input) as $file) {
             if ($input . '/' . $file === 'resources/preview-router.php') {
                 continue;
@@ -105,7 +105,13 @@ it('initializes an empty content-only workspace from the bundled starter', funct
                 ->toBe(file_get_contents($root . '/' . $input . '/' . $file));
         }
     }
-    expect($this->directory . '/resources/preview-router.php')->not->toBeFile();
+    expect($this->directory . '/content/articles')->toBeDirectory()
+        ->and($this->directory . '/content/pages')->toBeDirectory()
+        ->and(builderScaffoldFiles($this->directory . '/content'))->toBeEmpty()
+        ->and($this->directory . '/resources/preview-router.php')->not->toBeFile()
+        ->and(file_get_contents($this->directory . '/site/config.php'))
+        ->toBe(file_get_contents($root . '/site/config.php'))
+        ->not->toBe(file_get_contents($root . '/demo/site/config.php'));
 });
 
 it('adds missing scaffold files without changing existing files or public output', function (): void {
@@ -229,9 +235,9 @@ it('reports new-command usage through the builder interface', function (): void 
 
 it('defines a dedicated minimal builder image and runtime configuration', function (): void {
     $root = dirname(__DIR__, 2);
-    $dockerfile = file_get_contents($root . '/docker/builder.Dockerfile');
-    $configuration = file_get_contents($root . '/docker/builder.ini');
-    $developmentDockerfile = file_get_contents($root . '/docker/Dockerfile');
+    $dockerfile = file_get_contents($root . '/docker/builder/Dockerfile');
+    $configuration = file_get_contents($root . '/docker/builder/php.ini');
+    $developmentDockerfile = file_get_contents($root . '/docker/development/Dockerfile');
 
     expect($dockerfile)->toBeString()
         ->and($configuration)->toBeString()
@@ -242,9 +248,10 @@ it('defines a dedicated minimal builder image and runtime configuration', functi
     assert(is_string($developmentDockerfile));
 
     expect($dockerfile)->toContain(
-        'FROM composer:2 AS dependencies',
+        'FROM composer:2 AS composer',
+        'FROM php:8.5-cli-alpine AS dependencies',
         'FROM php:8.5-cli-alpine AS builder',
-        'docker-php-ext-install -j"$(nproc)" mbstring',
+        'COPY --from=composer /usr/bin/composer /usr/local/bin/composer',
         'COPY --from=dependencies /app/vendor /app/vendor',
         'COPY src/Application.php src/Application.php',
         'COPY src/Authoring src/Authoring',
@@ -254,13 +261,16 @@ it('defines a dedicated minimal builder image and runtime configuration', functi
         'COPY resources/theme.css resources/theme.css',
         'COPY resources/theme.js resources/theme.js',
         'COPY resources/templates resources/templates',
-        'COPY docker/builder-entrypoint /usr/local/bin/snippet',
+        'COPY docker/builder/entrypoint.sh /usr/local/bin/snippet',
         'USER snippet',
         'WORKDIR /workspace',
         'ENTRYPOINT ["snippet"]',
     )
         ->not->toContain(
             'COPY . .',
+            'COPY content content',
+            'COPY demo',
+            '/starter',
             'src/Preview',
             'resources/preview-router.php',
             'EXPOSE',

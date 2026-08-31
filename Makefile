@@ -11,13 +11,14 @@ falsy = $(filter 0 false no off,$(strip $(1)))
 BUILD_OPTIONS = $(if $(call truthy,$(PULL)),--pull) $(if $(call truthy,$(NO_CACHE)),--no-cache)
 ORPHAN_OPTION = $(if $(call falsy,$(REMOVE_ORPHANS)),,--remove-orphans)
 
-.PHONY: help builder-image builder-smoke docker-image docker-install docker-validate docker-build docker-preview docker-preview-trust docker-preview-down docker-shell docker-config docker-test docker-mutations docker-analyse docker-audit docker-lint docker-fix docker-check
+.PHONY: help builder-image builder-smoke demo-check docker-image docker-install docker-validate docker-build docker-preview docker-preview-trust docker-preview-down docker-shell docker-config docker-test docker-mutations docker-analyse docker-audit docker-lint docker-fix docker-check
 
 help:
 	@echo 'Snippet Docker commands'
 	@echo
 	@echo '  make builder-image         Build the release builder image'
 	@echo '  make builder-smoke         Smoke-test the release builder image'
+	@echo '  make demo-check            Validate and build the composed demo site'
 	@echo '  make docker-image          Build the selected application image'
 	@echo '  make docker-install        Synchronize its isolated vendor volume'
 	@echo '  make docker-validate       Validate site configuration and content'
@@ -46,10 +47,13 @@ help:
 	@echo 'default; pass REMOVE_ORPHANS=0 to retain them.'
 
 builder-image:
-	docker build $(BUILD_OPTIONS) --file docker/builder.Dockerfile --tag "$(BUILDER_IMAGE)" .
+	docker build $(BUILD_OPTIONS) --file docker/builder/Dockerfile --tag "$(BUILDER_IMAGE)" .
 
 builder-smoke: builder-image
-	sh docker/builder-smoke "$(BUILDER_IMAGE)"
+	sh docker/builder/smoke.sh "$(BUILDER_IMAGE)"
+
+demo-check: builder-image
+	sh docker/demo/check.sh "$(BUILDER_IMAGE)"
 
 docker-image:
 	$(COMPOSE) build $(BUILD_OPTIONS) app
@@ -70,7 +74,7 @@ docker-preview: docker-install
 docker-preview-trust: docker-install
 	$(if $(call truthy,$(PULL)),$(COMPOSE) --profile preview pull caddy)
 	$(COMPOSE) --profile preview up -d $(ORPHAN_OPTION)
-	sh docker/trust-caddy-ca
+	sh docker/preview/trust-caddy-ca.sh
 	$(COMPOSE) --profile preview up $(ORPHAN_OPTION)
 
 docker-preview-down:
@@ -110,5 +114,5 @@ docker-fix:
 docker-check:
 	$(MAKE) ENVIRONMENT=development docker-install
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app composer app:check
-	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app shellcheck .devcontainer/post-create.sh docker/builder-smoke docker/devcontainer-entrypoint docker/trust-caddy-ca
+	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app shellcheck .devcontainer/post-create.sh docker/builder/smoke.sh docker/demo/check.sh docker/demo/validate.sh docker/demo/workspace.sh docker/development/entrypoint.sh docker/preview/trust-caddy-ca.sh docker/quality/mutations.sh
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app node --check resources/theme.js

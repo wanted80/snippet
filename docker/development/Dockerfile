@@ -10,14 +10,11 @@ ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git \
-        libonig-dev \
         unzip \
         ${PHPIZE_DEPS} \
-    && docker-php-ext-install -j"$(nproc)" mbstring pcntl \
-    && apt-mark manual libonig5 \
+    && docker-php-ext-install -j"$(nproc)" pcntl \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
         ${PHPIZE_DEPS} \
-        libonig-dev \
     && groupadd --gid "${LOCAL_GID}" snippet \
     && useradd --uid "${LOCAL_UID}" --gid "${LOCAL_GID}" --create-home --shell /bin/sh snippet \
     && apt-get clean \
@@ -81,7 +78,7 @@ RUN apt-get update \
 
 ENV SHELL=/usr/bin/zsh
 
-COPY docker/devcontainer-entrypoint /usr/local/bin/snippet-devcontainer-entrypoint
+COPY docker/development/entrypoint.sh /usr/local/bin/snippet-devcontainer-entrypoint
 RUN chmod 0755 /usr/local/bin/snippet-devcontainer-entrypoint
 
 COPY composer.json composer.lock ./
@@ -89,7 +86,7 @@ RUN composer install --no-interaction --prefer-dist --optimize-autoloader \
     && chown -R snippet:snippet /app
 
 COPY --chown=snippet:snippet . .
-COPY --chown=snippet:snippet docker/zshrc /home/snippet/.zshrc
+COPY --chown=snippet:snippet docker/development/zshrc /home/snippet/.zshrc
 
 USER snippet
 
