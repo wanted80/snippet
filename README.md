@@ -4,7 +4,7 @@
 
 # Snippet
 
-Snippet is a small, dependency-free PHP 8.5+ publishing system for one author. It turns self-contained Markdown content directories into a completely static website. The public repository is an MIT-licensed starter: the content is the product, the generated site is disposable, and the builder stays out of the published result.
+Snippet is a small, dependency-free PHP 8.5+ publishing system for one author. It turns self-contained Markdown content directories into a completely static website. This repository contains the generator and its canonical defaults; the public example site lives separately under `demo/`.
 
 Snippet provides:
 
@@ -34,7 +34,7 @@ cd my-site
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v2.0.0 init
+  ghcr.io/wanted80/snippet:v2.0.0 init # x-release-please-version
 ```
 
 `--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path. Edit the generated `site/config.php` and content, then rerun the command with `init` replaced by `validate` or `build`. Create later drafts through the same image, for example by replacing `init` with `new article first-post`.
@@ -47,10 +47,10 @@ For a full checkout used to develop Snippet itself, Docker with Make remains the
 git clone https://github.com/wanted80/snippet.git
 cd snippet
 cp .env.example .env
-make docker-preview-trust
+make demo-check
 ```
 
-This contributor command installs the local Caddy certificate and opens the live HTTPS preview workflow; it is not required to publish a content-only site.
+This builds the release image, assembles the demo in a temporary workspace, validates it, and proves the production build. To use live preview for a publication, run the direct CLI from that publication's workspace as documented in [INSTALL.md](INSTALL.md).
 
 ## Content
 
@@ -74,13 +74,12 @@ Article directories must use a real, zero-padded calendar date that matches the 
 
 Page and article directory slugs are author-chosen lowercase ASCII letters and numbers separated by single hyphens. Titles are independent and may use any language: a page titled `日本語`, for example, can use the directory slug `nihongo`. Snippet never transliterates a title automatically because pronunciation and convention are language-dependent.
 
-Start a page or article with the minimal draft command in a full source checkout:
+Start a page or article with the minimal draft command in an initialized publication workspace:
 
 ```bash
-bin/snippet new page contact
-bin/snippet new article first-post
-bin/snippet new article older-note --date=2026-07-01
-composer app:new -- article first-post
+snippet new page contact
+snippet new article first-post
+snippet new article older-note --date=2026-07-01
 ```
 
 Content-only repositories use the equivalent builder-image command:
@@ -89,7 +88,7 @@ Content-only repositories use the equivalent builder-image command:
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v2.0.0 new article first-post
+  ghcr.io/wanted80/snippet:v2.0.0 new article first-post # x-release-please-version
 ```
 
 An article without `--date` uses the current UTC date. The command creates an empty Markdown file and a `meta.php` with empty title and description fields; articles also receive the selected date and an empty tag list. The result is intentionally incomplete, so finish both files before validating, building, or previewing. Draft creation checks that the relevant content collection is a regular non-symlink directory, does not validate the existing catalog or change `public/`, and never replaces an existing content directory. Run `snippet init` first when using an empty content-only workspace. Contributors can also run the canonical command after entering `make docker-shell`; there is deliberately no separate Make target.
@@ -141,7 +140,7 @@ return [
 
 No more than four pages may define `menu_order` under the internal navigation ceiling. Every page appears at `/pages/` whether or not it is in the direct navigation.
 
-The starter keeps `content/pages/about/` as its conventional permanent About page and promotes it with `menu_order`. It remains an ordinary page—using the same content template and reading typography as articles—so its Markdown, assets, route, validation, and archive entry need no special engine path. Replace its content for a real site; the builder deliberately does not require a particular page slug.
+The demo keeps `demo/content/pages/about/` as a conventional permanent About page and promotes it with `menu_order`. It remains an ordinary page; initialized publications start with empty page and article collections and do not require any particular page slug.
 
 Tags retain their source order. Their route slugs are generated deterministically by lowercasing UTF-8 labels, replacing runs of characters other than Unicode letters, combining marks, and numbers with one hyphen, and trimming edge hyphens. `PHP 8.5` becomes `php-8-5`, `Café` becomes `café`, and `日本語` remains `日本語`. A generated slug must be non-empty and unique within an article, and it must map to one consistent display label throughout the catalog. Tag slugs and output-directory names remain Unicode—for example, `public/tags/café/`—while every emitted slug is UTF-8 percent-encoded as one RFC 3986 path segment, producing the ASCII-safe URL `/tags/caf%C3%A9/`.
 
@@ -167,7 +166,13 @@ Validation checks every internal Markdown link against the complete generated ro
 
 ## Site customization
 
-`resources/` contains the builder-shipped publication defaults and preview support: the default stylesheet, theme script, HTML templates, and preview router. `site/` contains one publication's site-specific configuration, theme overrides, self-hosted fonts, and other assets. Keeping these roles separate lets a site replace presentation details without turning its identity and assets into builder defaults.
+`resources/` contains the canonical builder-shipped templates, stylesheet, theme script, and preview support. Root `site/` contains the generic configuration and customizable site assets copied by `snippet init`. The public example combines those shared inputs with `demo/content/` and the single demo-specific override at `demo/site/config.php`; no duplicate starter tree is committed.
+
+## Repository and demo separation
+
+The root is the generator and reference implementation. `site/` and `resources/` are the one maintained source for initialized publications, while `demo/content/` preserves the project website's articles and pages. `snippet init` creates empty `content/articles/` and `content/pages/` collections and copies only the generic root defaults—never demo configuration or content. CI composes the demo into a temporary normal workspace, validates it, builds it, and deploys only the generated output.
+
+Container support is grouped by responsibility under `docker/`: `development/` owns the contributor image, `builder/` the published minimal image, `demo/` temporary demo composition, `preview/` local Caddy support, and `quality/` container-specific quality tooling. Shell sources retain their `.sh` extension in the repository even when an image installs them as an extensionless command.
 
 `site/config.php` defines the site's identity and build preferences with one exact shape:
 
@@ -277,16 +282,17 @@ Articles are ordered by date descending and then slug ascending. Pages are order
 
 Markdown inline, list-item, and link traversals, together with preview filesystem fingerprint records, are exposed internally as fresh, forward-only generators. This reduces transient allocations for one-pass consumers. The validated catalog remains materialized because ordering, complete route inventory, tag aggregation, reference validation, and snapshot-safe transactional publication all require one shared complete snapshot; generators do not replace it.
 
-Runtime code uses only PHP's standard library. Composer supplies the PHP platform requirement, PSR-4 autoloading, project scripts, and approved development-only quality tools. The selected static host owns upload configuration, public HTTPS, and certificates; only the generated `public/` directory is deployable. This repository builds `public/` through the locked production Docker workflow and deploys that artifact to GitHub Pages after the separate `Quality` workflow succeeds on `main`; pull requests never deploy, generated output remains ignored, and no publication branch is used. Dispatch `Quality` manually when a manual publication is needed.
+Runtime code uses only PHP's standard library. Composer supplies the PHP platform requirement, PSR-4 autoloading, project scripts, and approved development-only quality tools. The selected static host owns upload configuration, public HTTPS, and certificates; only the generated `public/` directory is deployable. This repository builds `public/` through the locked production Docker workflow and deploys that artifact to GitHub Pages after the separate `Quality` workflow succeeds for a trusted push to `main`; pull requests and manual quality runs never deploy, generated output remains ignored, and no publication branch is used.
 
 The default layout also carries a restrictive meta Content Security Policy for same-origin scripts, styles, images, fonts, and connections. Browsers do not enforce `frame-ancestors` from a meta policy, so configure the static host to send `Content-Security-Policy: frame-ancestors 'none'` as an HTTP response header. `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin` are sensible companion headers. Docker's local Caddy preview sends these headers, but deployment configuration belongs to the selected host. GitHub Pages does not provide project-controlled response headers, so its deployment retains the meta CSP but cannot add all of these recommended response headers.
 
 ## Maintenance and releases
 
-Pull requests run the complete Docker development gate, validate both Compose environments, audit the locked Composer dependencies, and validate content through the production image. Run the same project-owned checks locally with:
+Pull requests run the complete Docker development gate, validate both Compose environments, audit the locked Composer dependencies, and validate and build the composed demo through the release builder image. Run the same project-owned checks locally with:
 
 ```bash
 make docker-check
+make demo-check
 make docker-audit
 ```
 
@@ -301,9 +307,9 @@ Snippet follows Semantic Versioning. Pull requests are squash-merged with conven
 - [Security policy](SECURITY.md)
 - [Contributor and coding guidance](AGENTS.md)
 - [MIT license](LICENSE)
-- [`content/`](content/) for authored pages and articles
-- [`site/`](site/) for site-specific configuration, overrides, fonts, and assets
-- [`resources/`](resources/) for builder-shipped publication defaults and preview support
+- [`demo/`](demo/) for the public example site's content and configuration override
+- [`site/`](site/) for generic initialized-site configuration, fonts, and assets
+- [`resources/`](resources/) for canonical shared publication defaults and preview support
 - [`src/`](src/) for the dependency-free builder
 
 Snippet source is available under the [MIT License](LICENSE). The bundled Atkinson Hyperlegible Next font files retain their separate [SIL Open Font License 1.1](site/assets/fonts/atkinson-hyperlegible-next/OFL.txt).

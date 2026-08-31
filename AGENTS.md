@@ -49,7 +49,7 @@ snippet/
 - compose.dev.yaml
 - composer.json
 - bin/
-- content/
+- demo/
 - resources/
 - site/
 - src/
@@ -92,7 +92,7 @@ Docker with Make is the recommended user workflow. The root Compose and Make int
 
 ## Content model
 
-Pages and articles occupy separate source collections:
+Pages and articles occupy separate source collections in a normal initialized workspace. The repository's own public example stores the same shape beneath `demo/content/`:
 
 content/
 - pages/
@@ -313,7 +313,7 @@ Pest features are selected for the behavior under test, not added ceremonially. 
 
 Content discovery, metadata, route resolution, Markdown parsing, image validation, internal-reference validation, rendering, transactional publication, preview fallback, and live reload now define the finished engine. Subsequent work is limited to layout, typography, responsive behavior, themes, and visual polish unless a later explicit product need reopens engine development.
 
-Do not add feeds, sitemaps, social metadata, JSON-LD, author or update metadata, image processing, Markdown images, search, pagination, drafts, plugins, generated 404 pages, deployment integrations, or additional content types without that explicit need.
+The existing Open Graph and Twitter/X metadata is the one explicit exception to this freeze. Do not add feeds, sitemaps, additional social configuration, JSON-LD, author or update metadata, image processing, Markdown images, search, pagination, drafts, plugins, generated 404 pages, deployment integrations, or additional content types without that explicit need.
 
 ## Change boundaries
 

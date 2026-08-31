@@ -6,7 +6,7 @@ Snippet can build a site from a content-only repository with the official image,
 
 Install Docker Engine or Docker Desktop, then create an empty repository directory. On Windows, run these commands inside WSL 2 and keep the repository in the WSL filesystem.
 
-Use an exact release tag for reproducible output. The examples pin v2.0.0. `--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path:
+Use an exact release tag for reproducible output. The examples pin v2.0.0. <!-- x-release-please-version --> `--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path:
 
 ```bash
 mkdir my-site
@@ -15,28 +15,28 @@ cd my-site
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v2.0.0 init
+  ghcr.io/wanted80/snippet:v2.0.0 init # x-release-please-version
 ```
 
-`init` safely creates missing starter files beneath `content/`, `site/`, and `resources/`. Existing files win, nothing is deleted, `public/` is untouched, and the engine-development preview router is not scaffolded. Repeating `init` after changing the pinned image adds new starter files without replacing customization.
+`init` creates empty `content/articles/` and `content/pages/` collections and copies the canonical generic files from `site/` and `resources/`. Existing files win, nothing is deleted, `public/` is untouched, and the engine-development preview router is not copied. Demo configuration and content are never included. Repeating `init` after changing the pinned image may add newly required shared files without replacing customization.
 
-Set the complete public HTTPS URL in `site/config.php` and replace the example content. Rerun the command with `init` replaced by `validate` to check the site without changing `public/`, or by `build` to create the static publication. The same image creates later drafts:
+Set the complete public HTTPS URL in `site/config.php`, then create the first page or article. Rerun the command with `init` replaced by `validate` to check the site without changing `public/`, or by `build` to create the static publication. The same image creates drafts:
 
 ```bash
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v2.0.0 new page contact
+  ghcr.io/wanted80/snippet:v2.0.0 new page contact # x-release-please-version
 
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v2.0.0 new article first-post
+  ghcr.io/wanted80/snippet:v2.0.0 new article first-post # x-release-please-version
 ```
 
 The image exposes only `--version`, `init`, `new page`, `new article`, `validate`, and `build`. Draft creation requires the relevant collection created by `init`, refuses symlinked or existing destinations, and leaves `public/` unchanged. The image deliberately omits preview, Composer, development tools, and source outside those commands' runtime paths. `validate` reports the catalog and prospective asset count. `build` measures validation plus transactional publication and reports the actual promoted asset and file counts. Failures retain the existing `public/` directory.
 
-Moving release aliases and `latest` are convenient for evaluation but unsuitable for reproducible publication. Pin a full release such as `v2.0.0` or an immutable image digest.
+Moving release aliases and `latest` are convenient for evaluation but unsuitable for reproducible publication. Pin a full release such as `v2.0.0` or an immutable image digest. <!-- x-release-please-version -->
 
 ## Building a separate repository
 
@@ -48,7 +48,7 @@ SITE_DIRECTORY=/absolute/path/to/my-site
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$SITE_DIRECTORY:/workspace" \
-  ghcr.io/wanted80/snippet:v2.0.0 build
+  ghcr.io/wanted80/snippet:v2.0.0 build # x-release-please-version
 ```
 
 The mounted repository owns only publication inputs and disposable output. Commit `content/`, `site/`, and `resources/`; ignore `public/`. Do not upload the source repository or container to the web host.
@@ -68,14 +68,14 @@ docker run --rm \
   --user "$(id -u):$(id -g)" \
   --mount type=bind,src="$PWD",dst=/workspace \
   --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-  ghcr.io/wanted80/snippet:v2.0.0 build
+  ghcr.io/wanted80/snippet:v2.0.0 build # x-release-please-version
 ```
 
 Docker may need network access to pull the image before the container starts; `--network none` applies to the running builder.
 
 ## Direct PHP usage from a full checkout
 
-Clone Snippet when developing the engine or when local preview and draft creation are needed:
+Clone Snippet when developing the engine or when using its direct PHP CLI:
 
 ```bash
 git clone https://github.com/wanted80/snippet.git
@@ -85,15 +85,15 @@ composer install
 
 Install PHP 8.5 or newer, Composer, and the production extensions declared in `composer.json`: Date, Filter, Hash, Mbstring, PCRE, Random, and Tokenizer. Contributors also need the development extensions in `require-dev`, including PCNTL, PCOV, and POSIX.
 
-The canonical direct commands are:
+Run the canonical CLI from the publication workspace. The executable may live in the separate Snippet checkout:
 
 ```bash
-bin/snippet new page contact
-bin/snippet new article first-post
-bin/snippet new article older-note --date=2026-07-01
-bin/snippet validate
-bin/snippet build
-bin/snippet preview
+/path/to/snippet/bin/snippet new page contact
+/path/to/snippet/bin/snippet new article first-post
+/path/to/snippet/bin/snippet new article older-note --date=2026-07-01
+/path/to/snippet/bin/snippet validate
+/path/to/snippet/bin/snippet build
+/path/to/snippet/bin/snippet preview
 ```
 
 An article without `--date` uses the current UTC date. Draft creation deliberately produces incomplete metadata and Markdown, never replaces an existing content directory, and never changes `public/`. Complete the draft before validation.
@@ -104,7 +104,7 @@ Direct preview serves HTTP at `http://127.0.0.1:8080` by default, watches `conte
 bin/snippet preview --host=127.0.0.1 --port=9000
 ```
 
-Composer exposes aliases such as `composer app:content:validate`, `composer app:build`, `composer app:preview`, and `composer app:new -- article first-post`.
+Inside the generator checkout, `composer app:content:validate` validates the composed demo site. The repository root itself is not a publication workspace.
 
 ## Contributor Docker, Make, and HTTPS preview
 
@@ -142,9 +142,10 @@ make docker-lint
 make docker-fix
 make docker-check
 make builder-smoke
+make demo-check
 ```
 
-`docker-check` runs exact source line and type coverage, Pint, Rector, PHPStan, content validation, ShellCheck, and JavaScript syntax validation. `docker-audit` remains separate because advisory data needs the network. `builder-smoke` builds the dedicated release Dockerfile and checks its non-root runtime, command boundary, PHP settings, excluded tools/source, and scaffold/validate/build lifecycle.
+`docker-check` runs exact source line and type coverage, Pint, Rector, PHPStan, composed-demo validation, ShellCheck, and JavaScript syntax validation. `docker-audit` remains separate because advisory data needs the network. `builder-smoke` checks the release image and its empty-workspace initialization lifecycle; `demo-check` composes root shared files with `demo/`, validates the complete existing site, and proves its production build succeeds.
 
 The optional `.env` controls local orchestration only. Its principal settings are:
 
@@ -226,14 +227,14 @@ jobs:
             --security-opt no-new-privileges --user "$(id -u):$(id -g)" \
             --mount type=bind,src="$GITHUB_WORKSPACE",dst=/workspace \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-            ghcr.io/wanted80/snippet:v2.0.0 validate
+            ghcr.io/wanted80/snippet:v2.0.0 validate # x-release-please-version
       - name: Build
         run: |
           docker run --rm --network none --read-only --cap-drop ALL \
             --security-opt no-new-privileges --user "$(id -u):$(id -g)" \
             --mount type=bind,src="$GITHUB_WORKSPACE",dst=/workspace \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-            ghcr.io/wanted80/snippet:v2.0.0 build
+            ghcr.io/wanted80/snippet:v2.0.0 build # x-release-please-version
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         if: github.ref == 'refs/heads/main'
         with:
