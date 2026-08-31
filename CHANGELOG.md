@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/wanted80/snippet/compare/v1.5.0...v2.0.0) (2026-08-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* ship v2 content-only builder workflow and enhance documentation ([#24](https://github.com/wanted80/snippet/issues/24))
+
+### Features
+
+* ship v2 content-only builder workflow and enhance documentation ([#24](https://github.com/wanted80/snippet/issues/24)) ([5761a64](https://github.com/wanted80/snippet/commit/5761a642b00e538c6542c68a981d0a75a0199ac6))
+
 ## [1.5.0](https://github.com/wanted80/snippet/compare/v1.4.0...v1.5.0) (2026-08-27)
 
 
