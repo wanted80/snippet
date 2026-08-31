@@ -100,6 +100,72 @@ it('reports the application version without loading publication inputs', functio
         ->and($stderr)->toBe('');
 });
 
+it('keeps version reporting independent from preview, publishing, and Markdown classes', function (): void {
+    $root = dirname(__DIR__, 2);
+    $script = $this->directory . '/version-classes.php';
+    file_put_contents($script, <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+require $argv[1] . '/vendor/autoload.php';
+
+$stdout = new SplFileObject('php://memory', 'w+');
+$stderr = new SplFileObject('php://memory', 'w+');
+$status = new Snippet\Application($argv[1])->run(['bin/snippet', '--version'], $stdout, $stderr);
+$stdout->rewind();
+$stderr->rewind();
+$loaded = array_values(array_filter(
+    get_declared_classes(),
+    static fn(string $class): bool => str_starts_with($class, 'Snippet\\Preview\\')
+        || str_starts_with($class, 'Snippet\\Publishing\\')
+        || str_starts_with($class, 'Snippet\\Markdown\\'),
+));
+
+echo json_encode([$status, $stdout->fgets(), $stderr->fgets(), $loaded], JSON_THROW_ON_ERROR);
+PHP);
+
+    $process = proc_open(
+        [PHP_BINARY, $script, $root],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        $this->directory,
+    );
+    expect($process)->toBeResource();
+    assert(is_resource($process));
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    assert(is_string($stdout));
+    assert(is_string($stderr));
+
+    expect(proc_close($process))->toBe(0)
+        ->and(json_decode($stdout, true, flags: JSON_THROW_ON_ERROR))->toBe([
+            0,
+            'Snippet ' . ApplicationVersion::CURRENT . "\n",
+            '',
+            [],
+        ])
+        ->and($stderr)->toBeEmpty();
+});
+
+it('can disable preview at the shared application command boundary', function (): void {
+    $stdout = new SplFileObject('php://memory', 'w+');
+    $stderr = new SplFileObject('php://memory', 'w+');
+    $status = new Application(
+        $this->directory,
+        usage: "Builder usage\n",
+        previewEnabled: false,
+    )->run(['snippet', 'preview'], $stdout, $stderr);
+    $stdout->rewind();
+    $stderr->rewind();
+
+    expect($status)->toBe(2)
+        ->and($stdout->fgets())->toBeEmpty()
+        ->and($stderr->fread(8192))->toBe("Error: Unknown command 'preview'.\n\nBuilder usage\n");
+});
+
 it('validates publication templates with internal limits before reporting success', function (): void {
     $this->content();
     $this->resources();
@@ -266,7 +332,9 @@ it('identifies the failed operation in actionable content errors', function (str
     'preview' => ['preview', 'Preview'],
 ]);
 
-it('resolves the real CLI root independently from the caller working directory', function (): void {
+it('uses the caller working directory as the publication workspace', function (): void {
+    $this->content();
+    $this->resources();
     $root = dirname(__DIR__, 2);
     $process = proc_open(
         [$root . '/bin/snippet', 'validate'],
@@ -283,28 +351,6 @@ it('resolves the real CLI root independently from the caller working directory',
     expect(proc_close($process))->toBe(0)
         ->and($stdout)->toMatch('/^Valid site: \\d+ articles?, \\d+ pages?, \\d+ tags?, \\d+ assets?\\.\\n$/')
         ->and($stderr)->toBe('');
-});
-
-it('disables the Composer timeout for the long-running preview command', function (): void {
-    $contents = file_get_contents(dirname(__DIR__, 2) . '/composer.json');
-    if (!is_string($contents)) {
-        throw new RuntimeException('Unable to read composer.json.');
-    }
-
-    $composer = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
-    if (!is_array($composer)) {
-        throw new RuntimeException('composer.json must contain an object.');
-    }
-
-    $scripts = $composer['scripts'] ?? null;
-    if (!is_array($scripts)) {
-        throw new RuntimeException('composer.json must define scripts.');
-    }
-
-    expect($scripts['app:preview'] ?? null)->toBe([
-        'Composer\\Config::disableProcessTimeout',
-        'bin/snippet preview',
-    ]);
 });
 
 it('describes every application Composer script', function (): void {

@@ -21,7 +21,7 @@ use SplFileObject;
 use function count;
 use function filter_var;
 
-/** Runs the command-line validation interface for a project root. */
+/** Validates and dispatches every engine CLI command for a project root. */
 final readonly class Application
 {
     private const int FAILURE = 1;
@@ -32,14 +32,15 @@ final readonly class Application
 
     public function __construct(
         private string $root,
-        private Publisher $publisher = new Publisher(),
+        private ?Publisher $publisher = null,
         private ?Previewer $previewer = null,
-        private PublicationInputLoader $publicationInputLoader = new PublicationInputLoader(),
+        private ?PublicationInputLoader $publicationInputLoader = null,
         private ?DraftCreator $draftCreator = null,
         /** @var (Closure(): int)|null */
         private ?Closure $nanoseconds = null,
         private string $usage = self::USAGE,
         private ErrorReporter $errorReporter = new ErrorReporter(),
+        private bool $previewEnabled = true,
     ) {}
 
     /**
@@ -55,7 +56,8 @@ final readonly class Application
         }
 
         $command = $arguments[1];
-        if (!in_array($command, ['--version', 'validate', 'build', 'preview', 'new'], true)) {
+        if (!in_array($command, ['--version', 'validate', 'build', 'preview', 'new'], true)
+            || ($command === 'preview' && !$this->previewEnabled)) {
             $this->usageError($stderr, "Unknown command '{$command}'.");
             return self::INVALID_USAGE;
         }
@@ -94,10 +96,12 @@ final readonly class Application
                 return $previewer->run($this->root, $stdout, $stderr, ...$previewAddress);
             }
 
-            $inputs = $this->publicationInputLoader->load($this->root);
+            $publicationInputLoader = $this->publicationInputLoader ?? new PublicationInputLoader();
+            $inputs = $publicationInputLoader->load($this->root);
             $catalog = $inputs->catalog;
             if ($command === 'build') {
-                $report = $this->publisher->publish($this->root, $inputs->config, $catalog, $inputs->limits, $inputs->templates);
+                $publisher = $this->publisher ?? new Publisher();
+                $report = $publisher->publish($this->root, $inputs->config, $catalog, $inputs->limits, $inputs->templates);
             }
         } catch (ContentException $contentException) {
             $operation = $command === 'validate' ? 'Validation' : ($command === 'build' ? 'Build' : 'Preview');

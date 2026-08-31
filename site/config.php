@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 return [
-    'title' => 'Snippet',
-    'sitename' => 'Snippet',
+    'title' => 'My Snippet',
+    'sitename' => 'My Snippet',
     'author' => 'Your Name',
     'description' => 'A personal collection of articles.',
-    'url' => 'https://wanted80.github.io/snippet',
+    'url' => 'https://example.com',
     'language' => 'en',
     'home' => [
         'articles' => 10,
