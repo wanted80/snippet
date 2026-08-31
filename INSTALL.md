@@ -1,170 +1,138 @@
 # Installing and running Snippet
 
-Docker with GNU Make is the recommended way to run Snippet. It provides the exact PHP version and extensions, keeps Composer dependencies in isolated volumes, and offers an HTTPS preview without installing PHP on the host. A devcontainer and a native PHP workflow are available as alternatives.
+Snippet can build a site from a content-only repository with the official image, or run directly from a full source checkout. Production hosting receives only the generated `public/` directory and needs neither PHP nor Docker.
 
-## Prerequisites
+## Content-only builder usage
 
-### Linux
+Install Docker Engine or Docker Desktop, then create an empty repository directory. On Windows, run these commands inside WSL 2 and keep the repository in the WSL filesystem.
 
-Install Git, GNU Make, Docker Engine, and the Docker Compose plugin. Configure Docker so your user can run `docker compose` without prefixing every command with `sudo`.
+Use an exact release tag for reproducible output. The examples pin v2.0.0. <!-- x-release-please-version --> `--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path:
 
-### macOS
+```bash
+mkdir my-site
+cd my-site
 
-Install Git and Make through the Xcode Command Line Tools, install Docker Compose as either the Docker CLI plugin or the standalone `docker-compose` command, and install Docker Desktop or another Docker-compatible engine such as Colima. Start the selected engine before running any Make target.
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$PWD:/workspace" \
+  ghcr.io/wanted80/snippet:v2.0.0 init # x-release-please-version
+```
 
-### Windows
+`init` creates empty `content/articles/` and `content/pages/` collections and copies the canonical generic files from `site/` and `resources/`. Existing files win, nothing is deleted, `public/` is untouched, and the engine-development preview router is not copied. Demo configuration and content are never included. Repeating `init` after changing the pinned image may add newly required shared files without replacing customization.
 
-Use a WSL 2 Linux distribution with Git and GNU Make installed inside it. Install Docker Desktop, enable its WSL integration for that distribution, and run all repository and Make commands from the WSL shell. Keeping the clone in the WSL filesystem avoids cross-filesystem permission and performance problems.
+Set the complete public HTTPS URL in `site/config.php`, then create the first page or article. Rerun the command with `init` replaced by `validate` to check the site without changing `public/`, or by `build` to create the static publication. The same image creates drafts:
 
-Native Windows shells are not a supported workflow. The Docker preview remains reachable from the Windows browser.
+```bash
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$PWD:/workspace" \
+  ghcr.io/wanted80/snippet:v2.0.0 new page contact # x-release-please-version
 
-## Get the project
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$PWD:/workspace" \
+  ghcr.io/wanted80/snippet:v2.0.0 new article first-post # x-release-please-version
+```
 
-Clone the public starter when evaluating Snippet or contributing to it:
+The image exposes only `--version`, `init`, `new page`, `new article`, `validate`, and `build`. Draft creation requires the relevant collection created by `init`, refuses symlinked or existing destinations, and leaves `public/` unchanged. The image deliberately omits preview, Composer, development tools, and source outside those commands' runtime paths. `validate` reports the catalog and prospective asset count. `build` measures validation plus transactional publication and reports the actual promoted asset and file counts. Failures retain the existing `public/` directory.
+
+Moving release aliases and `latest` are convenient for evaluation but unsuitable for reproducible publication. Pin a full release such as `v2.0.0` or an immutable image digest. <!-- x-release-please-version -->
+
+## Building a separate repository
+
+The builder can operate on any publication repository without copying the Snippet engine into it. Mount the absolute repository path at `/workspace`:
+
+```bash
+SITE_DIRECTORY=/absolute/path/to/my-site
+
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$SITE_DIRECTORY:/workspace" \
+  ghcr.io/wanted80/snippet:v2.0.0 build # x-release-please-version
+```
+
+The mounted repository owns only publication inputs and disposable output. Commit `content/`, `site/`, and `resources/`; ignore `public/`. Do not upload the source repository or container to the web host.
+
+If the repository is private, the builder does not need Git credentials or network access because it reads only the mounted checkout.
+
+## Optional local container hardening
+
+For additional isolation, run the builder without networking or capabilities and with a read-only image filesystem. This example builds the current repository; replace `build` with `init` or `validate` when needed:
+
+```bash
+docker run --rm \
+  --network none \
+  --read-only \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
+  --user "$(id -u):$(id -g)" \
+  --mount type=bind,src="$PWD",dst=/workspace \
+  --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
+  ghcr.io/wanted80/snippet:v2.0.0 build # x-release-please-version
+```
+
+Docker may need network access to pull the image before the container starts; `--network none` applies to the running builder.
+
+## Direct PHP usage from a full checkout
+
+Clone Snippet when developing the engine or when using its direct PHP CLI:
 
 ```bash
 git clone https://github.com/wanted80/snippet.git
 cd snippet
+composer install
 ```
 
-For a personal site, keep private content and customization in a separate private downstream repository. Create an empty private repository first, without an initial README or license, then run:
+Install PHP 8.5 or newer, Composer, and the production extensions declared in `composer.json`: Date, Filter, Hash, Mbstring, PCRE, Random, and Tokenizer. Contributors also need the development extensions in `require-dev`, including PCNTL, PCOV, and POSIX.
+
+Run the canonical CLI from the publication workspace. The executable may live in the separate Snippet checkout:
 
 ```bash
-git clone https://github.com/wanted80/snippet.git my-site
-cd my-site
-git remote rename origin upstream
-git remote add origin git@github.com:your-name/my-private-site.git
-git push -u origin main
+/path/to/snippet/bin/snippet new page contact
+/path/to/snippet/bin/snippet new article first-post
+/path/to/snippet/bin/snippet new article older-note --date=2026-07-01
+/path/to/snippet/bin/snippet validate
+/path/to/snippet/bin/snippet build
+/path/to/snippet/bin/snippet preview
 ```
 
-The private `origin` owns the site. The public starter remains available as `upstream`:
+An article without `--date` uses the current UTC date. Draft creation deliberately produces incomplete metadata and Markdown, never replaces an existing content directory, and never changes `public/`. Complete the draft before validation.
+
+Direct preview serves HTTP at `http://127.0.0.1:8080` by default, watches `content/`, `site/`, and `resources/`, preserves the last valid output after an invalid edit, and reloads open pages after a successful rebuild. Use a different validated address when needed:
 
 ```bash
-git fetch upstream
-git merge upstream/main
+bin/snippet preview --host=127.0.0.1 --port=9000
 ```
 
-Resolve updates as ordinary downstream changes. Personal content and customizations can stay private without changing the visibility of the public repository.
+Inside the generator checkout, `composer app:content:validate` validates the composed demo site. The repository root itself is not a publication workspace.
 
-## Recommended Docker setup
+## Contributor Docker, Make, and HTTPS preview
 
-The root `compose.yaml` and `Makefile` are the supported Docker interfaces. Copy the example environment file if you want persistent local defaults:
+Docker with GNU Make is the recommended full-checkout environment. It supplies the exact PHP version and extensions, isolates Composer dependencies in named volumes, and provides an HTTPS preview through Caddy.
+
+Install Git, GNU Make, Docker, and Docker Compose. Linux users should configure Docker for their user. macOS users may use Docker Desktop or Colima. Windows users should use WSL 2 with Docker Desktop integration.
 
 ```bash
+git clone https://github.com/wanted80/snippet.git
+cd snippet
 cp .env.example .env
-```
-
-This step is optional because Compose supplies the same defaults. `.env` controls local Docker orchestration only: Git and Docker build contexts ignore it, the builder does not read it, and it is never copied into `public/`.
-
-The Makefile prefers the `docker compose` plugin and falls back to the standalone `docker-compose` command. Override detection explicitly when needed, for example with `make COMPOSE=docker-compose docker-config`.
-
-The available settings are:
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `ENVIRONMENT` | `development` | Selects the development or production image and dependency volume. |
-| `PREVIEW_PORT` | `8443` | Sets the host port for Docker HTTPS preview. |
-| `IMAGE` | `snippet` | Sets the local application image name. |
-| `TAG` | `local` | Sets the local image tag prefix. |
-| `LOCAL_UID` | `1000` | Creates the container user with this host user ID. |
-| `LOCAL_GID` | `1000` | Creates the container group with this host group ID. |
-
-On Linux or WSL, use `id -u` and `id -g` to find the current IDs and update `.env` when they differ from the defaults. Matching them lets generated files remain owned by the host user.
-
-Shell environment values and Make command-line assignments take precedence over `.env`. A one-shot assignment is useful when testing a different environment or port:
-
-```bash
-ENVIRONMENT=production make docker-build
-make docker-preview PREVIEW_PORT=9443
-```
-
-Development is the default and contains the complete locked quality toolchain. Production installs only non-development Composer dependencies and is intended for checking runtime validation, builds, and previews. Development and production use separate named `vendor` volumes, so switching environments cannot mix their dependency sets.
-
-### Official builder image
-
-Stable releases publish a dependency-free Snippet builder for `linux/amd64` and `linux/arm64` at `ghcr.io/wanted80/snippet`. This is an alternative for repositories that contain only their publication inputs: `content/`, `site/`, and `resources/`. The image keeps the engine at `/app`, reads those inputs from `/workspace`, and writes the generated `public/` directory back to the mounted repository.
-
-Use an exact release such as `v1.3.0` for reproducible builds, or pin an immutable image digest. The `vX.Y`, `vX`, and `latest` tags intentionally move to newer stable releases.
-
-Initialize a content-only repository from the starter bundled in the image:
-
-```bash
-docker run --rm \
-  --user "$(id -u):$(id -g)" \
-  --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:vX.Y.Z \
-  init
-```
-
-`init` creates the missing `content/`, `site/`, and `resources/` directories and files. It safely merges the starter into a partially initialized repository: existing files always win, nothing is deleted, and `public/` is never touched. Run it again after updating the image to add newly introduced starter files without replacing personal content or customization.
-
-Build the initialized publication inputs:
-
-```bash
-docker run --rm \
-  --user "$(id -u):$(id -g)" \
-  --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v1.3.0 \
-  build
-```
-
-Replace `build` with `validate` to check the publication without changing `public/`, or with `--version` to report the packaged Snippet version. The official image provides only `init`, `validate`, `build`, and `--version`; it does not provide preview or draft-creation commands.
-
-After the first image is published, a repository owner must open the package under the repository's **Packages** section and change its visibility to public once in **Package settings**. Subsequent versions can then be pulled anonymously. Container packages appear under Packages, not Deployments.
-
-### Build, validate, and preview
-
-Create a minimal incomplete draft from the development shell:
-
-```bash
-make docker-shell
-bin/snippet new page contact
-bin/snippet new article first-post
-bin/snippet new article older-note --date=2026-07-01
-```
-
-There is no dedicated Make target for draft creation. Enter `make docker-shell` and use the canonical command so its page and article arguments remain available. An omitted article date means today in UTC. The command creates only the new content unit, refuses an existing destination, leaves `public/` unchanged, and warns that its empty Markdown, title, and description must be completed before validation or building can succeed.
-
-Every operational target that needs the application automatically builds the selected image and synchronizes its dependency volume. Validate the configuration and content without changing `public/`:
-
-```bash
-make docker-validate
-```
-
-Generate the site:
-
-```bash
-make docker-build
-```
-
-`build` validates first, renders into a unique temporary sibling directory, and replaces `public/` only after the complete build succeeds. An existing valid publication remains intact after a failed build.
-
-The first time, trust Snippet's local development certificate and start the live preview:
-
-```bash
 make docker-preview-trust
 ```
 
-This may ask for your computer password. When it is ready, close every browser window, reopen the browser, and visit `https://localhost:8443/snippet/` for the repository's configured site URL. Use `make docker-preview` on later runs. Both commands stay attached and report rebuilds or invalid edits. Press Ctrl+C to stop the attached services. To ensure the preview containers and network are removed, including from another terminal, run:
+`make docker-preview-trust` may request the host password to install Caddy's local root certificate. Close all browser windows afterward, reopen the browser, and visit `https://localhost:8443` at the configured deployment path. Later previews use:
 
 ```bash
+make docker-preview
 make docker-preview-down
 ```
 
-Shutdown retains the dependency volumes and Caddy's local certificate authority. Preview startup and shutdown remove orphan containers by default; preserve them for an exceptional Compose workflow with the same override on both commands:
+The preview stays attached and reports rebuilds. Ctrl+C stops the attached services; `make docker-preview-down` removes their containers and network while retaining dependency volumes and Caddy's local certificate authority. Docker's certificate is local preview material only. The static host owns public HTTPS.
+
+Useful contributor targets are:
 
 ```bash
-make docker-preview REMOVE_ORPHANS=0
-make docker-preview-down REMOVE_ORPHANS=0
-```
-
-The preview watches `content/`, `site/`, and `resources/`. After a successful edit it rebuilds `public/` and reloads open pages. Changes beneath `bin/` or `src/` restart the preview with freshly loaded runtime code when PCNTL is available; otherwise the terminal asks you to restart it manually. Invalid edits are reported in the terminal while the last valid site remains available. The reload helper is served only during preview and is never written into published HTML.
-
-Other useful targets are:
-
-```bash
-make docker-image
-make docker-install
+make docker-validate
+make docker-build
 make docker-shell
 make docker-config
 make docker-test
@@ -173,35 +141,38 @@ make docker-audit
 make docker-lint
 make docker-fix
 make docker-check
+make builder-smoke
+make demo-check
 ```
 
-`docker-shell` always opens the development Zsh environment, even if `.env` selects production. The test, analysis, audit, lint, fix, and complete-check targets make the same development selection because the production image intentionally omits those tools. `docker-config` renders and validates the currently selected Compose configuration. `docker-check` also checks the repository shell scripts with ShellCheck and verifies the theme JavaScript syntax with Node. `docker-audit` queries current Composer advisory data and therefore requires network access; it remains separate from the deterministic complete gate. Run `make help` for the complete target summary.
+`docker-check` runs exact source line and type coverage, Pint, Rector, PHPStan, composed-demo validation, ShellCheck, and JavaScript syntax validation. `docker-audit` remains separate because advisory data needs the network. `builder-smoke` checks the release image and its empty-workspace initialization lifecycle; `demo-check` composes root shared files with `demo/`, validates the complete existing site, and proves its production build succeeds.
 
-### Image cache and refresh controls
+The optional `.env` controls local orchestration only. Its principal settings are:
 
-Application image builds use Docker's local layer cache and existing base images by default. Refresh base images with `PULL=1`, bypass every application build layer with `NO_CACHE=1`, or combine them:
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ENVIRONMENT` | `development` | Select the development or production image and dependency volume. |
+| `PREVIEW_PORT` | `8443` | Select the host HTTPS preview port. |
+| `IMAGE` | `snippet` | Select the local application image name. |
+| `TAG` | `local` | Select its tag prefix. |
+| `LOCAL_UID` | `1000` | Match the host user's ID. |
+| `LOCAL_GID` | `1000` | Match the host group's ID. |
+
+Shell and Make assignments override `.env`, for example:
 
 ```bash
-make docker-image PULL=1
-make docker-image NO_CACHE=1
+ENVIRONMENT=production make docker-build
+make docker-preview PREVIEW_PORT=9443
 make docker-image PULL=1 NO_CACHE=1
 ```
 
-These controls also apply when an image build is reached through another target. With `PULL=1`, either preview command refreshes the Caddy image as well.
+The root production and development images, Compose services, and Caddy flow are contributor tools. They remain separate from the small official builder image.
 
-### Local HTTPS
+### Devcontainer
 
-Docker preview starts Caddy only for the preview profile. Caddy proxies `https://localhost:8443` to Snippet's internal HTTP server, generates a local certificate, and sends the same framing, MIME-sniffing, and referrer protections recommended for deployment. `make docker-preview-trust` installs its root certificate on macOS, Windows through WSL, and Linux systems using the Debian, Ubuntu, Alpine, Arch, Fedora, Red Hat, or SUSE trust-store layouts. Other Linux systems with p11-kit use its `trust` interface. On an unknown host, the command preserves the certificate and prints its path for manual import instead of guessing a system directory. Named Docker volumes preserve the same local authority between previews. The certificate protects only local preview traffic and is not a deployment certificate.
+The devcontainer uses `compose.yaml` plus `compose.dev.yaml`, the same development dependency volume and toolchain, and an isolated `snippet-dev` Compose project. Install Visual Studio Code and the Dev Containers extension, then choose **Dev Containers: Reopen in Container**.
 
-The static hosting provider owns the public domain, upload configuration, HTTPS termination, and certificate renewal. Snippet does not deploy Caddy or any PHP runtime; publish only the generated contents of `public/`.
-
-## Devcontainer alternative
-
-The devcontainer uses the root `compose.yaml` plus `compose.dev.yaml`. The override selects the same development image, `/app` workspace, PHP extensions, Composer dependency set, and command-line tools as the Docker development workflow. It keeps the application container alive for the editor and adds editor lifecycle setup; it is not a separate build environment. Its `snippet-dev` Compose project name isolates the editor container from the host `snippet` project, so starting or stopping the Docker preview cannot replace the editor container.
-
-Install Docker, Visual Studio Code, and the Dev Containers extension. If you use the included Codex integration, ensure the host `~/.codex` directory exists and uses file-based authentication. The devcontainer mounts the complete directory read/write, then presents it to the non-root container user through an ownership-mapped FUSE view. The host and container therefore use the same Codex configuration, authentication, sessions, and local state without copying them or requiring another login. Keep Codex current on both sides because both installations access the same state files, and do not remove the FUSE capability or device from `compose.dev.yaml`.
-
-The Docker engine must be able to access `~/.codex`. Docker Desktop normally shares the user profile. Engines backed by a separately configured VM may expose fewer paths. For Colima, add the Codex directory as a writable mount with `colima start --edit`, alongside any existing mounts, and restart Colima before opening the devcontainer:
+The included Codex integration bind-mounts the host `~/.codex` and exposes it through an ownership-mapped FUSE view. Ensure that directory exists, is writable by Docker, and uses file-based authentication. Colima users may need to add it as a writable VM mount before opening the container:
 
 ```yaml
 mounts:
@@ -211,140 +182,112 @@ mounts:
     writable: true
 ```
 
-Then open the clone in Visual Studio Code and choose **Dev Containers: Reopen in Container**. If the engine exposes an empty or read-only Codex directory, the container stops with an actionable error instead of silently creating separate state. The post-create step repairs the shared development vendor volume, trusts the container workspace in the shared Codex configuration, and synchronizes the locked dependencies. The persistent Codex home is shared, while its ephemeral `tmp/` directory is container-local so Codex's arg0 helper cleanup does not cross the bindfs mount.
+Inside the container, use the canonical `bin/snippet` commands. Run only one direct or Docker preview at a time because both publish the same host `public/` directory.
 
-Inside the container, use the canonical commands directly:
+## Optional CSS and JavaScript customization
 
-```bash
-bin/snippet new page contact
-bin/snippet new article first-post
-bin/snippet validate
-bin/snippet build
-bin/snippet preview
+Snippet publishes assets with ownership-reflecting names:
+
+| Source | Output | Behavior |
+| --- | --- | --- |
+| `resources/theme.css` | `/assets/theme.css` | Required built-in theme; minified when configured. |
+| `resources/theme.js` | `/assets/theme.js` | Required progressive enhancement; copied byte-for-byte. |
+| `site/site.css` | `/assets/site.css` | Optional site CSS; loaded after the built-in theme and minified when configured. |
+| `site/site.js` | `/assets/site.js` | Optional local script; copied byte-for-byte and loaded with `defer` after the built-in script. |
+
+Both optional files must be regular non-symlink UTF-8 files within the asset-size ceiling. If one is absent, Snippet emits neither its output file nor its HTML tag. Custom JavaScript is a same-origin escape hatch; there is no bundler, external dependency, or extra CSP origin.
+
+The no-JavaScript site remains readable and navigable. Authored content, links, and native-popover navigation work normally; the system color preference applies, and the inactive manual theme control stays hidden.
+
+Files beneath `site/assets/` publish beneath `/assets/site/`. `site/favicon.svg` publishes at `/favicon.svg`. Content assets remain beside their generated page or article.
+
+## CI validation, build, and GitHub Pages
+
+A content-only repository can validate and build with the exact same image as local work. This copy-pasteable workflow grants only read access to repository contents, runs the container without networking or capabilities, mounts the checked-out workspace, and uploads `public/` only:
+
+```yaml
+name: Site
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Validate
+        run: |
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --user "$(id -u):$(id -g)" \
+            --mount type=bind,src="$GITHUB_WORKSPACE",dst=/workspace \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
+            ghcr.io/wanted80/snippet:v2.0.0 validate # x-release-please-version
+      - name: Build
+        run: |
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --user "$(id -u):$(id -g)" \
+            --mount type=bind,src="$GITHUB_WORKSPACE",dst=/workspace \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
+            ghcr.io/wanted80/snippet:v2.0.0 build # x-release-please-version
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: public/
 ```
 
-The direct preview is available at `http://127.0.0.1:8080/snippet/` for the repository's configured site URL; editor port forwarding may expose it through an equivalent local address. Press Ctrl+C to stop it.
+For GitHub Pages, enable **Settings → Pages → Build and deployment → GitHub Actions**, then add a deployment job that depends on the build job. Because pull requests must not deploy, use the branch condition shown here:
 
-The direct and Docker HTTPS previews both watch the same source tree and publish the same `public/` directory. Run only one preview at a time even though their containers are isolated.
-
-## Native PHP alternative
-
-Install PHP 8.5 or newer, Composer, and the production PHP extensions listed under `require` in `composer.json`: Date, Filter, Hash, Mbstring, PCRE, Random, and Tokenizer. A contributor installation also needs the development extensions listed under `require-dev`: JSON, PCNTL, PCOV, and POSIX. The CLI must permit process creation for preview. PCNTL provides graceful preview signal handling, PCOV drives coverage, and POSIX supports the process and filesystem integration tests. Then install the locked dependencies:
-
-```bash
-composer install
+```yaml
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
 ```
 
-Use the CLI directly:
-
-```bash
-bin/snippet new page contact
-bin/snippet new article first-post
-bin/snippet validate
-bin/snippet build
-bin/snippet preview
-```
-
-Native preview builds the site, serves it over direct HTTP at the complete address it prints—`http://127.0.0.1:8080/snippet/` for this repository—watches the source directories, and reloads after successful changes. When a deployment path is configured, `/` redirects to that mount, files outside it are not served, and live-reload endpoints stay beneath it. Override its validated bind address when necessary:
-
-```bash
-bin/snippet preview --host=127.0.0.1 --port=9000
-```
-
-Composer aliases include `composer app:new -- article first-post`, `composer app:build`, `composer app:content:validate`, and `composer app:preview`. Contributors can run the complete deterministic PHP gate with `composer app:check`, the full-project 100% mutation target with `composer app:test:mutations`, and the network-dependent locked dependency audit with `composer app:audit`. Mutation testing bypasses focused mutation declarations and mutates every source class and line covered by the complete Pest suite. It remains separate from the normal gate because it is resource-intensive and the existing full-project suite has not yet reached that target. The Docker equivalents are `make docker-check`, `make docker-mutations`, and `make docker-audit`; `docker-check` additionally checks the project shell scripts and theme JavaScript.
-
-## Contributing and releases
-
-All pull requests run the canonical Docker development gate and production validation in GitHub Actions. Before opening one, follow the focused-test, fix, analysis, check, and audit workflow in [CONTRIBUTING.md](CONTRIBUTING.md).
-
-Snippet uses squash merges and conventional pull-request titles. Release Please converts `fix`, `feat`, and breaking-change commits into Semantic Versioning updates, maintains `CHANGELOG.md`, and creates `vX.Y.Z` releases. Each stable published release builds the tagged source and publishes `ghcr.io/wanted80/snippet` for AMD64 and ARM64 with OCI metadata and provenance. Generated `public/` output is not attached to releases and remains a local publication artifact.
-
-## Content validation during writing
-
-An article may set `'cover' => true` in `meta.php` and optionally provide a trimmed non-empty `alt` string. Cover defaults to `false`; when enabled, exactly one `cover.jpg`, `cover.png`, or `cover.webp` must exist directly in the article directory. Snippet verifies the detected format, derives its dimensions, copies the original bytes, and renders the shared `.article-figure` template only on the article page and the full featured-home article. Missing or ambiguous covers fail validation. Pages reject `cover` and `alt`, and Markdown image syntax remains unsupported.
-
-Authored headings must begin at level one and must not skip levels. Link labels cannot be blank. Internal root-relative, item-relative, and same-origin absolute links beneath the configured deployment path must resolve to a generated route, explicit generated `index.html`, or copied asset. Root-relative Markdown remains portable: `/about/` renders as `/snippet/about/` when `site.url` ends in `/snippet`; item-relative links remain relative. Same-origin absolute links outside the configured deployment path are outside this publication. After removing the query and fragment, validation percent-decodes each path segment, normalizes `.` and `..`, and percent-encodes the normalized segments before matching the generated inventory. Raw `/tags/café/` and encoded `/tags/caf%C3%A9/` are equivalent; encoded dot segments such as `%2e` and `%2e%2e` still participate in traversal checks, including rejection above the site root. External HTTP(S) targets and fragment identifiers are not checked. A failure reports the source Markdown path and line, and both build and preview preserve the last valid publication.
-
-Page and article directory slugs use author-chosen lowercase ASCII letters and numbers separated by single hyphens. Titles may use any language: a title such as `日本語` can use the directory slug `nihongo`, and Snippet never transliterates it automatically.
-
-Tag labels may also use any language, but their slugs are generated rather than author-chosen. `Café` produces the Unicode slug and output directory `café`, while its emitted URL segment is UTF-8 percent-encoded as `caf%C3%A9`; `日本語` remains Unicode in the slug and output directory and is likewise encoded whenever its URL is emitted.
-
-The engine is frozen after these content-integrity rules. Unless an explicit product need reopens it, continue customization through layout, typography, responsive behavior, themes, and visual polish rather than adding feeds, sitemaps, metadata systems, image processing, or new content types.
-
-## Normal writing and publishing workflow
-
-1. Edit `site/config.php`. Set `url` to the complete public HTTPS site URL, including a deployment path such as `https://wanted80.github.io/snippet`, because it drives canonical URLs and public paths. Omit the path only for a root-hosted site.
-2. Replace the example directories under `content/pages/` and `content/articles/` with your own self-contained content units. Use `bin/snippet new page <slug>` or `bin/snippet new article <slug> [--date=YYYY-MM-DD]` to start an intentionally incomplete skeleton, then fill both generated files.
-3. Replace `site/favicon.svg` and customize `site/assets/`, `site/theme.css`, and `resources/templates/` as needed.
-4. Run `make docker-preview` while writing and review successful rebuilds in the browser.
-5. Run `make docker-validate`, then `make docker-build` for the final static output.
-6. Upload only the contents of `public/` to the chosen static host and configure the response headers documented in README. For this repository, a successful `Quality` workflow on `main` builds and deploys that directory automatically. Dispatch `Quality` manually when a manual publication is needed.
-
-For the devcontainer or native workflow, substitute `bin/snippet preview`, `bin/snippet validate`, and `bin/snippet build`. Do not upload the source repository, Composer dependencies, `.env`, Docker configuration, or PHP files. A production Docker build changes the dependency set used to generate the same static output; it is not a long-running production server.
-
-### GitHub Pages
-
-Before publishing this repository, review the complete Git history and existing Actions logs for private content, personal data, and credentials: public visibility exposes both. Then make the repository public and select **Settings → Pages → Build and deployment → GitHub Actions**.
-
-The separate `Quality` workflow keeps pull requests quality-only. After it succeeds on `main`, the `Pages` workflow checks out the tested revision, builds with `ENVIRONMENT=production make docker-build`, uploads only `public/`, and deploys it to the protected `github-pages` environment. Dispatch `Quality` manually when a manual publication is needed. Keep `public/` ignored; do not create a `gh-pages` branch or commit generated output. With the checked-in configuration, the published address is `https://wanted80.github.io/snippet/`.
-
-GitHub Pages owns HTTPS and does not offer project-controlled response headers. Snippet's meta CSP remains effective for supported directives, but Pages cannot be configured here to add every recommended framing, MIME-sniffing, and referrer response header.
+Deploy only `public/`. Keep it ignored; do not create a generated-output branch. The build includes a root-level `404.html` that GitHub Pages automatically uses for missing routes; its links and assets retain the configured deployment path for project sites. Other static hosts can use the same file through their custom-error-page configuration. GitHub Pages owns HTTPS and does not provide project-controlled response headers. On configurable hosts, add `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: strict-origin-when-cross-origin` alongside Snippet's meta CSP.
 
 ## Troubleshooting
 
 ### A preview port is already in use
 
-Choose another Docker host port:
-
 ```bash
 make docker-preview PREVIEW_PORT=9443
 ```
 
-Then open `https://localhost:9443/snippet/` for the checked-in configuration. For a direct preview, use `bin/snippet preview --port=9000`. Run `make docker-preview-down` if an earlier Docker preview still owns the configured port.
+For direct preview use `bin/snippet preview --port=9000`. Run `make docker-preview-down` if an earlier Docker preview still owns the configured port.
 
-### An image is unexpectedly stale
+### The browser warns about the local certificate
 
-Force an application rebuild and refresh its base image:
+Run `make docker-preview-trust`, close every browser window, and reopen it. Firefox may also require **Settings → Privacy & Security → Certificates → Allow Firefox to automatically trust third-party root certificates you install**.
 
-```bash
-make docker-image PULL=1 NO_CACHE=1
-```
+### Docker output has the wrong owner
 
-Use `PULL=1 make docker-preview` when the Caddy image must also be refreshed.
+The builder examples always pass `--user "$(id -u):$(id -g)"`. For full-checkout Compose work, set `LOCAL_UID` and `LOCAL_GID` in `.env`, then rebuild with `make docker-image NO_CACHE=1`.
 
-### The browser still warns about the local certificate
-
-Close every browser window and reopen the browser after running `make docker-preview-trust`. In Firefox, also ensure **Settings > Privacy & Security > Certificates > Allow Firefox to automatically trust third-party root certificates you install** is selected, then restart Firefox.
-
-### Compose is using unexpected values
-
-Render the resolved configuration:
+### Compose uses unexpected values
 
 ```bash
 make docker-config
 ENVIRONMENT=production make docker-config
 ```
 
-Check Make command-line assignments, the shell environment, and `.env` in that precedence order. Ensure Docker Compose is reading commands from the repository root.
+Check Make command-line assignments, shell variables, and `.env` in that precedence order.
 
-### Generated files have the wrong owner
+### Dependencies or images are stale
 
-Set `LOCAL_UID` and `LOCAL_GID` in `.env` to the values reported by `id -u` and `id -g`, then rebuild the image:
-
-```bash
-make docker-image NO_CACHE=1
-```
-
-If an existing dependency volume was created with different IDs, recreate only that disposable volume as described below.
-
-### Composer dependencies differ between environments
-
-The Compose project-specific volumes for development and production are intentionally isolated and contain dependencies only. Synchronize the selected one with `make docker-install`. If a volume is corrupt or has obsolete ownership, stop preview, identify its exact name with `docker volume ls`, and remove only that volume before reinstalling:
-
-```bash
-make docker-preview-down
-docker volume rm snippet_vendor-development
-make docker-install
-```
-
-Use `snippet_vendor-production` for the default production volume. The devcontainer uses the separate `snippet-dev_vendor-development` volume. Removing these volumes does not remove authored content or `public/`; Composer recreates the selected dependency set from `composer.lock`. The separate `snippet_caddy-data` volume contains the local certificate authority; removing it creates a new authority that must be trusted again.
+Synchronize the selected dependency volume with `make docker-install`. Refresh images or bypass the build cache with `PULL=1` and `NO_CACHE=1`. Dependency volumes are disposable, but identify their exact names with `docker volume ls` before removing one; never remove the Caddy data volume unless you intend to trust a newly generated local certificate authority.

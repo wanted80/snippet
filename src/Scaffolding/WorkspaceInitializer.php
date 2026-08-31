@@ -7,19 +7,25 @@ namespace Snippet\Scaffolding;
 use NoDiscard;
 use RuntimeException;
 
-/** Safely synchronizes bundled publication inputs into a workspace. */
+/** Creates an empty content workspace from the engine's canonical shared inputs. */
 final readonly class WorkspaceInitializer
 {
-    /** @var list<'content'|'site'|'resources'> */
-    private const array INPUTS = ['content', 'site', 'resources'];
+    /** @var list<'site'|'resources'> */
+    private const array INPUTS = ['site', 'resources'];
+
+    /** @var list<'content'|'content/articles'|'content/pages'> */
+    private const array CONTENT_DIRECTORIES = ['content', 'content/articles', 'content/pages'];
+
+    /** @var list<string> */
+    private const array EXCLUDED_FILES = ['resources/preview-router.php'];
 
     public function __construct(
-        private string $scaffoldRoot,
+        private string $engineRoot,
         private string $workspace,
     ) {}
 
     /**
-     * Create missing scaffold directories and files without replacing anything.
+     * Create empty content collections and copy missing canonical files without replacement.
      *
      * @return array{created: list<string>, skipped: list<string>}
      *
@@ -32,7 +38,8 @@ final readonly class WorkspaceInitializer
             throw new RuntimeException("Workspace '{$this->workspace}' must be a writable non-symlink directory.");
         }
 
-        [$directories, $files] = $this->inventory();
+        [$inputDirectories, $files] = $this->inventory();
+        $directories = [...self::CONTENT_DIRECTORIES, ...$inputDirectories];
         $this->preflight($directories, $files);
 
         foreach ($directories as $directory) {
@@ -52,7 +59,7 @@ final readonly class WorkspaceInitializer
                 continue;
             }
 
-            $this->copy($this->scaffoldRoot . '/' . $file, $destination, $file);
+            $this->copy($this->engineRoot . '/' . $file, $destination, $file);
             $created[] = $file;
         }
 
@@ -78,22 +85,25 @@ final readonly class WorkspaceInitializer
      */
     private function inventoryDirectory(string $relative, array &$directories, array &$files): void
     {
-        $source = $this->scaffoldRoot . '/' . $relative;
+        $source = $this->engineRoot . '/' . $relative;
         if (!is_dir($source) || is_link($source)) {
-            throw new RuntimeException("Bundled scaffold directory '{$relative}' must be a non-symlink directory.");
+            throw new RuntimeException("Canonical input directory '{$relative}' must be a non-symlink directory.");
         }
 
         $directories[] = $relative;
         $entries = @scandir($source);
         if ($entries === false) {
-            throw new RuntimeException("Cannot read bundled scaffold directory '{$relative}'.");
+            throw new RuntimeException("Cannot read canonical input directory '{$relative}'.");
         }
 
         foreach (array_diff($entries, ['.', '..']) as $entry) {
             $child = $relative . '/' . $entry;
-            $childSource = $this->scaffoldRoot . '/' . $child;
+            $childSource = $this->engineRoot . '/' . $child;
+            if (in_array($child, self::EXCLUDED_FILES, true)) {
+                continue;
+            }
             if (is_link($childSource)) {
-                throw new RuntimeException("Bundled scaffold entry '{$child}' must not be a symbolic link.");
+                throw new RuntimeException("Canonical input entry '{$child}' must not be a symbolic link.");
             }
             if (is_dir($childSource)) {
                 $this->inventoryDirectory($child, $directories, $files);
@@ -101,7 +111,7 @@ final readonly class WorkspaceInitializer
                 continue;
             }
             if (!is_file($childSource)) {
-                throw new RuntimeException("Bundled scaffold entry '{$child}' must be a regular file.");
+                throw new RuntimeException("Canonical input entry '{$child}' must be a regular file.");
             }
 
             $files[] = $child;
@@ -139,7 +149,7 @@ final readonly class WorkspaceInitializer
     {
         $input = @fopen($source, 'rb');
         if ($input === false) {
-            throw new RuntimeException("Cannot read bundled scaffold file '{$relative}'.");
+            throw new RuntimeException("Cannot read canonical input file '{$relative}'.");
         }
 
         $output = @fopen($destination, 'xb');
@@ -151,7 +161,7 @@ final readonly class WorkspaceInitializer
 
         try {
             if (@stream_copy_to_stream($input, $output) === false) {
-                throw new RuntimeException("Cannot copy scaffold file '{$relative}'.");
+                throw new RuntimeException("Cannot copy canonical input file '{$relative}'.");
             }
         } catch (RuntimeException $runtimeException) {
             fclose($input);

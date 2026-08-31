@@ -19,12 +19,13 @@ enum Template: string
     case CollectionPage = 'collection-page.html';
     case ContentSummary = 'content-summary.html';
     case TagList = 'tag-list.html';
+    case NotFound = 'not-found.html';
 
     /** @return list<non-empty-string> */
     public function placeholders(): array
     {
         return match ($this) {
-            self::Layout => ['language', 'description', 'author', 'version', 'title', 'canonical', 'base_path', 'preloads', 'theme_stylesheet', 'sitename', 'navigation', 'body'],
+            self::Layout => ['language', 'description', 'author', 'version', 'title', 'canonical', 'social_metadata', 'base_path', 'preloads', 'site_stylesheet', 'site_script', 'sitename', 'navigation', 'body'],
             self::Home => ['site_title', 'featured_article', 'archive_section', 'tag_section', 'empty_state', 'home_grid_class'],
             self::FeaturedArticle => ['url', 'title', 'date', 'tags', 'figure', 'document'],
             self::ArticleFigure => ['url', 'alt', 'width', 'height'],
@@ -36,6 +37,7 @@ enum Template: string
             self::CollectionPage => ['eyebrow', 'title', 'introduction', 'collection_label', 'list_class', 'items', 'empty_state'],
             self::ContentSummary => ['url', 'title', 'date', 'description', 'tags'],
             self::TagList => ['items'],
+            self::NotFound => ['home_url'],
         };
     }
 }

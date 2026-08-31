@@ -14,7 +14,8 @@ function loadSiteConfig(string $directory): Config
 it('loads exact document, wordmark, and author identities with optional presentation files', function (): void {
     mkdir($this->directory . '/site/assets/media', 0777, true);
     file_put_contents($this->directory . '/site/assets/media/custom.bin', "asset\0bytes");
-    file_put_contents($this->directory . '/site/theme.css', '@layer overrides {}');
+    file_put_contents($this->directory . '/site/site.css', '@layer overrides {}');
+    file_put_contents($this->directory . '/site/site.js', "console.log('site');\n");
     $this->site([
         'title' => 'Document Identity',
         'sitename' => '日本語 Wordmark',
@@ -33,13 +34,15 @@ it('loads exact document, wordmark, and author identities with optional presenta
         ->and($config->origin())->toBe('https://example.test')
         ->and($config->language)->toBe('en')
         ->and($config->assets)->toBe(['media/custom.bin'])
-        ->and($config->hasTheme)->toBeTrue();
+        ->and($config->hasSiteStylesheet)->toBeTrue()
+        ->and($config->hasSiteScript)->toBeTrue();
 });
 
-it('accepts an absent assets directory and theme', function (): void {
+it('accepts an absent assets directory and site customizations', function (): void {
     $config = loadSiteConfig($this->directory);
     expect($config->assets)->toBeEmpty()
-        ->and($config->hasTheme)->toBeFalse();
+        ->and($config->hasSiteStylesheet)->toBeFalse()
+        ->and($config->hasSiteScript)->toBeFalse();
 });
 
 it('treats the exact site configuration shape as order-independent', function (): void {
@@ -157,8 +160,10 @@ it('reports a missing configuration file', function (): void {
 })->throws(ContentException::class, 'does not exist');
 
 it('rejects symlinks and unsupported entries in site presentation files', function (string $kind): void {
-    if ($kind === 'theme') {
-        symlink($this->directory . '/site/config.php', $this->directory . '/site/theme.css');
+    if ($kind === 'stylesheet') {
+        symlink($this->directory . '/site/config.php', $this->directory . '/site/site.css');
+    } elseif ($kind === 'script') {
+        symlink($this->directory . '/site/config.php', $this->directory . '/site/site.js');
     } elseif ($kind === 'asset') {
         mkdir($this->directory . '/site/assets');
         symlink($this->directory . '/site/config.php', $this->directory . '/site/assets/link');
@@ -168,7 +173,7 @@ it('rejects symlinks and unsupported entries in site presentation files', functi
     }
 
     loadSiteConfig($this->directory);
-})->throws(ContentException::class)->with(['theme', 'asset', 'fifo']);
+})->throws(ContentException::class)->with(['stylesheet', 'script', 'asset', 'fifo']);
 
 it('rejects a symlinked site assets root', function (): void {
     $assets = $this->directory . '/site/assets';
@@ -178,10 +183,10 @@ it('rejects a symlinked site assets root', function (): void {
         ->toThrow(ContentException::class, "Site assets directory '{$assets}' must be a regular non-symlink directory.");
 });
 
-it('rejects invalid UTF-8 themes', function (): void {
-    file_put_contents($this->directory . '/site/theme.css', "bad\xFF");
+it('rejects invalid UTF-8 site customizations', function (string $file): void {
+    file_put_contents($this->directory . '/site/' . $file, "bad\xFF");
     loadSiteConfig($this->directory);
-})->throws(ContentException::class, 'UTF-8');
+})->throws(ContentException::class, 'UTF-8')->with(['site.css', 'site.js']);
 
 it('rejects invalid exact home and build configuration', function (array $overrides, string $message): void {
     /** @var array<string, mixed> $overrides */

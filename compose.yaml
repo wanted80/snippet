@@ -4,7 +4,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: docker/Dockerfile
+      dockerfile: docker/development/Dockerfile
       target: ${ENVIRONMENT:-development}
       args:
         LOCAL_UID: ${LOCAL_UID:-1000}
@@ -39,7 +39,7 @@ services:
     ports:
       - 127.0.0.1:${PREVIEW_PORT:-8443}:443
     volumes:
-      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./docker/preview/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
 

@@ -42,9 +42,9 @@
                 header.toggleAttribute('data-scrolled', scrolled);
             };
 
-            syncScrollState();
             window.addEventListener('scroll', syncScrollState, { passive: true });
             window.addEventListener('pageshow', syncScrollState);
+            syncScrollState();
         }
 
         if (menuButton !== null && navigation !== null) {
@@ -53,7 +53,6 @@
             navigation.addEventListener('toggle', (event) => {
                 const open = event.newState === 'open';
                 const label = open ? 'Close navigation' : 'Open navigation';
-                menuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
                 menuButton.setAttribute('aria-label', label);
                 menuButton.setAttribute('title', label);
                 if (open) {

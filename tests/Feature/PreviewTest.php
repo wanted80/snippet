@@ -37,7 +37,7 @@ it('serves the initial build, watches changes, and injects live reload only in p
         $response = file_get_contents("http://127.0.0.1:{$port}/post/");
         $version = file_get_contents("http://127.0.0.1:{$port}/.snippet-preview-version");
         $reload = file_get_contents("http://127.0.0.1:{$port}/.snippet-preview-reload.js");
-        $assetHeaders = get_headers("http://127.0.0.1:{$port}/assets/site.css", true);
+        $assetHeaders = get_headers("http://127.0.0.1:{$port}/assets/theme.css", true);
         $llmsHeaders = get_headers("http://127.0.0.1:{$port}/llms.txt", true);
         file_put_contents($path . '/page.md', 'After!!');
     };
@@ -90,7 +90,7 @@ it('keeps serving the last valid build when a watched edit is invalid', function
     $stderr->rewind();
 
     expect(file_get_contents($this->directory . '/public/post/index.html'))->toContain('Valid.')
-        ->and($stderr->fread(8192))->toContain("Build failed: Internal link target '/missing/' in '{$path}/page.md' at line 1 does not exist in the generated site.");
+        ->and($stderr->fread(8192))->toBe("Build failed: Internal link target '/missing/' in 'content/pages/post/page.md' at line 1 does not exist in the generated site. Keeping the last valid site.\n");
 });
 
 it('requests a fresh preview process when runtime source changes', function (): void {
@@ -280,7 +280,7 @@ it('reports when the local PHP server cannot stay running', function (): void {
 
     $stderr->rewind();
     expect($status)->toBe(1)
-        ->and($stderr->fread(8192))->toContain('Preview server stopped unexpectedly');
+        ->and($stderr->fread(8192))->toBe("Preview server failed: The local PHP server stopped unexpectedly.\n");
 });
 
 it('does not start a server when the initial build is invalid', function (): void {
@@ -295,7 +295,7 @@ it('preserves the current publication when the preview version cannot be written
     $this->resources();
     mkdir($this->directory . '/public');
     file_put_contents($this->directory . '/public/index.html', 'old publication');
-    PublisherFaults::set('file_put_contents', ['pass', 'pass', 'pass', 'pass', 'fail']);
+    PublisherFaults::set('file_put_contents', ['pass', 'pass', 'pass', 'pass', 'pass', 'fail']);
 
     expect(fn(): int => new PreviewServer(port: availablePreviewPort(), maximumPolls: 0)->run(
         $this->directory,
@@ -392,13 +392,15 @@ it('serves only the configured mount path and scopes redirects and live reload b
     $reload = null;
     $unmountedHeaders = null;
     $missingHeaders = null;
-    $afterPoll = function () use ($port, &$rootHeaders, &$mounted, &$reload, &$unmountedHeaders, &$missingHeaders): void {
+    $missing = null;
+    $afterPoll = function () use ($port, &$rootHeaders, &$mounted, &$reload, &$unmountedHeaders, &$missingHeaders, &$missing): void {
         $context = stream_context_create(['http' => ['follow_location' => 0, 'ignore_errors' => true]]);
         $rootHeaders = get_headers("http://127.0.0.1:{$port}/", false, $context);
         $mounted = file_get_contents("http://127.0.0.1:{$port}/snippet/post/");
         $reload = file_get_contents("http://127.0.0.1:{$port}/snippet/.snippet-preview-reload.js");
         $unmountedHeaders = get_headers("http://127.0.0.1:{$port}/post/", false, $context);
         $missingHeaders = get_headers("http://127.0.0.1:{$port}/snippet/missing/", false, $context);
+        $missing = file_get_contents("http://127.0.0.1:{$port}/snippet/missing/", false, $context);
     };
     $stdout = new SplFileObject('php://memory', 'w+');
 
@@ -418,7 +420,7 @@ it('serves only the configured mount path and scopes redirects and live reload b
         ->and($mounted)->toBeString()->toContain(
             'Mounted.',
             '<script src="/snippet/.snippet-preview-reload.js"',
-            '<link rel="stylesheet" href="/snippet/assets/site.css">',
+            '<link rel="stylesheet" href="/snippet/assets/theme.css">',
         )
         ->and($reload)->toBeString()->toContain(
             'const basePath = "/snippet";',
@@ -428,5 +430,11 @@ it('serves only the configured mount path and scopes redirects and live reload b
         ->and($unmountedHeaders[0] ?? null)->toContain('404')
         ->and($missingHeaders)->toBeArray()
         ->and($missingHeaders[0] ?? null)->toContain('404')
+        ->and($missing)->toBeString()->toContain(
+            '<h1 id="not-found-title">Page not found</h1>',
+            '<a class="button-link" href="/snippet/">Return home',
+            '<link rel="stylesheet" href="/snippet/assets/theme.css">',
+            '<script src="/snippet/.snippet-preview-reload.js"',
+        )
         ->and($stdout->fread(8192))->toContain("Preview available at http://127.0.0.1:{$port}/snippet/");
 });

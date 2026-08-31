@@ -4,7 +4,7 @@
 
 # Snippet
 
-Snippet is a small, dependency-free PHP 8.5+ publishing system for one author. It turns self-contained Markdown content directories into a completely static website. The public repository is an MIT-licensed starter: the content is the product, the generated site is disposable, and the builder stays out of the published result.
+Snippet is a small, dependency-free PHP 8.5+ publishing system for one author. It turns self-contained Markdown content directories into a completely static website. This repository contains the generator and its canonical defaults; the public example site lives separately under `demo/`.
 
 Snippet provides:
 
@@ -25,28 +25,32 @@ I mainly used GPT 5.6 Sol with medium and xhigh reasoning, and GPT 5.6 Luna with
 
 ## Quick start
 
-Docker with Make is the recommended setup:
+The primary workflow is a content-only repository powered by the official builder image. Start in an empty directory with the exact v2 release:
+
+```bash
+mkdir my-site
+cd my-site
+
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$PWD:/workspace" \
+  ghcr.io/wanted80/snippet:v2.0.0 init # x-release-please-version
+```
+
+`--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path. Edit the generated `site/config.php` and content, then rerun the command with `init` replaced by `validate` or `build`. Create later drafts through the same image, for example by replacing `init` with `new article first-post`.
+
+The repository needs only `content/`, `site/`, and `resources/`; `public/` is disposable output. The builder image supports `--version`, `init`, `new page`, `new article`, `validate`, and `build`. See [INSTALL.md](INSTALL.md) for building another directory, direct PHP use, the contributor preview, customization, CI, and deployment.
+
+For a full checkout used to develop Snippet itself, Docker with Make remains the recommended environment:
 
 ```bash
 git clone https://github.com/wanted80/snippet.git
 cd snippet
 cp .env.example .env
-make docker-preview-trust
+make demo-check
 ```
 
-`make docker-preview-trust` installs Snippet's local development certificate, may ask for your computer password, and starts the preview. Close every browser window, reopen the browser, and visit `https://localhost:8443`. Use `make docker-preview` for later previews. See [INSTALL.md](INSTALL.md) for the complete Docker workflow, devcontainer and native PHP alternatives, writing and deployment steps, and troubleshooting.
-
-For a personal site, the recommended arrangement is a private downstream repository rather than a GitHub fork. Create an empty private repository, then connect it to the public starter:
-
-```bash
-git clone https://github.com/wanted80/snippet.git my-site
-cd my-site
-git remote rename origin upstream
-git remote add origin git@github.com:your-name/my-private-site.git
-git push -u origin main
-```
-
-Keep personal content and customization in the private `origin`; fetch builder improvements from `upstream`. Snippet intentionally has no submodule, plugin API, or template replacement package. An official builder image is also available for content-only repositories; see [INSTALL.md](INSTALL.md#official-builder-image).
+This builds the release image, assembles the demo in a temporary workspace, validates it, and proves the production build. To use live preview for a publication, run the direct CLI from that publication's workspace as documented in [INSTALL.md](INSTALL.md).
 
 ## Content
 
@@ -70,16 +74,24 @@ Article directories must use a real, zero-padded calendar date that matches the 
 
 Page and article directory slugs are author-chosen lowercase ASCII letters and numbers separated by single hyphens. Titles are independent and may use any language: a page titled `日本語`, for example, can use the directory slug `nihongo`. Snippet never transliterates a title automatically because pronunciation and convention are language-dependent.
 
-Start a page or article with the minimal draft command:
+Start a page or article with the minimal draft command in an initialized publication workspace:
 
 ```bash
-bin/snippet new page contact
-bin/snippet new article first-post
-bin/snippet new article older-note --date=2026-07-01
-composer app:new -- article first-post
+snippet new page contact
+snippet new article first-post
+snippet new article older-note --date=2026-07-01
 ```
 
-An article without `--date` uses the current UTC date. The command creates an empty Markdown file and a `meta.php` with empty title and description fields; articles also receive the selected date and an empty tag list. The result is intentionally incomplete, so finish both files before validating, building, or previewing. Draft creation does not validate the existing catalog or change `public/`, and it never replaces an existing content directory. Docker users can run the canonical command after entering `make docker-shell`; there is deliberately no separate Make target.
+Content-only repositories use the equivalent builder-image command:
+
+```bash
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --volume "$PWD:/workspace" \
+  ghcr.io/wanted80/snippet:v2.0.0 new article first-post # x-release-please-version
+```
+
+An article without `--date` uses the current UTC date. The command creates an empty Markdown file and a `meta.php` with empty title and description fields; articles also receive the selected date and an empty tag list. The result is intentionally incomplete, so finish both files before validating, building, or previewing. Draft creation checks that the relevant content collection is a regular non-symlink directory, does not validate the existing catalog or change `public/`, and never replaces an existing content directory. Run `snippet init` first when using an empty content-only workspace. Contributors can also run the canonical command after entering `make docker-shell`; there is deliberately no separate Make target.
 
 Every `meta.php` starts with `declare(strict_types=1);` and returns one literal associative array. Article metadata has these required fields:
 
@@ -128,7 +140,7 @@ return [
 
 No more than four pages may define `menu_order` under the internal navigation ceiling. Every page appears at `/pages/` whether or not it is in the direct navigation.
 
-The starter keeps `content/pages/about/` as its conventional permanent About page and promotes it with `menu_order`. It remains an ordinary page—using the same content template and reading typography as articles—so its Markdown, assets, route, validation, and archive entry need no special engine path. Replace its content for a real site; the builder deliberately does not require a particular page slug.
+The demo keeps `demo/content/pages/about/` as a conventional permanent About page and promotes it with `menu_order`. It remains an ordinary page; initialized publications start with empty page and article collections and do not require any particular page slug.
 
 Tags retain their source order. Their route slugs are generated deterministically by lowercasing UTF-8 labels, replacing runs of characters other than Unicode letters, combining marks, and numbers with one hyphen, and trimming edge hyphens. `PHP 8.5` becomes `php-8-5`, `Café` becomes `café`, and `日本語` remains `日本語`. A generated slug must be non-empty and unique within an article, and it must map to one consistent display label throughout the catalog. Tag slugs and output-directory names remain Unicode—for example, `public/tags/café/`—while every emitted slug is UTF-8 percent-encoded as one RFC 3986 path segment, producing the ASCII-safe URL `/tags/caf%C3%A9/`.
 
@@ -154,7 +166,13 @@ Validation checks every internal Markdown link against the complete generated ro
 
 ## Site customization
 
-`resources/` contains the builder-shipped publication defaults and preview support: the default stylesheet, theme script, HTML templates, and preview router. `site/` contains one publication's site-specific configuration, theme overrides, self-hosted fonts, and other assets. Keeping these roles separate lets a site replace presentation details without turning its identity and assets into builder defaults.
+`resources/` contains the canonical builder-shipped templates, stylesheet, theme script, and preview support. Root `site/` contains the generic configuration and customizable site assets copied by `snippet init`. The public example combines those shared inputs with `demo/content/` and the single demo-specific override at `demo/site/config.php`; no duplicate starter tree is committed.
+
+## Repository and demo separation
+
+The root is the generator and reference implementation. `site/` and `resources/` are the one maintained source for initialized publications, while `demo/content/` preserves the project website's articles and pages. `snippet init` creates empty `content/articles/` and `content/pages/` collections and copies only the generic root defaults—never demo configuration or content. CI composes the demo into a temporary normal workspace, validates it, builds it, and deploys only the generated output.
+
+Container support is grouped by responsibility under `docker/`: `development/` owns the contributor image, `builder/` the published minimal image, `demo/` temporary demo composition, `preview/` local Caddy support, and `quality/` container-specific quality tooling. Shell sources retain their `.sh` extension in the repository even when an image installs them as an extensionless command.
 
 `site/config.php` defines the site's identity and build preferences with one exact shape:
 
@@ -186,7 +204,7 @@ The `language` value sets the document's HTML language tag. The shipped template
 
 `title` is the document identity used in browser titles, descriptions, and the homepage's hidden heading. The required `sitename` is independent trimmed, non-empty UTF-8 text used by the centered wordmark and its “— Home” accessible label. The required `author` is also trimmed, non-empty UTF-8 text and supplies the document's author metadata; every document identifies its running Snippet version as the generator. The starter theme displays the site name in uppercase with the bundled Snippet Logo font; the stored and accessible text is unchanged, and unsupported glyphs fall back to the interface font.
 
-When `build.minify` is enabled, publication conservatively collapses whitespace-only text nodes between HTML tags. It leaves prose, attributes, comments, doctypes, inline spacing, and the contents of `pre`, `code`, `textarea`, `script`, and `style` unchanged. It also stream-minifies `resources/site.css` and optional `site/theme.css`: external whitespace is collapsed, whitespace around `{`, `}`, `;`, and `,` is removed, and strings, escapes, comments, and meaningful token spacing are preserved. Malformed or uncertain CSS is copied unchanged. When minification is disabled, both stylesheets use the direct byte-for-byte copy path. `resources/theme.js`, content assets, and files beneath `site/assets/` remain byte-for-byte copies in either mode.
+When `build.minify` is enabled, publication conservatively collapses whitespace-only text nodes between HTML tags. It leaves prose, attributes, comments, doctypes, inline spacing, and the contents of `pre`, `code`, `textarea`, `script`, and `style` unchanged. It also stream-minifies required `resources/theme.css` and optional `site/site.css`: external whitespace is collapsed, whitespace around `{`, `}`, `;`, and `,` is removed, and strings, escapes, comments, and meaningful token spacing are preserved. Malformed or uncertain CSS is copied unchanged. When minification is disabled, both stylesheets use the direct byte-for-byte copy path. `resources/theme.js`, optional `site/site.js`, content assets, and files beneath `site/assets/` remain byte-for-byte copies in either mode.
 
 ### Site assets
 
@@ -196,13 +214,13 @@ Every regular file under `site/assets/` is copied to `/assets/site/` with its re
 
 ### Templates and theme
 
-The 12 editable HTML files under `resources/templates/` own the author-customizable structural markup. `layout.html` provides the document shell, header, navigation, main region, and footer; the remaining files define the homepage, shared collection and content structures, and repeated items. Small engine-owned fragments remain in PHP when they serialize typed data or depend on validated runtime state: Markdown HTML, date markup, navigation links, resource hints, conditional stylesheet tags, empty states, and optional index links. This keeps loops and conditionals out of the template language without creating one-off fragment templates.
+The 13 editable HTML files under `resources/templates/` own the author-customizable structural markup. `layout.html` provides the document shell, metadata, header, navigation, main region, and footer; the remaining files define the homepage, not-found page, shared collection and content structures, and repeated items. Small engine-owned fragments remain in PHP when they serialize typed data or depend on validated runtime state: Markdown HTML, social and robots metadata, date markup, navigation links, resource hints, conditional stylesheet and script tags, empty states, and optional index links. This keeps loops and conditionals out of the template language without creating one-off fragment templates.
 
-Templates use named placeholders such as `{{body}}`, `{{title}}`, and `{{items}}`. Surrounding HTML, classes, and text may change, and placeholders may move or repeat, but every placeholder expected by a template must remain and unknown or malformed placeholders are rejected before publication. Placeholder values are either escaped text or trusted HTML produced by the engine or another validated template, so keep them in their intended text or attribute contexts rather than moving them into JavaScript or CSS. The layout's `{{author}}` placeholder supplies author metadata, `{{version}}` supplies the release-managed generator version, `{{base_path}}` prefixes template-owned root links, and the repeatable `{{sitename}}` placeholder supplies both wordmark text and its accessible home label. The generic `{{preloads}}` placeholder belongs in the document head before the stylesheets and remains empty when no validated resource hint applies. The wordmark links home; the adjacent native popover contains Articles, Tags, Pages, ordered `menu_order` pages, and a final `llms.txt` link without widening the header.
+Templates use named placeholders such as `{{body}}`, `{{title}}`, and `{{items}}`. Surrounding HTML, classes, and text may change, and placeholders may move or repeat, but every placeholder expected by a template must remain and unknown or malformed placeholders are rejected before publication. Placeholder values are either escaped text or trusted HTML produced by the engine or another validated template, so keep them in their intended text or attribute contexts rather than moving them into JavaScript or CSS. The layout's `{{author}}` placeholder supplies author metadata, `{{version}}` supplies the release-managed generator version, `{{base_path}}` prefixes template-owned root links, and the repeatable `{{sitename}}` placeholder supplies both wordmark text and its accessible home label. `{{social_metadata}}` emits engine-owned Open Graph and Twitter/X metadata together with the not-found page's `noindex` directive. `{{preloads}}` belongs before the stylesheets, `{{site_stylesheet}}` follows the built-in stylesheet, and `{{site_script}}` follows the built-in script. Each optional placeholder renders an empty string when its validated site asset is absent. The wordmark links home; the adjacent native popover contains Articles, Tags, Pages, ordered `menu_order` pages, and a final `llms.txt` link without widening the header.
 
 The default theme follows the visitor's system light or dark preference until the menu's theme action is used. That choice is stored under `snippet-theme` and synchronized across open same-origin tabs when browser storage is available. The behavior lives in `resources/theme.js`, is copied unchanged to `/assets/theme.js`, and is permitted by the generated same-origin Content Security Policy without `unsafe-inline`.
 
-The builder treats UTF-8 `site/theme.css` as optional, copies it to `/assets/theme.css` when present, and loads it after the default stylesheet. Put downstream rules in the final CSS layer:
+The builder publishes required `resources/theme.css` as `/assets/theme.css`, then loads optional UTF-8 `site/site.css` from `/assets/site.css`. Optional UTF-8 `site/site.js` is copied byte-for-byte to `/assets/site.js` and loaded with `defer` after `/assets/theme.js`. Absent optional files produce neither tags nor output. Put downstream CSS rules in the final layer:
 
 ```css
 @layer overrides {
@@ -212,7 +230,9 @@ The builder treats UTF-8 `site/theme.css` as optional, copies it to `/assets/the
 }
 ```
 
-The starter site self-hosts the upright and italic variable webfonts for [Atkinson Hyperlegible Next](https://www.brailleinstitute.org/freefont/) for reading and interface text, plus the supplied Snippet Logo WOFF2 for the wordmark. The upright interface and wordmark fonts are each preloaded only when both `site/theme.css` and the matching asset are present; the italic interface font remains demand-loaded. These known paths provide an optional preload optimization in the renderer; they do not constrain replacement fonts or require configurable preload machinery. The Atkinson files come from the [official font repository at commit `7925f50`](https://github.com/googlefonts/atkinson-hyperlegible-next/tree/7925f50f649b3813257faf2f4c0b381011f434f1) and are distributed under the SIL Open Font License 1.1 included beside them. No font-service request is made. Remove `site/theme.css` to return all three stable font tokens to their system fallbacks, or replace its `@font-face` declarations and files beneath `site/assets/fonts/` to self-host other families.
+The starter site self-hosts the upright and italic variable webfonts for [Atkinson Hyperlegible Next](https://www.brailleinstitute.org/freefont/) for reading and interface text, plus the supplied Snippet Logo WOFF2 for the wordmark. The upright interface and wordmark fonts are each preloaded only when both `site/site.css` and the matching asset are present; the italic interface font remains demand-loaded. These known paths provide an optional preload optimization in the renderer; they do not constrain replacement fonts or require configurable preload machinery. The Atkinson files come from the [official font repository at commit `7925f50`](https://github.com/googlefonts/atkinson-hyperlegible-next/tree/7925f50f649b3813257faf2f4c0b381011f434f1) and are distributed under the SIL Open Font License 1.1 included beside them. No font-service request is made. Remove `site/site.css` to return all three stable font tokens to their system fallbacks, or replace its `@font-face` declarations and files beneath `site/assets/fonts/` to self-host other families.
+
+Every route keeps its canonical link and receives Open Graph and Twitter/X title, description, URL, and site-name metadata. Articles use `og:type=article`; other routes use `website`. A covered article also emits its validated absolute image URL, MIME type, dimensions, and non-empty authored alt text, and uses the large-image card. No site-wide social image or additional social configuration is implied.
 
 ### Stable CSS API
 
@@ -231,6 +251,7 @@ Configuration and metadata files are declarative PHP rather than executed code. 
 `bin/snippet build` loads one shared publication-input snapshot and validates its configuration, content catalog, article images, Markdown references, assets, and templates before rendering. `validate`, `build`, and every preview rebuild use this identical boundary. It writes a unique temporary sibling tree and replaces `public/` only after every page and asset succeeds. The generated routes are:
 
 - `/index.html`, containing the homepage;
+- `/404.html`, containing the shared-layout not-found document used by compatible static hosts;
 - `/articles/index.html`, `/pages/index.html`, and `/tags/index.html`;
 - `/articles/<slug>/index.html` for each article;
 - `/<slug>/index.html` for each page;
@@ -262,16 +283,19 @@ Articles are ordered by date descending and then slug ascending. Pages are order
 
 Markdown inline, list-item, and link traversals, together with preview filesystem fingerprint records, are exposed internally as fresh, forward-only generators. This reduces transient allocations for one-pass consumers. The validated catalog remains materialized because ordering, complete route inventory, tag aggregation, reference validation, and snapshot-safe transactional publication all require one shared complete snapshot; generators do not replace it.
 
-Runtime code uses only PHP's standard library. Composer supplies the PHP platform requirement, PSR-4 autoloading, project scripts, and approved development-only quality tools. The selected static host owns upload configuration, public HTTPS, and certificates; only the generated `public/` directory is deployable. This repository builds `public/` through the locked production Docker workflow and deploys that artifact to GitHub Pages after the separate `Quality` workflow succeeds on `main`; pull requests never deploy, generated output remains ignored, and no publication branch is used. Dispatch `Quality` manually when a manual publication is needed.
+Runtime code uses only PHP's standard library. Composer supplies the PHP platform requirement, PSR-4 autoloading, project scripts, and approved development-only quality tools. The selected static host owns upload configuration, public HTTPS, and certificates; only the generated `public/` directory is deployable. This repository builds `public/` through the locked production Docker workflow and deploys that artifact to GitHub Pages after the separate `Quality` workflow succeeds for a trusted push to `main`; pull requests and manual quality runs never deploy, generated output remains ignored, and no publication branch is used.
+
+The root-level `/404.html` uses the same layout, navigation, theme, optional site assets, configured deployment path, and minification policy as every other document. GitHub Pages and static hosts with the same convention serve it for missing routes with a 404 response. Snippet preview mirrors that behavior beneath the configured deployment path and still injects live reload only into the served response.
 
 The default layout also carries a restrictive meta Content Security Policy for same-origin scripts, styles, images, fonts, and connections. Browsers do not enforce `frame-ancestors` from a meta policy, so configure the static host to send `Content-Security-Policy: frame-ancestors 'none'` as an HTTP response header. `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin` are sensible companion headers. Docker's local Caddy preview sends these headers, but deployment configuration belongs to the selected host. GitHub Pages does not provide project-controlled response headers, so its deployment retains the meta CSP but cannot add all of these recommended response headers.
 
 ## Maintenance and releases
 
-Pull requests run the complete Docker development gate, validate both Compose environments, audit the locked Composer dependencies, and validate content through the production image. Run the same project-owned checks locally with:
+Pull requests run the complete Docker development gate, validate both Compose environments, audit the locked Composer dependencies, and validate and build the composed demo through the release builder image. Run the same project-owned checks locally with:
 
 ```bash
 make docker-check
+make demo-check
 make docker-audit
 ```
 
@@ -286,9 +310,9 @@ Snippet follows Semantic Versioning. Pull requests are squash-merged with conven
 - [Security policy](SECURITY.md)
 - [Contributor and coding guidance](AGENTS.md)
 - [MIT license](LICENSE)
-- [`content/`](content/) for authored pages and articles
-- [`site/`](site/) for site-specific configuration, overrides, fonts, and assets
-- [`resources/`](resources/) for builder-shipped publication defaults and preview support
+- [`demo/`](demo/) for the public example site's content and configuration override
+- [`site/`](site/) for generic initialized-site configuration, fonts, and assets
+- [`resources/`](resources/) for canonical shared publication defaults and preview support
 - [`src/`](src/) for the dependency-free builder
 
 Snippet source is available under the [MIT License](LICENSE). The bundled Atkinson Hyperlegible Next font files retain their separate [SIL Open Font License 1.1](site/assets/fonts/atkinson-hyperlegible-next/OFL.txt).

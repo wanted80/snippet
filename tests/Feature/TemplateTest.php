@@ -9,14 +9,14 @@ use Snippet\Support\ApplicationVersion;
 
 mutates(TemplateLoader::class);
 
-it('defines the consolidated twelve-template interface', function (): void {
+it('defines the consolidated thirteen-template interface', function (): void {
     $contracts = [];
     foreach (Template::cases() as $template) {
         $contracts[$template->value] = $template->placeholders();
     }
 
     expect($contracts)->toBe([
-        'layout.html' => ['language', 'description', 'author', 'version', 'title', 'canonical', 'base_path', 'preloads', 'theme_stylesheet', 'sitename', 'navigation', 'body'],
+        'layout.html' => ['language', 'description', 'author', 'version', 'title', 'canonical', 'social_metadata', 'base_path', 'preloads', 'site_stylesheet', 'site_script', 'sitename', 'navigation', 'body'],
         'home.html' => ['site_title', 'featured_article', 'archive_section', 'tag_section', 'empty_state', 'home_grid_class'],
         'featured-article.html' => ['url', 'title', 'date', 'tags', 'figure', 'document'],
         'article-figure.html' => ['url', 'alt', 'width', 'height'],
@@ -28,6 +28,7 @@ it('defines the consolidated twelve-template interface', function (): void {
         'collection-page.html' => ['eyebrow', 'title', 'introduction', 'collection_label', 'list_class', 'items', 'empty_state'],
         'content-summary.html' => ['url', 'title', 'date', 'description', 'tags'],
         'tag-list.html' => ['items'],
+        'not-found.html' => ['home_url'],
     ]);
 
     $this->resources();
@@ -54,7 +55,10 @@ it('loads every HTML template and substitutes trusted rendered values', function
             'alt' => 'Alt',
             'width' => '1',
             'height' => '1',
-        ]))->toContain('<figure class="article-figure">')
+        ]))->toContain(
+            '<figure class="article-figure">',
+            '<img src="/articles/post/cover.webp" alt="Alt" width="1" height="1" fetchpriority="high">',
+        )
         ->not->toContain('{{alt}}', '{{width}}', '{{height}}');
 });
 
@@ -69,9 +73,11 @@ it('keeps the default layout self-contained and loads only local stylesheets', f
         'version' => ApplicationVersion::CURRENT,
         'title' => 'Title',
         'canonical' => 'https://example.test/',
+        'social_metadata' => '',
         'base_path' => '',
         'preloads' => '',
-        'theme_stylesheet' => '',
+        'site_stylesheet' => '',
+        'site_script' => '',
         'sitename' => 'Brand',
         'navigation' => '',
         'body' => '',
@@ -81,7 +87,7 @@ it('keeps the default layout self-contained and loads only local stylesheets', f
         '<meta name="author" content="Writer &amp; Editor">',
         '<meta name="generator" content="Snippet ' . ApplicationVersion::CURRENT . '">',
         '<link rel="icon" href="/favicon.svg" type="image/svg+xml">',
-        '<link rel="stylesheet" href="/assets/site.css">',
+        '<link rel="stylesheet" href="/assets/theme.css">',
         '<p class="site-footer-row">',
         '<span>Generated and published with</span>',
         '<span class="site-footer-heart" aria-hidden="true">♥</span>',
@@ -90,7 +96,7 @@ it('keeps the default layout self-contained and loads only local stylesheets', f
         "style-src 'self'",
         "font-src 'self'",
         "img-src 'self'",
-    )->not->toContain('{{preloads}}', '{{theme_stylesheet}}', 'fonts.bunny.net', 'frame-ancestors');
+    )->not->toContain('{{preloads}}', '{{site_stylesheet}}', '{{site_script}}', '{{social_metadata}}', 'fonts.bunny.net', 'frame-ancestors');
 });
 
 it('rejects a missing or linked required template', function (string $kind): void {

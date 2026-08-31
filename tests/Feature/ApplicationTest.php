@@ -12,13 +12,14 @@ use Snippet\Support\ApplicationVersion;
  * @param list<string> $arguments
  * @return array{int, string, string}
  */
-function runApplication(string $root, array $arguments, ?PublicationInputLoader $publicationInputLoader = null): array
+function runApplication(string $root, array $arguments, ?PublicationInputLoader $publicationInputLoader = null, ?Closure $nanoseconds = null): array
 {
     $stdout = new SplFileObject('php://memory', 'w+');
     $stderr = new SplFileObject('php://memory', 'w+');
     $status = new Application(
         $root,
         publicationInputLoader: $publicationInputLoader ?? new PublicationInputLoader(),
+        nanoseconds: $nanoseconds,
     )->run($arguments, $stdout, $stderr);
     $stdout->rewind();
     $stderr->rewind();
@@ -35,7 +36,45 @@ it('reports deterministic counts on successful validation', function (): void {
     $this->item('about', ['title' => 'About', 'description' => 'D']);
     $this->resources();
     expect(runApplication($this->directory, ['bin/snippet', 'validate']))
-        ->toBe([0, "Valid site and content: 2 items (1 article, 1 page).\n", '']);
+        ->toBe([0, "Valid site: 1 article, 1 page, 0 tags, 3 assets.\n", '']);
+});
+
+it('reports successful publication counts and rounded full-command duration', function (): void {
+    $article = $this->article('one', ['title' => 'One', 'description' => 'D', 'date' => '2026-01-01', 'tags' => ['One', 'Two']]);
+    file_put_contents($article . '/notes.txt', 'notes');
+    $this->item('about', ['title' => 'About', 'description' => 'D']);
+    $this->resources();
+    $readings = [1_000_000, 14_400_000];
+
+    expect(runApplication(
+        $this->directory,
+        ['bin/snippet', 'build'],
+        nanoseconds: static function () use (&$readings): int {
+            $reading = array_shift($readings);
+            assert(is_int($reading));
+
+            return $reading;
+        },
+    ))->toBe([0, "Built site: 1 article, 1 page, 2 tags, 4 assets, 14 files in 13 ms.\n", '']);
+});
+
+it('uses correct plurals in validation and build summaries', function (): void {
+    $this->content();
+    $this->resources();
+    $readings = [0, 600_000];
+
+    expect(runApplication($this->directory, ['bin/snippet', 'validate']))
+        ->toBe([0, "Valid site: 0 articles, 0 pages, 0 tags, 3 assets.\n", ''])
+        ->and(runApplication(
+            $this->directory,
+            ['bin/snippet', 'build'],
+            nanoseconds: static function () use (&$readings): int {
+                $reading = array_shift($readings);
+                assert(is_int($reading));
+
+                return $reading;
+            },
+        ))->toBe([0, "Built site: 0 articles, 0 pages, 0 tags, 3 assets, 9 files in 1 ms.\n", '']);
 });
 
 it('reports the application version without loading publication inputs', function (): void {
@@ -61,19 +100,85 @@ it('reports the application version without loading publication inputs', functio
         ->and($stderr)->toBe('');
 });
 
+it('keeps version reporting independent from preview, publishing, and Markdown classes', function (): void {
+    $root = dirname(__DIR__, 2);
+    $script = $this->directory . '/version-classes.php';
+    file_put_contents($script, <<<'PHP'
+<?php
+
+declare(strict_types=1);
+
+require $argv[1] . '/vendor/autoload.php';
+
+$stdout = new SplFileObject('php://memory', 'w+');
+$stderr = new SplFileObject('php://memory', 'w+');
+$status = new Snippet\Application($argv[1])->run(['bin/snippet', '--version'], $stdout, $stderr);
+$stdout->rewind();
+$stderr->rewind();
+$loaded = array_values(array_filter(
+    get_declared_classes(),
+    static fn(string $class): bool => str_starts_with($class, 'Snippet\\Preview\\')
+        || str_starts_with($class, 'Snippet\\Publishing\\')
+        || str_starts_with($class, 'Snippet\\Markdown\\'),
+));
+
+echo json_encode([$status, $stdout->fgets(), $stderr->fgets(), $loaded], JSON_THROW_ON_ERROR);
+PHP);
+
+    $process = proc_open(
+        [PHP_BINARY, $script, $root],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        $this->directory,
+    );
+    expect($process)->toBeResource();
+    assert(is_resource($process));
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    assert(is_string($stdout));
+    assert(is_string($stderr));
+
+    expect(proc_close($process))->toBe(0)
+        ->and(json_decode($stdout, true, flags: JSON_THROW_ON_ERROR))->toBe([
+            0,
+            'Snippet ' . ApplicationVersion::CURRENT . "\n",
+            '',
+            [],
+        ])
+        ->and($stderr)->toBeEmpty();
+});
+
+it('can disable preview at the shared application command boundary', function (): void {
+    $stdout = new SplFileObject('php://memory', 'w+');
+    $stderr = new SplFileObject('php://memory', 'w+');
+    $status = new Application(
+        $this->directory,
+        usage: "Builder usage\n",
+        previewEnabled: false,
+    )->run(['snippet', 'preview'], $stdout, $stderr);
+    $stdout->rewind();
+    $stderr->rewind();
+
+    expect($status)->toBe(2)
+        ->and($stdout->fgets())->toBeEmpty()
+        ->and($stderr->fread(8192))->toBe("Error: Unknown command 'preview'.\n\nBuilder usage\n");
+});
+
 it('validates publication templates with internal limits before reporting success', function (): void {
     $this->content();
     $this->resources();
     $publicationInputLoader = new PublicationInputLoader(limits: new Limits(templateBytes: 1));
 
     expect(runApplication($this->directory, ['bin/snippet', 'validate'], $publicationInputLoader))
-        ->toBe([1, '', "Error: HTML template '{$this->directory}/resources/templates/layout.html' exceeds the configured template size limits.\n"]);
+        ->toBe([1, '', "Validation failed: HTML template 'resources/templates/layout.html' exceeds the configured template size limits.\n"]);
 });
 
 it('validates required publication assets before reporting success', function (string $fault, string $message): void {
     $this->content();
     $this->resources();
-    $path = $this->directory . '/resources/site.css';
+    $path = $this->directory . '/resources/theme.css';
     if ($fault === 'missing') {
         unlink($path);
     } elseif ($fault === 'encoding') {
@@ -83,7 +188,7 @@ it('validates required publication assets before reporting success', function (s
     }
 
     expect(runApplication($this->directory, ['bin/snippet', 'validate'], $publicationInputLoader ?? null))
-        ->toBe([1, '', "Error: Publication asset '{$path}' {$message}\n"]);
+        ->toBe([1, '', "Validation failed: Publication asset 'resources/theme.css' {$message}\n"]);
 })->with([
     'missing stylesheet' => ['missing', 'must be a regular non-symlink file.'],
     'invalid stylesheet encoding' => ['encoding', 'must be readable UTF-8 text.'],
@@ -102,29 +207,32 @@ it('validates the required favicon asset', function (string $fault, string $mess
     } else {
         $size = filesize($path);
         assert(is_int($size));
-        file_put_contents($this->directory . '/resources/site.css', 'x');
+        file_put_contents($this->directory . '/resources/theme.css', 'x');
         file_put_contents($this->directory . '/resources/theme.js', 'x');
         $publicationInputLoader = new PublicationInputLoader(limits: new Limits(assetBytes: $size - 1));
         $expectedMessage = 'exceeds the ' . ($size - 1) . '-byte asset limit.';
     }
 
     expect(runApplication($this->directory, ['bin/snippet', 'validate'], $publicationInputLoader ?? null))
-        ->toBe([1, '', "Error: Publication asset '{$path}' {$expectedMessage}\n"]);
+        ->toBe([1, '', "Validation failed: Publication asset 'site/favicon.svg' {$expectedMessage}\n"]);
 })->with([
     'missing favicon' => ['missing', 'must be a regular non-symlink file.'],
     'invalid favicon encoding' => ['encoding', 'must be readable UTF-8 text.'],
     'oversized favicon' => ['size', 'exceeds the 1-byte asset limit.'],
 ]);
 
-it('writes usage errors only to stderr', function (array $arguments): void {
+it('writes actionable usage errors only to stderr', function (array $arguments, string $message): void {
     /** @var list<string> $arguments */
     expect(runApplication($this->directory, $arguments))
-        ->toBe([2, '', "Usage:\n  bin/snippet --version\n  bin/snippet validate\n  bin/snippet build\n  bin/snippet preview [--host=<host>] [--port=<port>]\n  bin/snippet new page <slug>\n  bin/snippet new article <slug> [--date=YYYY-MM-DD]\n"]);
+        ->toBe([2, '', "Error: {$message}\n\nUsage:\n  bin/snippet --version\n  bin/snippet validate\n  bin/snippet build\n  bin/snippet preview [--host=<host>] [--port=<port>]\n  bin/snippet new page <slug>\n  bin/snippet new article <slug> [--date=YYYY-MM-DD]\n"]);
 })->with([
-    [[]],
-    [['bin/snippet']],
-    [['bin/snippet', 'validate', 'extra']],
-    [['bin/snippet', '--version', 'extra']],
+    'missing executable and command' => [[], 'A command is required.'],
+    'missing command' => [['bin/snippet'], 'A command is required.'],
+    'unknown command' => [['bin/snippet', 'deploy'], "Unknown command 'deploy'."],
+    'terminal control in command' => [['bin/snippet', "\e[31mdeploy"], "Unknown command '\\x1B[31mdeploy'."],
+    'validate argument' => [['bin/snippet', 'validate', 'extra'], "Command 'validate' does not accept arguments."],
+    'build argument' => [['bin/snippet', 'build', 'extra'], "Command 'build' does not accept arguments."],
+    'version argument' => [['bin/snippet', '--version', 'extra'], "Command '--version' does not accept arguments."],
 ]);
 
 it('rejects invalid and duplicate preview options', function (array $arguments, string $message): void {
@@ -133,7 +241,7 @@ it('rejects invalid and duplicate preview options', function (array $arguments, 
 
     expect($status)->toBe(2)
         ->and($output)->toBeEmpty()
-        ->and($error)->toStartWith("Error: {$message}\nUsage:\n");
+        ->and($error)->toStartWith("Error: {$message}\n\nUsage:\n");
 })->with([
     'empty host' => [['bin/snippet', 'preview', '--host='], 'Preview host must be a valid IP address or hostname.'],
     'host with scheme' => [['bin/snippet', 'preview', '--host=https://localhost'], 'Preview host must be a valid IP address or hostname.'],
@@ -144,6 +252,7 @@ it('rejects invalid and duplicate preview options', function (array $arguments, 
     'duplicate host' => [['bin/snippet', 'preview', '--host=localhost', '--host=0.0.0.0'], 'Preview option --host may be provided only once.'],
     'duplicate port' => [['bin/snippet', 'preview', '--port=8080', '--port=8081'], 'Preview option --port may be provided only once.'],
     'unknown option' => [['bin/snippet', 'preview', '--listen=localhost'], "Unknown preview option '--listen=localhost'."],
+    'unexpected argument' => [['bin/snippet', 'preview', 'extra'], "Unexpected preview argument 'extra'."],
 ]);
 
 it('delegates the long-running preview command without building through the normal CLI path', function (): void {
@@ -214,12 +323,18 @@ it('passes valid preview host and port overrides to the preview server', functio
         ->and($previewer->address)->toBe(['0.0.0.0', 9000]);
 });
 
-it('writes actionable content errors only to stderr', function (): void {
-    expect(runApplication($this->directory, ['bin/snippet', 'validate']))
-        ->toBe([1, '', "Error: Content directory '{$this->directory}/content' does not exist.\n"]);
-});
+it('identifies the failed operation in actionable content errors', function (string $command, string $operation): void {
+    expect(runApplication($this->directory, ['bin/snippet', $command]))
+        ->toBe([1, '', "{$operation} failed: Content directory 'content' does not exist.\n"]);
+})->with([
+    'validation' => ['validate', 'Validation'],
+    'build' => ['build', 'Build'],
+    'preview' => ['preview', 'Preview'],
+]);
 
-it('resolves the real CLI root independently from the caller working directory', function (): void {
+it('uses the caller working directory as the publication workspace', function (): void {
+    $this->content();
+    $this->resources();
     $root = dirname(__DIR__, 2);
     $process = proc_open(
         [$root . '/bin/snippet', 'validate'],
@@ -234,30 +349,8 @@ it('resolves the real CLI root independently from the caller working directory',
     fclose($pipes[1]);
     fclose($pipes[2]);
     expect(proc_close($process))->toBe(0)
-        ->and($stdout)->toMatch('/^Valid site and content: \\d+ items? \\(\\d+ articles?, \\d+ pages?\\)\\.\\n$/')
+        ->and($stdout)->toMatch('/^Valid site: \\d+ articles?, \\d+ pages?, \\d+ tags?, \\d+ assets?\\.\\n$/')
         ->and($stderr)->toBe('');
-});
-
-it('disables the Composer timeout for the long-running preview command', function (): void {
-    $contents = file_get_contents(dirname(__DIR__, 2) . '/composer.json');
-    if (!is_string($contents)) {
-        throw new RuntimeException('Unable to read composer.json.');
-    }
-
-    $composer = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
-    if (!is_array($composer)) {
-        throw new RuntimeException('composer.json must contain an object.');
-    }
-
-    $scripts = $composer['scripts'] ?? null;
-    if (!is_array($scripts)) {
-        throw new RuntimeException('composer.json must define scripts.');
-    }
-
-    expect($scripts['app:preview'] ?? null)->toBe([
-        'Composer\\Config::disableProcessTimeout',
-        'bin/snippet preview',
-    ]);
 });
 
 it('describes every application Composer script', function (): void {

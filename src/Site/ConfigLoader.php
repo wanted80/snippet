@@ -56,19 +56,12 @@ final readonly class ConfigLoader
         $assets = file_exists($assetsDirectory) || is_link($assetsDirectory)
             ? $this->fileInventory->files($assetsDirectory, 'site assets')
             : [];
-        $theme = $siteDirectory . '/theme.css';
+        $stylesheet = $siteDirectory . '/site.css';
+        $script = $siteDirectory . '/site.js';
+        $hasSiteStylesheet = $this->optionalTextAsset($stylesheet, 'Site site.css');
+        $hasSiteScript = $this->optionalTextAsset($script, 'Site site.js');
 
-        if (is_link($theme) || (file_exists($theme) && !is_file($theme))) {
-            throw new ContentException('Site theme.css must be a regular non-symlink file.');
-        }
-
-        if (is_file($theme)) {
-            if (!$this->utf8FileValidator->isValid($theme)) {
-                throw new ContentException('Site theme.css must be a readable UTF-8 file.');
-            }
-        }
-
-        return new Config($title, $sitename, $author, $description, $url, $language, $assets, is_file($theme), $homeArticles, $homeTags, $minify);
+        return new Config($title, $sitename, $author, $description, $url, $language, $assets, $hasSiteStylesheet, $hasSiteScript, $homeArticles, $homeTags, $minify);
     }
 
     /**
@@ -150,6 +143,23 @@ final readonly class ConfigLoader
         }
 
         return $value;
+    }
+
+    private function optionalTextAsset(string $path, string $label): bool
+    {
+        if (is_link($path) || (file_exists($path) && !is_file($path))) {
+            throw new ContentException("{$label} must be a regular non-symlink file.");
+        }
+
+        if (!is_file($path)) {
+            return false;
+        }
+
+        if (!$this->utf8FileValidator->isValid($path)) {
+            throw new ContentException("{$label} must be a readable UTF-8 file.");
+        }
+
+        return true;
     }
 
 

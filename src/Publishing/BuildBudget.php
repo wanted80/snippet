@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Snippet\Publishing;
 
+use Snippet\Content\Catalog;
 use Snippet\Exception\ContentException;
 use Snippet\Site\Limits;
 
@@ -15,6 +16,11 @@ final class BuildBudget
     /** @var array<string, int> */
     private array $pageBytes = [];
 
+    /** @var array<string, true> */
+    private array $documents = [];
+
+    private int $assets = 0;
+
     public function __construct(private readonly Limits $limits) {}
 
     public function addPage(string $contents, string $path): void
@@ -25,6 +31,7 @@ final class BuildBudget
         }
 
         $this->add($bytes, $path);
+        $this->documents[$path] = true;
     }
 
     /** Count one streamed chunk toward its generated-page and total-build ceilings. */
@@ -37,6 +44,7 @@ final class BuildBudget
 
         $this->pageBytes[$path] = $pageBytes;
         $this->add($bytes, $path);
+        $this->documents[$path] = true;
     }
 
     public function addAsset(int $bytes, string $path): void
@@ -46,6 +54,18 @@ final class BuildBudget
         }
 
         $this->add($bytes, $path);
+        ++$this->assets;
+    }
+
+    public function report(Catalog $catalog): BuildReport
+    {
+        return new BuildReport(
+            count($catalog->articles),
+            count($catalog->pages),
+            count($catalog->tags()),
+            $this->assets,
+            count($this->documents),
+        );
     }
 
     private function add(int $bytes, string $path): void

@@ -6,6 +6,7 @@ namespace Snippet\Publishing;
 
 use NoDiscard;
 use Snippet\Content\CatalogLoader;
+use Snippet\Exception\ContentException;
 use Snippet\Site\ConfigLoader;
 use Snippet\Site\Limits;
 
@@ -20,6 +21,7 @@ final readonly class PublicationInputLoader
         private ReferenceValidator $referenceValidator = new ReferenceValidator(),
     ) {}
 
+    /** @throws ContentException when any publication input is invalid or unreadable */
     #[NoDiscard('the validated publication inputs should be consumed')]
     public function load(string $root): PublicationInputs
     {

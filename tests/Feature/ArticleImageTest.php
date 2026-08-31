@@ -249,7 +249,7 @@ it('renders the semantic article figure only in the canonical and featured artic
     assert(is_string($home));
     assert(is_string($archive));
     assert(is_string($tag));
-    expect([$article, $home])->each->toContain('<figure class="article-figure">', '<img src="/articles/post/cover.webp" alt="Landscape &lt;&amp; &quot;view&quot;." width="1" height="1">')->and([$article, $home])->each->not->toContain('<figcaption>', 'loading=', 'srcset=')
+    expect([$article, $home])->each->toContain('<figure class="article-figure">', '<img src="/articles/post/cover.webp" alt="Landscape &lt;&amp; &quot;view&quot;." width="1" height="1" fetchpriority="high">')->and([$article, $home])->each->not->toContain('<figcaption>', 'loading=', 'srcset=')
         ->and($archive)->not->toContain('article-figure', 'cover.webp')
         ->and($tag)->not->toContain('article-figure', 'cover.webp')
         ->and(file_get_contents($this->directory . '/public/articles/post/cover.webp'))->toBe($original);
@@ -273,6 +273,6 @@ it('renders empty alternative text when alt is omitted', function (): void {
 
     expect($article)->toContain(
         '<figure class="article-figure">',
-        '<img src="/articles/post/cover.png" alt="" width="1" height="1">',
+        '<img src="/articles/post/cover.png" alt="" width="1" height="1" fetchpriority="high">',
     )->not->toContain('<figcaption>');
 });

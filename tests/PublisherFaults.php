@@ -9,13 +9,13 @@ use RuntimeException;
 /** Deterministic fault queue used only by publication failure tests. */
 final class PublisherFaults
 {
-    /** @var array<string, list<'fail'|'partial'|'pass'|'throw'>> */
+    /** @var array<string, list<'fail'|'partial'|'pass'|'throw'|'zero'>> */
     private static array $faults = [];
 
     /** @var array<string, int<0, max>> */
     private static array $calls = [];
 
-    /** @param list<'fail'|'partial'|'pass'|'throw'> $outcomes */
+    /** @param list<'fail'|'partial'|'pass'|'throw'|'zero'> $outcomes */
     public static function set(string $operation, array $outcomes): void
     {
         self::$faults[$operation] = $outcomes;
@@ -42,7 +42,7 @@ final class PublisherFaults
         return self::outcome($operation) === 'fail';
     }
 
-    /** @return 'fail'|'partial'|'pass'|null */
+    /** @return 'fail'|'partial'|'pass'|'zero'|null */
     public static function outcome(string $operation): ?string
     {
         $outcomes = self::$faults[$operation] ?? [];

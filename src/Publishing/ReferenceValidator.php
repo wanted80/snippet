@@ -39,11 +39,13 @@ final readonly class ReferenceValidator
 
     private function sourcePath(string $root, Article|Page $item): string
     {
+        $type = $item->type();
+        $path = $root . '/content/' . $type->collection();
         if ($item instanceof Article) {
-            return $root . '/content/articles/' . str_replace('-', '/', $item->date) . '/' . $item->slug . '/article.md';
+            $path .= '/' . str_replace('-', '/', $item->date);
         }
 
-        return $root . '/content/pages/' . $item->slug . '/page.md';
+        return $path . '/' . $item->slug . '/' . $type->sourceFilename();
     }
 
     private function resolve(string $target, string $currentRoute, Config $config, string $source, int $line): ?string

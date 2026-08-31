@@ -27,19 +27,19 @@ final class MarkdownHtmlRenderer
      */
     public static function render(Document $document, int $headingOffset = 1, ?string $relativeLinkBase = null, string $basePath = ''): string
     {
-        $html = [];
+        $html = '';
         foreach ($document->blocks as $block) {
-            $html[] = match (true) {
+            $html .= match (true) {
                 $block instanceof Paragraph => '<p>' . self::inlines($document, $block, $relativeLinkBase, $basePath) . '</p>',
                 $block instanceof Heading => '<h' . ($block->level + $headingOffset) . '>' . self::inlines($document, $block, $relativeLinkBase, $basePath) . '</h' . ($block->level + $headingOffset) . '>',
                 $block instanceof FlatList => self::list($document, $block, $relativeLinkBase, $basePath),
                 $block instanceof ThematicBreak => '<hr>',
                 $block instanceof CodeBlock => '<pre><code' . ($block->language === null ? '' : ' class="language-' . self::escape($block->language) . '"') . '>' . self::escape($document->text($block)) . '</code></pre>',
                 default => throw new LogicException('Unsupported Markdown block.'),
-            };
+            } . "\n";
         }
 
-        return implode("\n", $html) . "\n";
+        return $html;
     }
 
     private static function list(Document $document, FlatList $list, ?string $relativeLinkBase, string $basePath): string

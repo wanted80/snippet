@@ -13,6 +13,8 @@ use Snippet\Support\RegularFileInventory;
 use Snippet\Support\Slug;
 
 use function array_diff;
+use function array_filter;
+use function array_first;
 use function array_keys;
 use function checkdate;
 use function file_get_contents;
@@ -41,13 +43,6 @@ use function strcmp;
  */
 final readonly class CatalogLoader
 {
-    /** @var array<non-empty-string, positive-int> */
-    private const array COVER_FORMATS = [
-        'cover.jpg' => IMAGETYPE_JPEG,
-        'cover.png' => IMAGETYPE_PNG,
-        'cover.webp' => IMAGETYPE_WEBP,
-    ];
-
     public function __construct(
         private Parser $parser = new Parser(),
         private MetadataLoader $metadataLoader = new MetadataLoader(),
@@ -80,8 +75,8 @@ final readonly class CatalogLoader
         }
 
         $budget = new CatalogBudget($this->limits);
-        $pages = $this->loadPages($contentDirectory . '/pages', $budget);
-        $articles = $this->loadArticles($contentDirectory . '/articles', $budget);
+        $pages = $this->loadPages($contentDirectory . '/' . ContentType::Page->collection(), $budget);
+        $articles = $this->loadArticles($contentDirectory . '/' . ContentType::Article->collection(), $budget);
 
         usort($articles, static function (Article $left, Article $right): int {
             $dateOrder = strcmp($right->date, $left->date);
@@ -180,7 +175,16 @@ final readonly class CatalogLoader
     private function directories(string $directory, string $subject): array
     {
         $directories = [];
-        foreach ($this->entries($directory) as $entry) {
+        $entries = @scandir($directory, SCANDIR_SORT_ASCENDING);
+        if ($entries === false) {
+            throw new ContentException(sprintf("Unable to read directory '%s'.", $directory));
+        }
+
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
             $path = $directory . '/' . $entry;
             if (is_link($path)) {
                 throw new ContentException(mb_ucfirst($subject, 'UTF-8') . " entry '{$entry}' is a symlink; symlinks are not allowed.");
@@ -207,7 +211,7 @@ final readonly class CatalogLoader
         ?string $directoryDate = null,
     ): Article|Page {
         $files = $this->fileInventory->files($path, "content item '{$slug}'");
-        $sourceName = $expectedType === ContentType::Article ? 'article.md' : 'page.md';
+        $sourceName = $expectedType->sourceFilename();
         $sourcePath = $path . '/' . $sourceName;
         $metadataPath = $path . '/meta.php';
         $sourceFiles = [$sourceName, 'meta.php'];
@@ -302,21 +306,6 @@ final readonly class CatalogLoader
         return new Page($slug, $title, $description, $document, $assets, $menuOrder);
     }
 
-    /**
-     * Return sorted directory entries without the special dot entries.
-     *
-     * @return list<string>
-     */
-    private function entries(string $directory): array
-    {
-        $entries = @scandir($directory, SCANDIR_SORT_ASCENDING);
-        if ($entries === false) {
-            throw new ContentException(sprintf("Unable to read directory '%s'.", $directory));
-        }
-
-        return array_values(array_diff($entries, ['.', '..']));
-    }
-
     private function validateSlug(string $slug): void
     {
         if (!Slug::isCanonicalAscii($slug)) {
@@ -393,12 +382,10 @@ final readonly class CatalogLoader
         }
 
         $alt = $hasAlt ? $this->altText($metadata['alt'], $slug) : '';
-        $candidates = [];
-        foreach (self::COVER_FORMATS as $candidate => $format) {
-            if (in_array($candidate, $files, true)) {
-                $candidates[] = [$candidate, $format];
-            }
-        }
+        $candidates = array_values(array_filter(
+            CoverFormat::cases(),
+            static fn(CoverFormat $format): bool => in_array($format->filename(), $files, true),
+        ));
 
         if ($candidates === []) {
             throw new ContentException("Cover for article '{$slug}' is enabled, but no cover.jpg, cover.png, or cover.webp file exists in its directory.");
@@ -406,19 +393,20 @@ final readonly class CatalogLoader
         if (count($candidates) > 1) {
             throw new ContentException("Cover for article '{$slug}' is ambiguous; keep only one of cover.jpg, cover.png, or cover.webp.");
         }
-        [$path, $expectedFormat] = $candidates[0];
+        $expectedFormat = array_first($candidates);
+        $path = $expectedFormat->filename();
         $detected = @getimagesize($directory . '/' . $path);
         if ($detected === false) {
             throw new ContentException("Article cover '{$path}' for '{$slug}' must be a readable PNG, JPEG, or WebP image.");
         }
-        if ($detected[2] !== $expectedFormat) {
+        if ($detected[2] !== $expectedFormat->value) {
             throw new ContentException("Article cover '{$path}' for '{$slug}' has a detected format that does not match its file extension.");
         }
         if ($detected[0] > $this->limits->imageDimension || $detected[1] > $this->limits->imageDimension) {
             throw new ContentException("Article cover '{$path}' for '{$slug}' exceeds the {$this->limits->imageDimension}-pixel image dimension limit.");
         }
 
-        return new ArticleImage($path, $alt, $detected[0], $detected[1]);
+        return new ArticleImage($path, $alt, $detected[0], $detected[1], $expectedFormat);
     }
 
     private function altText(mixed $value, string $slug): string

@@ -37,7 +37,11 @@ final readonly class RegularFileInventory
             throw new ContentException("Unable to read {$subject} directory '{$directory}'.");
         }
 
-        foreach (array_diff($entries, ['.', '..']) as $entry) {
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
             $item = $relative === '' ? $entry : $relative . '/' . $entry;
             $path = $root . '/' . $item;
             if (is_link($path)) {

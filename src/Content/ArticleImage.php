@@ -12,5 +12,6 @@ final readonly class ArticleImage
         public string $alt,
         public int $width,
         public int $height,
+        public CoverFormat $format,
     ) {}
 }

@@ -19,6 +19,12 @@ make docker-audit
 
 Native PHP contributors may use `composer app:fix`, `composer app:analyse`, `composer app:check`, and `composer app:audit`; see [INSTALL.md](INSTALL.md) for requirements.
 
+## Architecture map
+
+The publication path is intentionally linear: `Application` dispatches the CLI, `PublicationInputLoader` creates one validated configuration/catalog/template snapshot, `Publisher` transactionally promotes the complete output, and `HtmlRenderer` turns the typed snapshot into pages. In short: `Application → PublicationInputLoader → validated inputs → Publisher → HtmlRenderer`.
+
+`Limits` contains internal safety budgets for pathological input and output. Those values are neither author configuration nor compatibility promises; change them only when evidence shows that an implementation boundary is inappropriate, and keep the matching validation tests explicit.
+
 ## Pull requests
 
 Use a conventional pull-request title because Snippet squash-merges the PR title and Release Please derives versions from that commit:

@@ -18,4 +18,19 @@ final readonly class PublicationInputs
         public Catalog $catalog,
         public Templates $templates,
     ) {}
+
+    /** Count every validated non-document file that publication will copy or generate. */
+    public function assetCount(): int
+    {
+        $assets = 3 + count($this->config->assets);
+        $assets += $this->config->hasSiteStylesheet ? 1 : 0;
+        $assets += $this->config->hasSiteScript ? 1 : 0;
+        foreach ([$this->catalog->articles, $this->catalog->pages] as $items) {
+            foreach ($items as $item) {
+                $assets += count($item->assets);
+            }
+        }
+
+        return $assets;
+    }
 }

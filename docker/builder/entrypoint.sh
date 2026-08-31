@@ -4,19 +4,13 @@
 declare(strict_types=1);
 
 use Snippet\Application;
+use Snippet\Cli\ErrorReporter;
 use Snippet\Scaffolding\WorkspaceInitializer;
 
-const USAGE = "Usage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n";
+const USAGE = "Usage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n";
 
 /** @var list<string> $arguments */
 $arguments = $_SERVER['argv'];
-$command = $arguments[1] ?? null;
-
-if (count($arguments) !== 2 || !in_array($command, ['--version', 'init', 'validate', 'build'], true)) {
-    fwrite(STDERR, USAGE);
-    exit(2);
-}
-
 $configuredEngineRoot = getenv('SNIPPET_ENGINE_ROOT');
 $engineRoot = $configuredEngineRoot === false ? '/app' : $configuredEngineRoot;
 $configuredWorkspace = getenv('SNIPPET_WORKSPACE');
@@ -24,11 +18,28 @@ $workspace = $configuredWorkspace === false ? '/workspace' : $configuredWorkspac
 
 require $engineRoot . '/vendor/autoload.php';
 
-if ($command === 'init') {
+$stdout = new SplFileObject('php://stdout', 'w');
+$stderr = new SplFileObject('php://stderr', 'w');
+$errorReporter = new ErrorReporter(
+    decorated: getenv('NO_COLOR') === false
+        && getenv('TERM') !== 'dumb'
+        && stream_isatty(STDERR),
+);
+if (($arguments[1] ?? null) === 'init') {
+    if (count($arguments) !== 2) {
+        $errorReporter->usageError($stderr, "Command 'init' does not accept arguments.", USAGE);
+        exit(2);
+    }
+
     try {
         $result = new WorkspaceInitializer($engineRoot, $workspace)->initialize();
     } catch (RuntimeException $runtimeException) {
-        fwrite(STDERR, 'Error: ' . $runtimeException->getMessage() . "\n");
+        $errorReporter->failure(
+            $stderr,
+            'Workspace initialization',
+            $runtimeException->getMessage(),
+            $workspace,
+        );
         exit(1);
     }
 
@@ -48,11 +59,8 @@ if ($command === 'init') {
     exit(0);
 }
 
-$stdout = new SplFileObject('php://stdout', 'w');
-$stderr = new SplFileObject('php://stderr', 'w');
-
-exit(new Application($workspace)->run(
-    ['snippet', $command],
+exit(new Application($workspace, usage: USAGE, errorReporter: $errorReporter, previewEnabled: false)->run(
+    $arguments,
     $stdout,
     $stderr,
 ));

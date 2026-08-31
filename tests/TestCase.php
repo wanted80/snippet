@@ -127,7 +127,7 @@ abstract class TestCase extends BaseTestCase
     {
         $source = dirname(__DIR__) . '/resources';
         mkdir($this->directory . '/resources', 0777, true);
-        copy($source . '/site.css', $this->directory . '/resources/site.css');
+        copy($source . '/theme.css', $this->directory . '/resources/theme.css');
         copy($source . '/theme.js', $this->directory . '/resources/theme.js');
         copy($source . '/preview-router.php', $this->directory . '/resources/preview-router.php');
         mkdir($this->directory . '/resources/templates');

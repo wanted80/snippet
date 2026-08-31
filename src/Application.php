@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Snippet;
 
+use Closure;
 use InvalidArgumentException;
 use Snippet\Authoring\DraftCreator;
+use Snippet\Cli\ErrorReporter;
+use Snippet\Content\ContentType;
 use Snippet\Exception\ContentException;
 use Snippet\Preview\Previewer;
 use Snippet\Preview\PreviewServer;
+use Snippet\Publishing\BuildReport;
 use Snippet\Publishing\PublicationInputLoader;
 use Snippet\Publishing\Publisher;
 use Snippet\Support\ApplicationVersion;
@@ -17,17 +21,26 @@ use SplFileObject;
 use function count;
 use function filter_var;
 
-/** Runs the command-line validation interface for a project root. */
+/** Validates and dispatches every engine CLI command for a project root. */
 final readonly class Application
 {
+    private const int FAILURE = 1;
+
+    private const int INVALID_USAGE = 2;
+
     private const string USAGE = "Usage:\n  bin/snippet --version\n  bin/snippet validate\n  bin/snippet build\n  bin/snippet preview [--host=<host>] [--port=<port>]\n  bin/snippet new page <slug>\n  bin/snippet new article <slug> [--date=YYYY-MM-DD]\n";
 
     public function __construct(
         private string $root,
-        private Publisher $publisher = new Publisher(),
-        private Previewer $previewer = new PreviewServer(),
-        private PublicationInputLoader $publicationInputLoader = new PublicationInputLoader(),
-        private DraftCreator $draftCreator = new DraftCreator(),
+        private ?Publisher $publisher = null,
+        private ?Previewer $previewer = null,
+        private ?PublicationInputLoader $publicationInputLoader = null,
+        private ?DraftCreator $draftCreator = null,
+        /** @var (Closure(): int)|null */
+        private ?Closure $nanoseconds = null,
+        private string $usage = self::USAGE,
+        private ErrorReporter $errorReporter = new ErrorReporter(),
+        private bool $previewEnabled = true,
     ) {}
 
     /**
@@ -37,16 +50,22 @@ final readonly class Application
      */
     public function run(array $arguments, SplFileObject $stdout, SplFileObject $stderr): int
     {
-        if (count($arguments) < 2 || !in_array($arguments[1], ['--version', 'validate', 'build', 'preview', 'new'], true)) {
-            $stderr->fwrite(self::USAGE);
-            return 2;
+        if (count($arguments) < 2) {
+            $this->usageError($stderr, 'A command is required.');
+            return self::INVALID_USAGE;
         }
 
         $command = $arguments[1];
+        if (!in_array($command, ['--version', 'validate', 'build', 'preview', 'new'], true)
+            || ($command === 'preview' && !$this->previewEnabled)) {
+            $this->usageError($stderr, "Unknown command '{$command}'.");
+            return self::INVALID_USAGE;
+        }
+
         if ($command === '--version') {
             if (count($arguments) !== 2) {
-                $stderr->fwrite(self::USAGE);
-                return 2;
+                $this->usageError($stderr, "Command '--version' does not accept arguments.");
+                return self::INVALID_USAGE;
             }
 
             $stdout->fwrite('Snippet ' . ApplicationVersion::CURRENT . "\n");
@@ -58,34 +77,52 @@ final readonly class Application
         }
 
         if ($command !== 'preview' && count($arguments) !== 2) {
-            $stderr->fwrite(self::USAGE);
-            return 2;
+            $this->usageError($stderr, "Command '{$command}' does not accept arguments.");
+            return self::INVALID_USAGE;
         }
 
-        $previewAddress = $this->previewAddress(array_slice($arguments, 2), $stderr);
-        if ($previewAddress === null) {
-            return 2;
+        if ($command === 'preview') {
+            $previewAddress = $this->previewAddress(array_slice($arguments, 2), $stderr);
+            if ($previewAddress === null) {
+                return self::INVALID_USAGE;
+            }
         }
 
+        $started = $command === 'build' ? $this->nanoseconds() : null;
+        $report = null;
         try {
             if ($command === 'preview') {
-                return $this->previewer->run($this->root, $stdout, $stderr, ...$previewAddress);
+                $previewer = $this->previewer ?? new PreviewServer(errorReporter: $this->errorReporter);
+                return $previewer->run($this->root, $stdout, $stderr, ...$previewAddress);
             }
 
-            $inputs = $this->publicationInputLoader->load($this->root);
+            $publicationInputLoader = $this->publicationInputLoader ?? new PublicationInputLoader();
+            $inputs = $publicationInputLoader->load($this->root);
             $catalog = $inputs->catalog;
             if ($command === 'build') {
-                $this->publisher->publish($this->root, $inputs->config, $catalog, $inputs->limits, $inputs->templates);
+                $publisher = $this->publisher ?? new Publisher();
+                $report = $publisher->publish($this->root, $inputs->config, $catalog, $inputs->limits, $inputs->templates);
             }
         } catch (ContentException $contentException) {
-            $stderr->fwrite('Error: ' . $contentException->getMessage() . "\n");
-            return 1;
+            $operation = $command === 'validate' ? 'Validation' : ($command === 'build' ? 'Build' : 'Preview');
+            $this->errorReporter->failure($stderr, $operation, $contentException->getMessage(), $this->root);
+            return self::FAILURE;
         }
 
-        if ($command === 'build') {
-            $stdout->fwrite("Built site: {$catalog->count()} items.\n");
+        if ($report instanceof BuildReport && is_int($started)) {
+            $milliseconds = intdiv($this->nanoseconds() - $started + 500_000, 1_000_000);
+            $stdout->fwrite('Built site: '
+                . $this->plural($report->articles, 'article') . ', '
+                . $this->plural($report->pages, 'page') . ', '
+                . $this->plural($report->tags, 'tag') . ', '
+                . $this->plural($report->assets, 'asset') . ', '
+                . $this->plural($report->files, 'file') . " in {$milliseconds} ms.\n");
         } else {
-            $stdout->fwrite("Valid site and content: {$catalog->count()} items ({$this->plural(count($catalog->articles), 'article')}, {$this->plural(count($catalog->pages), 'page')}).\n");
+            $stdout->fwrite('Valid site: '
+                . $this->plural(count($catalog->articles), 'article') . ', '
+                . $this->plural(count($catalog->pages), 'page') . ', '
+                . $this->plural(count($catalog->tags()), 'tag') . ', '
+                . $this->plural($inputs->assetCount(), 'asset') . ".\n");
         }
         return 0;
     }
@@ -97,21 +134,22 @@ final readonly class Application
     {
         $parsed = $this->newDraftArguments($arguments, $stderr);
         if ($parsed === null) {
-            return 2;
+            return self::INVALID_USAGE;
         }
 
         [$type, $slug, $date] = $parsed;
         try {
-            $destination = $this->draftCreator->create($this->root, $type, $slug, $date);
+            $draftCreator = $this->draftCreator ?? new DraftCreator();
+            $destination = $draftCreator->create($this->root, $type, $slug, $date);
         } catch (InvalidArgumentException $invalidArgumentException) {
             $this->usageError($stderr, $invalidArgumentException->getMessage());
-            return 2;
+            return self::INVALID_USAGE;
         } catch (ContentException $contentException) {
-            $stderr->fwrite('Error: ' . $contentException->getMessage() . "\n");
-            return 1;
+            $this->errorReporter->failure($stderr, 'Draft creation', $contentException->getMessage(), $this->root);
+            return self::FAILURE;
         }
 
-        $source = $type === 'article' ? 'article.md' : 'page.md';
+        $source = ContentType::from($type)->sourceFilename();
         $stdout->fwrite("Created incomplete draft: {$destination}\n");
         $stdout->fwrite("Complete {$destination}/{$source} and {$destination}/meta.php before validating or building.\n");
         return 0;
@@ -173,13 +211,13 @@ final readonly class Application
         foreach ($options as $option) {
             if (str_starts_with($option, '--host=')) {
                 if ($hostProvided) {
-                    return $this->optionError($stderr, 'Preview option --host may be provided only once.');
+                    return $this->usageError($stderr, 'Preview option --host may be provided only once.');
                 }
 
                 $hostProvided = true;
                 $host = mb_substr($option, 7);
                 if (!$this->validHost($host)) {
-                    return $this->optionError($stderr, 'Preview host must be a valid IP address or hostname.');
+                    return $this->usageError($stderr, 'Preview host must be a valid IP address or hostname.');
                 }
 
                 continue;
@@ -187,20 +225,24 @@ final readonly class Application
 
             if (str_starts_with($option, '--port=')) {
                 if ($portProvided) {
-                    return $this->optionError($stderr, 'Preview option --port may be provided only once.');
+                    return $this->usageError($stderr, 'Preview option --port may be provided only once.');
                 }
 
                 $portProvided = true;
                 $value = mb_substr($option, 7);
                 if (preg_match('/^[0-9]+$/D', $value) !== 1 || (int) $value < 1 || (int) $value > 65_535) {
-                    return $this->optionError($stderr, 'Preview port must be an integer from 1 through 65535.');
+                    return $this->usageError($stderr, 'Preview port must be an integer from 1 through 65535.');
                 }
 
                 $port = (int) $value;
                 continue;
             }
 
-            return $this->optionError($stderr, "Unknown preview option '{$option}'.");
+            if (str_starts_with($option, '--')) {
+                return $this->usageError($stderr, "Unknown preview option '{$option}'.");
+            }
+
+            return $this->usageError($stderr, "Unexpected preview argument '{$option}'.");
         }
 
         return [$host, $port];
@@ -212,20 +254,23 @@ final readonly class Application
             || filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) !== false;
     }
 
-    private function optionError(SplFileObject $stderr, string $message): null
-    {
-        $stderr->fwrite("Error: {$message}\n" . self::USAGE);
-        return null;
-    }
-
     private function usageError(SplFileObject $stderr, string $message): null
     {
-        $stderr->fwrite("Error: {$message}\n" . self::USAGE);
+        $this->errorReporter->usageError($stderr, $message, $this->usage);
         return null;
     }
 
     private function plural(int $count, string $word): string
     {
         return $count . ' ' . $word . ($count === 1 ? '' : 's');
+    }
+
+    private function nanoseconds(): int
+    {
+        if ($this->nanoseconds instanceof Closure) {
+            return ($this->nanoseconds)();
+        }
+
+        return (int) hrtime(true);
     }
 }

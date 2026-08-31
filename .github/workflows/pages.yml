@@ -13,7 +13,11 @@ permissions:
 jobs:
   pages:
     name: Build GitHub Pages
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+    if: >-
+      github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -25,17 +29,23 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
-      - name: Build with the locked production image
-        run: ENVIRONMENT=production make docker-build
+      - name: Validate and build the composed demo site
+        run: |
+          make builder-image
+          sh docker/demo/check.sh snippet-builder:smoke "$RUNNER_TEMP/snippet-public"
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: public/
+          path: ${{ runner.temp }}/snippet-public/
 
   deploy:
     name: Deploy GitHub Pages
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+    if: >-
+      github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
     needs: pages
     runs-on: ubuntu-24.04
     timeout-minutes: 10
