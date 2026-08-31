@@ -262,6 +262,7 @@ Always:
 The build generates:
 
 - `/index.html`, featuring the newest article in full and configured collections of older articles and popular tags;
+- `/404.html`, containing the shared-layout not-found document for compatible static hosts;
 - `/articles/index.html`, `/pages/index.html`, and `/tags/index.html`;
 - `/articles/<slug>/index.html` for articles;
 - `/<slug>/index.html` for pages;
@@ -313,7 +314,7 @@ Pest features are selected for the behavior under test, not added ceremonially. 
 
 Content discovery, metadata, route resolution, Markdown parsing, image validation, internal-reference validation, rendering, transactional publication, preview fallback, and live reload now define the finished engine. Subsequent work is limited to layout, typography, responsive behavior, themes, and visual polish unless a later explicit product need reopens engine development.
 
-The existing Open Graph and Twitter/X metadata is the one explicit exception to this freeze. Do not add feeds, sitemaps, additional social configuration, JSON-LD, author or update metadata, image processing, Markdown images, search, pagination, drafts, plugins, generated 404 pages, deployment integrations, or additional content types without that explicit need.
+The generated 404 document and the existing Open Graph and Twitter/X metadata are explicit exceptions to this freeze. Do not add feeds, sitemaps, additional social configuration, JSON-LD, author or update metadata, image processing, Markdown images, search, pagination, drafts, plugins, deployment integrations, or additional content types without that explicit need.
 
 ## Change boundaries
 
