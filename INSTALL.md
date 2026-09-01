@@ -6,7 +6,7 @@ Snippet can build a site from a content-only repository with the official image,
 
 Install Docker Engine or Docker Desktop, then create an empty repository directory. On Windows, run these commands inside WSL 2 and keep the repository in the WSL filesystem.
 
-Use an exact release tag for reproducible output. The examples pin v2.0.0. <!-- x-release-please-version --> `--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path:
+Use an exact release tag for reproducible output. The examples pin v2.1.0. <!-- x-release-please-version --> `--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path:
 
 ```bash
 mkdir my-site
@@ -15,7 +15,7 @@ cd my-site
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v2.0.0 init # x-release-please-version
+  ghcr.io/wanted80/snippet:v2.1.0 init # x-release-please-version
 ```
 
 `init` creates empty `content/articles/` and `content/pages/` collections and copies the canonical generic files from `site/` and `resources/`. Existing files win, nothing is deleted, `public/` is untouched, and the engine-development preview router is not copied. Demo configuration and content are never included. Repeating `init` after changing the pinned image may add newly required shared files without replacing customization.
@@ -26,17 +26,17 @@ Set the complete public HTTPS URL in `site/config.php`, then create the first pa
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v2.0.0 new page contact # x-release-please-version
+  ghcr.io/wanted80/snippet:v2.1.0 new page contact # x-release-please-version
 
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v2.0.0 new article first-post # x-release-please-version
+  ghcr.io/wanted80/snippet:v2.1.0 new article first-post # x-release-please-version
 ```
 
 The image exposes only `--version`, `init`, `new page`, `new article`, `validate`, and `build`. Draft creation requires the relevant collection created by `init`, refuses symlinked or existing destinations, and leaves `public/` unchanged. The image deliberately omits preview, Composer, development tools, and source outside those commands' runtime paths. `validate` reports the catalog and prospective asset count. `build` measures validation plus transactional publication and reports the actual promoted asset and file counts. Failures retain the existing `public/` directory.
 
-Moving release aliases and `latest` are convenient for evaluation but unsuitable for reproducible publication. Pin a full release such as `v2.0.0` or an immutable image digest. <!-- x-release-please-version -->
+Moving release aliases and `latest` are convenient for evaluation but unsuitable for reproducible publication. Pin a full release such as `v2.1.0` or an immutable image digest. <!-- x-release-please-version -->
 
 ## Building a separate repository
 
@@ -48,7 +48,7 @@ SITE_DIRECTORY=/absolute/path/to/my-site
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$SITE_DIRECTORY:/workspace" \
-  ghcr.io/wanted80/snippet:v2.0.0 build # x-release-please-version
+  ghcr.io/wanted80/snippet:v2.1.0 build # x-release-please-version
 ```
 
 The mounted repository owns only publication inputs and disposable output. Commit `content/`, `site/`, and `resources/`; ignore `public/`. Do not upload the source repository or container to the web host.
@@ -68,7 +68,7 @@ docker run --rm \
   --user "$(id -u):$(id -g)" \
   --mount type=bind,src="$PWD",dst=/workspace \
   --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-  ghcr.io/wanted80/snippet:v2.0.0 build # x-release-please-version
+  ghcr.io/wanted80/snippet:v2.1.0 build # x-release-please-version
 ```
 
 Docker may need network access to pull the image before the container starts; `--network none` applies to the running builder.
@@ -229,14 +229,14 @@ jobs:
             --security-opt no-new-privileges --user "$(id -u):$(id -g)" \
             --mount type=bind,src="$GITHUB_WORKSPACE",dst=/workspace \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-            ghcr.io/wanted80/snippet:v2.0.0 validate # x-release-please-version
+            ghcr.io/wanted80/snippet:v2.1.0 validate # x-release-please-version
       - name: Build
         run: |
           docker run --rm --network none --read-only --cap-drop ALL \
             --security-opt no-new-privileges --user "$(id -u):$(id -g)" \
             --mount type=bind,src="$GITHUB_WORKSPACE",dst=/workspace \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-            ghcr.io/wanted80/snippet:v2.0.0 build # x-release-please-version
+            ghcr.io/wanted80/snippet:v2.1.0 build # x-release-please-version
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         if: github.ref == 'refs/heads/main'
         with:

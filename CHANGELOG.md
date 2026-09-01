@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/wanted80/snippet/compare/v2.0.0...v2.1.0) (2026-09-01)
+
+
+### Features
+
+* fingerprint published entry assets ([#26](https://github.com/wanted80/snippet/issues/26)) ([bcf3ef1](https://github.com/wanted80/snippet/commit/bcf3ef16d00bf434ac720e57993f9b1fb878049c))
+
 ## [2.0.0](https://github.com/wanted80/snippet/compare/v1.5.0...v2.0.0) (2026-08-31)
 
 
