@@ -121,7 +121,7 @@ it('renders the complete template-value contract in deterministic order', functi
         new AssetPaths('/assets/theme&a.css', '/assets/theme&b.js', null, null),
     );
 
-    expect([
+    $rendered = [
         'home' => $renderer->home(),
         'not_found' => $renderer->notFound(),
         'article_with_empty_alt' => $renderer->content($articles[0]),
@@ -137,7 +137,13 @@ it('renders the complete template-value contract in deterministic order', functi
         'empty_articles' => $emptyRenderer->articles(),
         'empty_tags' => $emptyRenderer->tags(),
         'home_without_site_assets' => $noSiteAssetRenderer->home(),
-    ])->toMatchSnapshot();
+    ];
+    expect($rendered)->each->toContain('version=' . ApplicationVersion::CURRENT)
+        ->and(array_map(static fn(string $document): string => str_replace(
+            'version=' . ApplicationVersion::CURRENT,
+            'version=<release>',
+            $document,
+        ), $rendered))->toMatchSnapshot();
 });
 
 it('omits homepage index links at the exact secondary collection limits', function (): void {
