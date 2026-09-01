@@ -28,9 +28,9 @@ it('defines stable least-privilege continuous integration and deployment workflo
         ->and($quality)->toMatch('~uses: actions/checkout@[0-9a-f]{40}~')
         ->and($pages)->toContain(
             "name: Pages\n",
-            "  workflow_run:\n    workflows:\n      - Quality\n    types:\n      - completed\n",
-            "github.event.workflow_run.conclusion == 'success'\n      && github.event.workflow_run.event == 'push'\n      && github.event.workflow_run.head_branch == 'main'\n      && github.event.workflow_run.head_repository.full_name == github.repository",
-            "        with:\n          ref: \${{ github.event.workflow_run.head_sha }}\n",
+            "  release:\n    types:\n      - published\n",
+            "github.repository == 'wanted80/snippet' && github.event.release.prerelease == false",
+            "        with:\n          ref: \${{ github.event.release.tag_name }}\n",
             "    permissions:\n      contents: read\n",
             'sh docker/demo/check.sh snippet-builder:smoke "$RUNNER_TEMP/snippet-public"',
             'uses: actions/upload-pages-artifact@',
@@ -42,12 +42,11 @@ it('defines stable least-privilege continuous integration and deployment workflo
             "    environment:\n      name: github-pages\n      url: \${{ steps.deployment.outputs.page_url }}\n",
             'uses: actions/deploy-pages@',
         )
-        ->and($pages)->not->toContain('pull_request_target', 'permissions: write-all', 'path: .', 'gh-pages')
+        ->and($pages)->not->toContain('workflow_run', 'workflow_dispatch', 'push:', 'pull_request_target', 'permissions: write-all', 'path: .', 'gh-pages')
         ->and($pages)->toMatch('~uses: actions/checkout@[0-9a-f]{40}~')
         ->and($pages)->toMatch('~uses: actions/upload-pages-artifact@[0-9a-f]{40}~')
         ->and($pages)->toMatch('~uses: actions/deploy-pages@[0-9a-f]{40}~')
-        ->and(mb_substr_count($pages, "github.event.workflow_run.event == 'push'"))->toBe(2)
-        ->and(mb_substr_count($pages, 'github.event.workflow_run.head_repository.full_name == github.repository'))->toBe(2);
+        ->and(mb_substr_count($pages, "github.repository == 'wanted80/snippet' && github.event.release.prerelease == false"))->toBe(2);
 });
 
 it('keeps Release Please source-only and independently guarded', function (): void {
@@ -294,7 +293,8 @@ it('keeps exact builder-image examples release-managed', function (): void {
     foreach (['README.md', 'INSTALL.md'] as $document) {
         $contents = file_get_contents($root . '/' . $document);
         assert(is_string($contents));
-        $count = preg_match_all('/^.*v2[.]0[.]0.*$/m', $contents, $matches);
+        $pattern = '~^.*v' . preg_quote(ApplicationVersion::CURRENT, '~') . '.*$~m';
+        $count = preg_match_all($pattern, $contents, $matches);
         expect($count)->toBeGreaterThan(0)
             ->and($matches[0])->each->toContain('x-release-please-version');
     }
