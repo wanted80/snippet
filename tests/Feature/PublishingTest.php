@@ -3,9 +3,13 @@
 declare(strict_types=1);
 
 use Snippet\Application;
+use Snippet\Content\Article;
+use Snippet\Content\ArticleImage;
 use Snippet\Content\Catalog;
 use Snippet\Content\CatalogLoader;
+use Snippet\Content\CoverFormat;
 use Snippet\Content\Page;
+use Snippet\Content\Tag;
 use Snippet\Exception\ContentException;
 use Snippet\Markdown\Block;
 use Snippet\Markdown\Document;
@@ -17,16 +21,19 @@ use Snippet\Publishing\HtmlMinifier;
 use Snippet\Publishing\LlmsTxtRenderer;
 use Snippet\Publishing\Publisher;
 use Snippet\Publishing\ReferenceValidator;
+use Snippet\Rendering\AssetPaths;
 use Snippet\Rendering\HtmlRenderer;
 use Snippet\Rendering\MarkdownHtmlRenderer;
+use Snippet\Rendering\Template;
 use Snippet\Rendering\TemplateLoader;
+use Snippet\Rendering\Templates;
 use Snippet\Site\Config;
 use Snippet\Site\ConfigLoader;
 use Snippet\Site\Limits;
 use Snippet\Support\ApplicationVersion;
 use Snippet\Tests\PublisherFaults;
 
-mutates(CatalogLoader::class, CssMinifier::class, HtmlMinifier::class, LlmsTxtRenderer::class, MarkdownHtmlRenderer::class, Parser::class, ReferenceValidator::class, TemplateLoader::class);
+mutates(CatalogLoader::class, CssMinifier::class, HtmlMinifier::class, HtmlRenderer::class, LlmsTxtRenderer::class, MarkdownHtmlRenderer::class, Parser::class, ReferenceValidator::class, TemplateLoader::class);
 
 /** @return array<string, string> */
 function publicationBytes(string $root): array
@@ -45,6 +52,161 @@ function publicationBytes(string $root): array
     ksort($files);
     return $files;
 }
+
+function rendererContractTemplates(): Templates
+{
+    $templates = [];
+    foreach (Template::cases() as $template) {
+        $values = array_map(
+            static fn(string $placeholder): string => $placeholder . '={{' . $placeholder . '}}',
+            $template->placeholders(),
+        );
+        $templates[$template->value] = '[' . $template->value . '|' . implode('|', $values) . ']';
+    }
+
+    return new Templates($templates);
+}
+
+it('renders the complete template-value contract in deterministic order', function (): void {
+    $parser = new Parser();
+    $document = $parser->parse('# Heading\n\nBody [link](/about/).', 'contract.md');
+    $alpha = new Tag('Alpha & One', 'alpha-one');
+    $beta = new Tag('Beta', 'beta');
+    $gamma = new Tag('Gamma', 'gamma');
+    $delta = new Tag('Delta', 'delta');
+    $articles = [
+        new Article('newest', 'Newest <Article>', 'Newest & description.', '2026-08-04', [$alpha, $beta], $document, [], new ArticleImage('folder cover/café.webp', '', 12, 34, CoverFormat::Webp)),
+        new Article('second', 'Second', 'Second description.', '2026-08-03', [$alpha, $gamma], $document, []),
+        new Article('third', 'Third', 'Third description.', '2026-08-02', [$delta], $document, []),
+        new Article('fourth', 'Fourth', 'Fourth description.', '2026-08-01', [], $document, [], new ArticleImage('cover.webp', 'Cover & alt', 56, 78, CoverFormat::Webp)),
+    ];
+    $pages = [
+        new Page('first', 'First', 'First description.', $document, [], 1),
+        new Page('about', 'About & Co', 'About description.', $document, [], 2),
+        new Page('newest', 'Same slug as article', 'Navigation collision.', $document, [], 3),
+    ];
+    $catalog = new Catalog($articles, $pages);
+    $config = new Config(
+        'Site "quoted" & Title',
+        'Site <Name>',
+        'Author & Co',
+        'Site description.',
+        'https://example.test/base&path',
+        'en-GB',
+        [
+            'fonts/atkinson-hyperlegible-next/atkinson-hyperlegible-next-variable.woff2',
+            'fonts/snippet-logo/snippet-logo.woff2',
+        ],
+        true,
+        true,
+        2,
+        2,
+    );
+    $renderer = new HtmlRenderer(
+        $config,
+        $catalog,
+        rendererContractTemplates(),
+        new AssetPaths('/assets/theme&a.css', '/assets/theme&b.js', '/assets/site&c.css', '/assets/site&d.js'),
+    );
+    $emptyRenderer = new HtmlRenderer(
+        $config,
+        new Catalog([], []),
+        rendererContractTemplates(),
+        new AssetPaths('/assets/theme&a.css', '/assets/theme&b.js', '/assets/site&c.css', '/assets/site&d.js'),
+    );
+    $noSiteAssetRenderer = new HtmlRenderer(
+        $config,
+        $catalog,
+        rendererContractTemplates(),
+        new AssetPaths('/assets/theme&a.css', '/assets/theme&b.js', null, null),
+    );
+
+    expect([
+        'home' => $renderer->home(),
+        'not_found' => $renderer->notFound(),
+        'article_with_empty_alt' => $renderer->content($articles[0]),
+        'article_without_cover' => $renderer->content($articles[1]),
+        'article_with_alt' => $renderer->content($articles[3]),
+        'menu_page' => $renderer->content($pages[0]),
+        'pages' => $renderer->pages(),
+        'articles' => $renderer->articles(),
+        'tags' => $renderer->tags(),
+        'tag' => $renderer->tag($alpha),
+        'empty_home' => $emptyRenderer->home(),
+        'empty_pages' => $emptyRenderer->pages(),
+        'empty_articles' => $emptyRenderer->articles(),
+        'empty_tags' => $emptyRenderer->tags(),
+        'home_without_site_assets' => $noSiteAssetRenderer->home(),
+    ])->toMatchSnapshot();
+});
+
+it('omits homepage index links at the exact secondary collection limits', function (): void {
+    $parser = new Parser();
+    $document = $parser->parse('Body.', 'boundary.md');
+    $tag = new Tag('One', 'one');
+    $catalog = new Catalog([
+        new Article('newest', 'Newest', 'Newest.', '2026-08-02', [$tag], $document, []),
+        new Article('older', 'Older', 'Older.', '2026-08-01', [$tag], $document, []),
+    ], []);
+    $renderer = new HtmlRenderer(
+        new Config('Site', 'Site', 'Author', 'Description.', 'https://example.test', 'en', [], false, false, 1, 1),
+        $catalog,
+        rendererContractTemplates(),
+        new AssetPaths('/assets/theme.css', '/assets/theme.js', null, null),
+    );
+
+    $home = $renderer->home();
+
+    expect($home)
+        ->toContain('[home-collection.html|', 'title=More articles', 'title=Browse by tag')
+        ->not->toContain('View all articles', 'View all tags')
+        ->and(mb_substr_count($home, 'index_link=]'))->toBe(2);
+});
+
+it('keeps the home grid expanded when either secondary collection exists', function (): void {
+    $document = new Parser()->parse('Body.', 'secondary.md');
+    $tag = new Tag('One', 'one');
+    $catalogs = [
+        'archive-only' => new Catalog([
+            new Article('newest', 'Newest', 'Newest.', '2026-08-02', [], $document, []),
+            new Article('older', 'Older', 'Older.', '2026-08-01', [], $document, []),
+        ], []),
+        'tags-only' => new Catalog([
+            new Article('newest', 'Newest', 'Newest.', '2026-08-02', [$tag], $document, []),
+        ], []),
+    ];
+
+    foreach ($catalogs as $catalog) {
+        $renderer = new HtmlRenderer(
+            new Config('Site', 'Site', 'Author', 'Description.', 'https://example.test', 'en', [], false, false, 1, 1),
+            $catalog,
+            rendererContractTemplates(),
+            new AssetPaths('/assets/theme.css', '/assets/theme.js', null, null),
+        );
+
+        expect($renderer->home())->toContain('home_grid_class=home-grid]');
+    }
+});
+
+it('orders menu pages by their configured order from descending source input', function (): void {
+    $document = new Parser()->parse('Body.', 'menu.md');
+    $catalog = new Catalog([], [
+        new Page('alpha', 'Second', 'Second.', $document, [], 2),
+        new Page('zulu', 'First', 'First.', $document, [], 1),
+    ]);
+    $renderer = new HtmlRenderer(
+        new Config('Site', 'Site', 'Author', 'Description.', 'https://example.test', 'en', [], false),
+        $catalog,
+        rendererContractTemplates(),
+        new AssetPaths('/assets/theme.css', '/assets/theme.js', null, null),
+    );
+    $home = $renderer->home();
+    $first = mb_strpos($home, '>First</a>');
+    $second = mb_strpos($home, '>Second</a>');
+    assert(is_int($first) && is_int($second));
+
+    expect($first)->toBeLessThan($second);
+});
 
 it('builds the complete deterministic site with escaped semantic HTML and every asset class', function (): void {
     $this->content();
@@ -81,9 +243,12 @@ it('builds the complete deterministic site with escaped semantic HTML and every 
     $catalog = new CatalogLoader()->load($this->directory . '/content');
     new Publisher()->publish($this->directory, $config, $catalog);
     $first = publicationBytes($this->directory);
+    $themeStylesheet = mb_substr($this->publishedAsset('theme.css'), mb_strlen($this->directory . '/public/'));
+    $themeScript = mb_substr($this->publishedAsset('theme.js'), mb_strlen($this->directory . '/public/'));
+    $siteStylesheet = mb_substr($this->publishedAsset('site.css'), mb_strlen($this->directory . '/public/'));
     new Publisher()->publish($this->directory, $config, $catalog);
 
-    expect(array_keys($first))->toBe([
+    $expectedFiles = [
         '404.html',
         'about/index.html',
         'about/note.txt',
@@ -92,10 +257,10 @@ it('builds the complete deterministic site with escaped semantic HTML and every 
         'articles/post/files/deep/data.bin',
         'articles/post/index.html',
         'articles/untagged/index.html',
-        'assets/site.css',
+        $siteStylesheet,
         'assets/site/media/custom.bin',
-        'assets/theme.css',
-        'assets/theme.js',
+        $themeStylesheet,
+        $themeScript,
         'favicon.svg',
         'index.html',
         'llms.txt',
@@ -104,7 +269,11 @@ it('builds the complete deterministic site with escaped semantic HTML and every 
         'tags/index.html',
         'tags/php-web/index.html',
         'tags/日本語/index.html',
-    ])->and(publicationBytes($this->directory))->toBe($first);
+    ];
+    sort($expectedFiles, SORT_STRING);
+    expect(array_keys($first))->toBe($expectedFiles)
+        ->and(publicationBytes($this->directory))->toBe($first)
+        ->and(glob($this->directory . '/.snippet-*'))->toBe([]);
 
     $article = $first['articles/post/index.html'];
     $notFound = $first['404.html'];
@@ -115,7 +284,7 @@ it('builds the complete deterministic site with escaped semantic HTML and every 
     $tagsIndex = $first['tags/index.html'];
     $tagArchive = $first['tags/php-web/index.html'];
     $multilingualTagArchive = $first['tags/日本語/index.html'];
-    $css = $first['assets/theme.css'];
+    $css = $first[$themeStylesheet];
     $llms = $first['llms.txt'];
     expect($notFound)->toContain(
         '<meta name="robots" content="noindex, follow">',
@@ -146,7 +315,7 @@ TXT . "\n")
         ->toContain('<meta name="generator" content="Snippet ' . ApplicationVersion::CURRENT . '">')
         ->toContain('<link rel="canonical" href="https://example.test/articles/post/">')
         ->toContain('<article class="content-article">')
-        ->toMatch('~<link rel="stylesheet" href="/assets/theme\.css">\s+<link rel="stylesheet" href="/assets/site\.css">~')
+        ->toMatch('~<link rel="stylesheet" href="/assets/theme\.[0-9a-f]{16}\.css">\s+<link rel="stylesheet" href="/assets/site\.[0-9a-f]{16}\.css">~')
         ->toContain("style-src 'self'", "font-src 'self'", "img-src 'self'")->not->toContain('fonts.bunny.net', 'frame-ancestors')
         ->toContain('<footer class="site-footer">', '<p class="site-footer-row">', '<span class="site-footer-heart" aria-hidden="true">♥</span>', '<a href="https://github.com/wanted80/snippet"><svg class="site-footer-github"')
         ->toContain('<h1>Post &lt;one&gt;</h1>')
@@ -224,7 +393,7 @@ it('fails explicitly if an unknown Markdown block reaches rendering', function (
     $config = new Config('Site', 'Site', 'Test Author', 'Description', 'https://example.test', 'en', [], false);
     $this->resources();
     $templates = new TemplateLoader()->load($this->directory . '/resources/templates');
-    new HtmlRenderer($config, new Catalog([], []), $templates)->content($page);
+    new HtmlRenderer($config, new Catalog([], []), $templates, new AssetPaths('/assets/theme.a.css', '/assets/theme.b.js', null, null))->content($page);
 })->throws(LogicException::class, 'Unsupported Markdown block');
 
 it('builds an empty catalog through the CLI', function (): void {
@@ -326,8 +495,13 @@ it('reports transactional publication and cleanup failures deterministically', f
 
     $config = new ConfigLoader()->load($this->directory . '/site');
     $catalog = new CatalogLoader()->load($this->directory . '/content');
-    new Publisher()->publish($this->directory, $config, $catalog);
-})->throws(ContentException::class)->with([
+    try {
+        new Publisher()->publish($this->directory, $config, $catalog);
+        throw new LogicException('Expected publication to fail.');
+    } catch (ContentException $contentException) {
+        expect($contentException->getMessage())->toContain($message);
+    }
+})->with([
     'unexpected write exception' => [[
         'file_put_contents' => ['throw'],
     ], false, 'Injected file_put_contents failure'],
@@ -350,7 +524,7 @@ it('reports transactional publication and cleanup failures deterministically', f
         'mkdir' => ['fail'],
     ], false, 'Unable to create output directory'],
     'asset size read' => [[
-        'filesize' => ['pass', 'pass', 'pass', 'pass', 'pass', 'fail'],
+        'filesize' => ['pass', 'pass', 'pass', 'fail'],
     ], false, 'Unable to read publication asset size'],
     'existing backup' => [[
         'rename' => ['fail'],
@@ -378,15 +552,70 @@ it('reports transactional publication and cleanup failures deterministically', f
     ], false, 'Unable to remove temporary directory'],
 ]);
 
-it('preserves the current publication when minified stylesheet publication fails', function (array $faults, bool $removeStylesheet, string $message): void {
+it('wraps unexpected publication failures exactly and removes the temporary tree', function (): void {
+    $this->content();
+    $this->resources();
+    PublisherFaults::set('file_put_contents', ['throw']);
+    $config = new ConfigLoader()->load($this->directory . '/site');
+
+    try {
+        new Publisher()->publish($this->directory, $config, $this->catalog());
+        throw new LogicException('Expected publication to fail.');
+    } catch (ContentException $contentException) {
+        expect($contentException->getMessage())->toBe('Unable to publish site: Injected file_put_contents failure.')
+            ->and($contentException->getCode())->toBe(0)
+            ->and($contentException->getPrevious())->toBeInstanceOf(RuntimeException::class);
+    }
+
+    expect(glob($this->directory . '/.snippet-*'))->toBe([]);
+});
+
+it('preserves the exact rollback state after promotion failures', function (bool $existing, array $renames, string $message, bool $restored): void {
+    /** @var list<'fail'|'pass'> $renames */
+    $this->content();
+    $this->resources();
+    if ($existing) {
+        mkdir($this->directory . '/public');
+        file_put_contents($this->directory . '/public/index.html', 'old publication');
+    }
+    PublisherFaults::set('rename', $renames);
+    $config = new ConfigLoader()->load($this->directory . '/site');
+
+    try {
+        new Publisher()->publish($this->directory, $config, $this->catalog());
+        throw new LogicException('Expected promotion to fail.');
+    } catch (ContentException $contentException) {
+        expect($contentException->getMessage())->toContain($message);
+    }
+
+    if ($restored) {
+        expect(publicationBytes($this->directory))->toBe(['index.html' => 'old publication'])
+            ->and(glob($this->directory . '/.snippet-*'))->toBe([]);
+
+        return;
+    }
+
+    expect($this->directory . '/public')->not->toBeDirectory();
+    $remaining = glob($this->directory . '/.snippet-*');
+    expect($remaining)->toBeArray()->toHaveCount($existing ? 1 : 0);
+    if ($existing) {
+        $backup = $remaining[0] ?? '';
+        expect($backup)->toContain('/.snippet-backup-')
+            ->and(file_get_contents($backup . '/index.html'))->toBe('old publication');
+    }
+})->with([
+    'without existing output' => [false, ['fail'], 'existing publication was preserved', false],
+    'with successful rollback' => [true, ['pass', 'fail', 'pass'], 'existing publication was preserved', true],
+    'with failed rollback' => [true, ['pass', 'fail', 'fail'], 'unable to restore existing publication', false],
+]);
+
+it('preserves the current publication when minified asset preparation fails', function (array $faults, bool $removeStylesheet, string $message): void {
     /** @var array<string, list<'fail'|'pass'|'throw'>> $faults */
     $this->content();
     $this->resources();
     $this->site(['build' => ['minify' => true]]);
     $config = new ConfigLoader()->load($this->directory . '/site');
     $catalog = new CatalogLoader()->load($this->directory . '/content');
-    $publisher = new Publisher();
-    $templates = $publisher->validate($this->directory, $config);
     mkdir($this->directory . '/public');
     file_put_contents($this->directory . '/public/index.html', 'old publication');
 
@@ -398,21 +627,27 @@ it('preserves the current publication when minified stylesheet publication fails
         PublisherFaults::set($operation, $outcomes);
     }
 
-    expect(fn(): BuildReport => $publisher->publish($this->directory, $config, $catalog, templates: $templates))
+    expect(fn(): BuildReport => new Publisher()->publish($this->directory, $config, $catalog))
         ->toThrow(ContentException::class, $message)
         ->and(publicationBytes($this->directory))->toBe(['index.html' => 'old publication'])
         ->and(glob($this->directory . '/.snippet-*'))->toBe([]);
 })->with([
-    'missing source' => [[], true, 'Unable to minify'],
+    'missing source' => [[], true, 'must be a regular non-symlink file'],
     'input open' => [[
-        'publishing_fopen' => ['pass', 'fail'],
+        'publishing_fopen' => ['fail'],
     ], false, 'Unable to minify'],
     'output open' => [[
-        'publishing_fopen' => ['pass', 'pass', 'fail'],
+        'publishing_fopen' => ['pass', 'fail'],
     ], false, 'Unable to minify'],
-    'output chmod' => [[
-        'chmod' => ['pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'fail'],
-    ], false, 'Unable to minify'],
+    'output rewind' => [[
+        'publishing_rewind' => ['fail'],
+    ], false, 'Unable to read minified'],
+    'output read' => [[
+        'publishing_stream_get_contents' => ['fail'],
+    ], false, 'Unable to read minified'],
+    'script read' => [[
+        'publishing_file_get_contents' => ['fail'],
+    ], false, 'Unable to read publication asset'],
 ]);
 
 it('builds complete indexes and truncates homepage collections at configured boundaries', function (): void {
@@ -461,7 +696,7 @@ it('hides the homepage grid when no secondary collection exists', function (): v
     expect(file_get_contents($this->directory . '/public/index.html'))
         ->toContain('<div class="home-grid home-grid-empty">')
         ->not->toContain('home-archive', 'home-tags')
-        ->and(file_get_contents($this->directory . '/public/assets/theme.css'))
+        ->and(file_get_contents($this->publishedAsset('theme.css')))
         ->toMatch('/\.home-grid-empty\s*\{[^}]*display: none;/s');
 });
 
@@ -485,14 +720,17 @@ it('ships a storage-safe system-aware theme script as a dedicated asset', functi
     $config = new ConfigLoader()->load($this->directory . '/site');
     new Publisher()->publish($this->directory, $config, $this->catalog());
     $html = file_get_contents($this->directory . '/public/index.html');
-    $script = file_get_contents($this->directory . '/public/assets/theme.js');
+    $scriptPath = $this->publishedAsset('theme.js');
+    $scriptUrl = mb_substr($scriptPath, mb_strlen($this->directory . '/public'));
+    $stylesheetUrl = mb_substr($this->publishedAsset('theme.css'), mb_strlen($this->directory . '/public'));
+    $script = file_get_contents($scriptPath);
     assert(is_string($html));
     assert(is_string($script));
 
-    expect(mb_substr_count($html, '<script src="/assets/theme.js"></script>'))->toBe(1)
+    expect(mb_substr_count($html, '<script src="' . $scriptUrl . '"></script>'))->toBe(1)
         ->and($html)->toContain("script-src 'self'")
-        ->toContain('<header class="site-header" data-site-header>', '<script src="/assets/theme.js"></script>')
-        ->toMatch('~<meta charset="utf-8">.*<meta http-equiv="Content-Security-Policy".*<meta name="theme-color" content="#08090a">.*<link rel="icon" href="/favicon\.svg" type="image/svg\+xml">.*<script src="/assets/theme.js"></script>.*<link rel="stylesheet" href="/assets/theme.css">~s')
+        ->toContain('<header class="site-header" data-site-header>', '<script src="' . $scriptUrl . '"></script>')
+        ->toMatch('~<meta charset="utf-8">.*<meta http-equiv="Content-Security-Policy".*<meta name="theme-color" content="#08090a">.*<link rel="icon" href="/favicon\.svg" type="image/svg\+xml">.*<script src="' . preg_quote($scriptUrl, '~') . '"></script>.*<link rel="stylesheet" href="' . preg_quote($stylesheetUrl, '~') . '">~s')
         ->toContain('<button class="menu-toggle icon-button" type="button" popovertarget="site-navigation" aria-controls="site-navigation" aria-label="Open navigation" title="Open navigation">')
         ->toContain('<button class="theme-toggle icon-button" type="button" data-theme-toggle aria-label="Toggle color theme" title="Toggle color theme">')
         ->toContain('<svg class="menu-icon theme-icon-light"', '<svg class="menu-icon theme-icon-dark"')
@@ -542,8 +780,9 @@ it('preloads each bundled upright font only when the theme and matching asset ar
     assert(is_int($count));
     expect($matches[0])->toBe($expectedPreloads);
 
-    $stylesheet = mb_strpos($html, '<link rel="stylesheet" href="/assets/theme.css">');
-    assert(is_int($stylesheet));
+    $matched = preg_match('~<link rel="stylesheet" href="/assets/theme\.[0-9a-f]{16}\.css">~', $html, $matches, PREG_OFFSET_CAPTURE);
+    assert($matched === 1);
+    $stylesheet = $matches[0][1];
     foreach ($expectedPreloads as $preload) {
         $position = mb_strpos($html, $preload);
         assert(is_int($position));
@@ -573,8 +812,8 @@ it('minifies generated HTML and first-party CSS while preserving copied assets',
     $config = new ConfigLoader()->load($this->directory . '/site');
     new Publisher()->publish($this->directory, $config, $this->catalog());
     $readable = file_get_contents($this->directory . '/public/page/index.html');
-    $readableCss = file_get_contents($this->directory . '/public/assets/theme.css');
-    $readableTheme = file_get_contents($this->directory . '/public/assets/site.css');
+    $readableCss = file_get_contents($this->publishedAsset('theme.css'));
+    $readableTheme = file_get_contents($this->publishedAsset('site.css'));
     $readableArbitraryCss = file_get_contents($this->directory . '/public/assets/site/copied.css');
     assert(is_string($readable));
     assert(is_string($readableCss));
@@ -583,14 +822,15 @@ it('minifies generated HTML and first-party CSS while preserving copied assets',
     $config = new ConfigLoader()->load($this->directory . '/site');
     new Publisher()->publish($this->directory, $config, $this->catalog());
     $compact = file_get_contents($this->directory . '/public/page/index.html');
-    $compactCss = file_get_contents($this->directory . '/public/assets/theme.css');
-    $compactTheme = file_get_contents($this->directory . '/public/assets/site.css');
+    $compactThemeScriptUrl = mb_substr($this->publishedAsset('theme.js'), mb_strlen($this->directory . '/public'));
+    $compactCss = file_get_contents($this->publishedAsset('theme.css'));
+    $compactTheme = file_get_contents($this->publishedAsset('site.css'));
     assert(is_string($compact));
     assert(is_string($compactCss));
     assert(is_string($compactTheme));
 
     expect($readable)->toContain("\n    <head>\n", "Text  with <em>inline</em> spacing.")
-        ->and($compact)->toContain('<html lang="en"> <head>', "Text  with <em>inline</em> spacing.", "const  value = &apos;&lt;tag&gt;&apos;;", '<script src="/assets/theme.js"></script>')
+        ->and($compact)->toContain('<html lang="en"> <head>', "Text  with <em>inline</em> spacing.", "const  value = &apos;&lt;tag&gt;&apos;;", '<script src="' . $compactThemeScriptUrl . '"></script>')
         ->and(mb_strlen($compact, '8bit'))->toBeLessThan(mb_strlen($readable, '8bit'))
         ->and($readableCss)->toBe($css)
         ->and($readableTheme)->toBe($siteStylesheet)
@@ -599,11 +839,11 @@ it('minifies generated HTML and first-party CSS while preserving copied assets',
         ->and(mb_strlen($compactCss, '8bit'))->toBeLessThan(mb_strlen($css, '8bit'))
         ->and($compactTheme)->toBe('@layer overrides{:root{--custom: one;}}')
         ->and(file_get_contents($this->directory . '/public/assets/site/copied.css'))->toBe($arbitraryCss)
-        ->and(file_get_contents($this->directory . '/public/assets/theme.js'))->toBe($javascript);
+        ->and(file_get_contents($this->publishedAsset('theme.js')))->toBe($javascript);
 });
 
-it('publishes every browser-facing URL beneath the configured deployment path without moving output files', function (): void {
-    $this->site(['url' => 'https://example.test/snippet']);
+it('escapes every browser-facing URL beneath an encoded deployment path without moving output files', function (): void {
+    $this->site(['url' => 'https://example.test/snippet&docs/%22%20%3C%3E%27']);
     $this->item('about', ['title' => 'About', 'description' => 'About.', 'menu_order' => 1]);
     $articlePath = $this->article('post', [
         'title' => 'Post',
@@ -625,16 +865,22 @@ it('publishes every browser-facing URL beneath the configured deployment path wi
     $notFound = file_get_contents($this->directory . '/public/404.html');
     $article = file_get_contents($this->directory . '/public/articles/post/index.html');
     $llms = file_get_contents($this->directory . '/public/llms.txt');
-    $theme = file_get_contents($this->directory . '/public/assets/site.css');
+    $themeStylesheetUrl = mb_substr($this->publishedAsset('theme.css'), mb_strlen($this->directory . '/public'));
+    $themeScriptUrl = mb_substr($this->publishedAsset('theme.js'), mb_strlen($this->directory . '/public'));
+    $siteStylesheetUrl = mb_substr($this->publishedAsset('site.css'), mb_strlen($this->directory . '/public'));
+    $theme = file_get_contents($this->publishedAsset('site.css'));
+    $browserBasePath = '/snippet&amp;docs/%22%20%3C%3E%27';
+    $canonicalBaseUrl = 'https://example.test/snippet&amp;docs/%22%20%3C%3E%27';
     expect([$home, $notFound, $article])->each->toBeString()
-        ->and($home)->toContain('<link rel="icon" href="/snippet/favicon.svg" type="image/svg+xml">')
-        ->and($home)->toContain('<link rel="canonical" href="https://example.test/snippet/">', '<script src="/snippet/assets/theme.js"></script>', '<link rel="stylesheet" href="/snippet/assets/theme.css">', '<link rel="stylesheet" href="/snippet/assets/site.css">', '<link rel="preload" href="/snippet/assets/site/fonts/snippet-logo/snippet-logo.woff2"', '<a class="site-brand" href="/snippet/"', '<a class="menu-link" href="/snippet/articles/">', '<a href="/snippet/tags/caf%C3%A9/"', '<img src="/snippet/articles/post/cover.webp"', '<a href="/snippet/articles/post/notes.txt">asset</a>')
+        ->and($home)->toContain('<link rel="icon" href="' . $browserBasePath . '/favicon.svg" type="image/svg+xml">')
+        ->and($home)->toContain('<link rel="canonical" href="' . $canonicalBaseUrl . '/">', '<script src="' . $browserBasePath . $themeScriptUrl . '"></script>', '<link rel="stylesheet" href="' . $browserBasePath . $themeStylesheetUrl . '">', '<link rel="stylesheet" href="' . $browserBasePath . $siteStylesheetUrl . '">', '<link rel="preload" href="' . $browserBasePath . '/assets/site/fonts/snippet-logo/snippet-logo.woff2"', '<a class="site-brand" href="' . $browserBasePath . '/"', '<a class="menu-link" href="' . $browserBasePath . '/articles/">', '<a href="' . $browserBasePath . '/tags/caf%C3%A9/"', '<img src="' . $browserBasePath . '/articles/post/cover.webp"', '<a href="' . $browserBasePath . '/articles/post/notes.txt">asset</a>')
         ->and($article)->toBeString()
-        ->toContain('<link rel="icon" href="/snippet/favicon.svg" type="image/svg+xml">')
-        ->toContain('<link rel="canonical" href="https://example.test/snippet/articles/post/">', '<a href="/snippet/about/">about</a>', '<a href="notes.txt">asset</a>', '<a href="#part">fragment</a>', '<a href="https://outside.test/">external</a>', '<img src="/snippet/articles/post/cover.webp"')
-        ->and($notFound)->toContain('<link rel="canonical" href="https://example.test/snippet/404.html">', '<a class="button-link" href="/snippet/">Return home', '<script src="/snippet/assets/theme.js"></script>', '<link rel="stylesheet" href="/snippet/assets/theme.css">')
+        ->toContain('<link rel="icon" href="' . $browserBasePath . '/favicon.svg" type="image/svg+xml">')
+        ->toContain('<link rel="canonical" href="' . $canonicalBaseUrl . '/articles/post/">', '<a href="' . $browserBasePath . '/about/">about</a>', '<a href="notes.txt">asset</a>', '<a href="#part">fragment</a>', '<a href="https://outside.test/">external</a>', '<img src="' . $browserBasePath . '/articles/post/cover.webp"')
+        ->and($notFound)->toContain('<link rel="canonical" href="' . $canonicalBaseUrl . '/404.html">', '<a class="button-link" href="' . $browserBasePath . '/">Return home', '<script src="' . $browserBasePath . $themeScriptUrl . '"></script>', '<link rel="stylesheet" href="' . $browserBasePath . $themeStylesheetUrl . '">')
         ->and($llms)->toBeString()
-        ->toContain('https://example.test/snippet/articles/post/', 'https://example.test/snippet/about/')
+        ->toContain('https://example.test/snippet&docs/%22%20%3C%3E%27/articles/post/', 'https://example.test/snippet&docs/%22%20%3C%3E%27/about/')
         ->and($theme)->toBe('@font-face { src: url("site/fonts/snippet-logo/snippet-logo.woff2"); }')
-        ->and(file_exists($this->directory . '/public/snippet'))->toBeFalse();
+        ->and($home)->not->toContain('/snippet&docs/')
+        ->and(file_exists($this->directory . '/public/snippet&docs'))->toBeFalse();
 });

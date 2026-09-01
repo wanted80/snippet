@@ -9,6 +9,7 @@ use Snippet\Markdown\FlatList;
 use Snippet\Markdown\Heading;
 use Snippet\Markdown\Inline;
 use Snippet\Markdown\InlineArena;
+use Snippet\Markdown\InlineBuilder;
 use Snippet\Markdown\InlineCode;
 use Snippet\Markdown\InlineMarker;
 use Snippet\Markdown\Link;
@@ -16,8 +17,159 @@ use Snippet\Markdown\Paragraph;
 use Snippet\Markdown\Parser;
 use Snippet\Markdown\Text;
 use Snippet\Markdown\ThematicBreak;
+use Snippet\Rendering\MarkdownHtmlRenderer;
 
-mutates(Document::class, InlineArena::class, Parser::class);
+mutates(Document::class, InlineArena::class, InlineBuilder::class, Parser::class);
+
+it('retains an exact compact document representation for every supported construct', function (): void {
+    $markdown = <<<'MARKDOWN'
+# Héading `code`
+
+Text *em* **strong** ~~old~~ [label](/café/) after.
+continued 👋
+
+- first
+* second [link](relative.txt)
+
+1. one
+22. two
+
+---
+
+```php
+echo "<&";
+```
+MARKDOWN;
+
+    $document = new Parser()->parse($markdown, 'representation.md');
+
+    expect([
+        'serialized' => base64_encode(serialize($document)),
+        'node_count' => $document->nodeCount(),
+        'links' => array_map($document->text(...), iterator_to_array($document->links(), false)),
+        'html' => MarkdownHtmlRenderer::render($document),
+    ])->toMatchSnapshot();
+});
+
+it('retains exact parser results across syntax, byte, Unicode, line, and depth boundaries', function (): void {
+    $parser = new Parser();
+    $signature = static function (string $source, string $path = 'matrix.md', int $maximumDepth = 16) use ($parser): string {
+        try {
+            $document = $parser->parse($source, $path, $maximumDepth);
+
+            return 'document:' . hash('sha256', serialize($document) . "\0" . MarkdownHtmlRenderer::render($document));
+        } catch (ContentException $contentException) {
+            return 'error:' . $contentException->getMessage();
+        }
+    };
+
+    $results = [];
+    for ($byte = 0; $byte <= 0x7F; ++$byte) {
+        $character = chr($byte);
+        $prefix = sprintf('%02x', $byte);
+        $sources = [
+            'plain' => $character . 'abc',
+            'heading-marker' => '#' . $character . 'heading',
+            'unordered-marker' => $character . ' item',
+            'ordered-marker' => '1' . $character . ' item',
+            'opening-fence' => '```' . $character . "\ncode\n```",
+            'opening-fence-prefix-zero' => $character . "``\ncode\n```",
+            'opening-fence-prefix-one' => '`' . $character . "`\ncode\n```",
+            'opening-fence-prefix-two' => '``' . $character . "\ncode\n```",
+            'closing-fence' => "```\ncode\n```" . $character,
+            'closing-fence-prefix-zero' => "```\ncode\n" . $character . '``',
+            'closing-fence-prefix-one' => "```\ncode\n`" . $character . '`',
+            'closing-fence-prefix-two' => "```\ncode\n``" . $character,
+            'inline-code' => '`a' . $character . 'b`',
+            'emphasis-first' => '*' . $character . 'a*',
+            'emphasis-last' => '*a' . $character . '*',
+            'strong-first' => '**' . $character . 'a**',
+            'strong-last' => '**a' . $character . '**',
+            'strike-first' => '~~' . $character . 'a~~',
+            'strike-last' => '~~a' . $character . '~~',
+            'link-label' => '[a' . $character . 'b](https://example.test/path)',
+            'link-target' => '[label](https://example.test/a' . $character . 'b)',
+            'paragraph-heading-interruption' => "before\n#" . $character . 'heading',
+            'paragraph-list-interruption' => "before\n-" . $character . 'item',
+            'paragraph-fence-interruption' => "before\n```" . $character . "\ncode\n```",
+        ];
+
+        foreach ($sources as $name => $source) {
+            $results[$prefix . '-' . $name] = $signature($source);
+        }
+    }
+
+    foreach (["\u{0080}", "\u{00A0}", "\u{0301}", 'é', '日', '👋', "\u{10FFFF}"] as $index => $character) {
+        $results['unicode-' . $index . '-first'] = $signature('*' . $character . 'a*');
+        $results['unicode-' . $index . '-last'] = $signature('*a' . $character . '*');
+        $results['unicode-' . $index . '-single'] = $signature('*' . $character . '*');
+        $results['unicode-' . $index . '-single-strong'] = $signature('**' . $character . '**');
+    }
+
+    foreach (['`', '``', "before\n`", "before\n``"] as $index => $source) {
+        $results['short-fence-' . $index] = $signature($source);
+    }
+
+    foreach (['# ', '#  ', "# \t", "# \ttext", '- ', '-  ', "- \t", "- \ttext", '0. zero', '1. ', '1.  ', "1. \t", "1. \ttext"] as $index => $source) {
+        $results['marker-whitespace-' . $index] = $signature($source);
+    }
+    foreach (range(0, 9) as $digit) {
+        $results['ordered-first-digit-' . $digit] = $signature($digit . '. item');
+        $results['ordered-last-digit-' . $digit] = $signature('1' . $digit . '. item');
+    }
+
+    $results['heading-after-inline-nodes'] = $signature("before *emphasis*\n\n# Heading");
+    $results['image-prefix-at-start'] = $signature('![label](https://example.test/)');
+    $results['link-before-image-prefix'] = $signature('[label](https://example.test/)!');
+    $results['empty-link-label'] = $signature('[](https://example.test/)');
+    $results['space-link-label'] = $signature('[ ](https://example.test/)');
+    $results['tab-link-label'] = $signature("[\t](https://example.test/)");
+    $results['empty-link-target'] = $signature('[label]()');
+    $results['link-label-leading-line-break'] = $signature("[\na](https://example.test/)");
+    $results['link-label-trailing-line-break'] = $signature("[a\n](https://example.test/)");
+    $results['link-target-leading-line-break'] = $signature("[a](\nrelative)");
+    $results['link-target-trailing-line-break'] = $signature("[a](relative\n)");
+    $results['empty-inline-code'] = $signature('``');
+    $results['inline-code-leading-line-break'] = $signature("`\na`");
+    $results['inline-code-trailing-line-break'] = $signature("`a\n`");
+    $results['strike-leading-empty-delimiter'] = $signature('~~~~a~~');
+    $results['strike-leading-extra-marker'] = $signature('~~~a~~');
+    $results['strike-trailing-extra-marker'] = $signature('~~a~~~~');
+
+    foreach ([
+        'heading-skip' => "# One\n\n### Three",
+        'after-heading' => "# One\n\n[bad](javascript:bad)",
+        'after-list' => "- item\n\n[bad](javascript:bad)",
+        'after-code' => "```\ncode\n```\n\n[bad](javascript:bad)",
+        'after-thematic-break' => "---\n\n[bad](javascript:bad)",
+        'after-multiline-paragraph' => "first\nsecond\n\n[bad](javascript:bad)",
+        'inside-multiline-paragraph' => "first\n[bad](javascript:bad)",
+    ] as $name => $source) {
+        $results['line-' . $name] = $signature($source, 'lines.md');
+    }
+
+    $nested = '*[label](https://example.test/)*';
+    foreach ([
+        'paragraph' => $nested,
+        'heading' => '# ' . $nested,
+        'list' => '- ' . $nested,
+    ] as $name => $source) {
+        $results['depth-' . $name . '-accepted'] = $signature($source, 'depth.md', 2);
+        $results['depth-' . $name . '-rejected'] = $signature($source, 'depth.md', 1);
+    }
+
+    $strikeNested = '~~[label](https://example.test/)~~';
+    foreach ([
+        'paragraph' => $strikeNested,
+        'heading' => '# ' . $strikeNested,
+        'list' => '- ' . $strikeNested,
+    ] as $name => $source) {
+        $results['strike-depth-' . $name . '-accepted'] = $signature($source, 'depth.md', 2);
+        $results['strike-depth-' . $name . '-rejected'] = $signature($source, 'depth.md', 1);
+    }
+
+    expect($results)->toMatchSnapshot();
+});
 
 it('parses every supported block and inline construct while preserving literal values', function (): void {
     $markdown = <<<'MARKDOWN'
@@ -128,6 +280,22 @@ it('returns fresh zero-indexed generators for every document traversal', functio
         ->and(array_keys($links))->toBe([0, 1])
         ->and($linkTargets)->toBe(['/one/', '/two/'])
         ->and($repeatedLinks)->toEqual($links);
+});
+
+it('decodes every unsigned arena byte and preserves authored link order', function (): void {
+    $arena = new InlineArena(pack('aNN', "\x00", 0x01_02_03_04, 0x05_06_07_08), 1);
+
+    expect(iterator_to_array($arena->range(0, 1), false))
+        ->toEqual([new Text(0x01_02_03_04, 0x05_06_07_08)]);
+
+    $links = new InlineArena(
+        pack('aNN', "\x02", 0, 1) . pack('aNN', "\x02", 1, 1),
+        2,
+    );
+    $document = new Document('ab', [], [], $links);
+
+    expect(array_map($document->text(...), iterator_to_array($document->links(), false)))
+        ->toBe(['a', 'b']);
 });
 
 it('supports valid heading levels and an unlabelled empty code fence', function (): void {

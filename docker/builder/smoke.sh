@@ -81,8 +81,16 @@ run_builder validate
 run_builder build
 
 test -f "${workspace}/public/index.html"
-test -f "${workspace}/public/assets/theme.css"
-test -f "${workspace}/public/assets/theme.js"
+test ! -e "${workspace}/public/assets/theme.css"
+test ! -e "${workspace}/public/assets/theme.js"
+set -- "${workspace}"/public/assets/theme.*.css
+test "$#" -eq 1
+test -f "$1"
+basename "$1" | grep -Eq '^theme\.[0-9a-f]{16}\.css$'
+set -- "${workspace}"/public/assets/theme.*.js
+test "$#" -eq 1
+test -f "$1"
+basename "$1" | grep -Eq '^theme\.[0-9a-f]{16}\.js$'
 test ! -e "${workspace}/resources/preview-router.php"
 
 run_builder new page contact

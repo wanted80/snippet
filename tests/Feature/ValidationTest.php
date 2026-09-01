@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Snippet\Content\CatalogLoader;
+use Snippet\Content\ContentType;
 use Snippet\Exception\ContentException;
 
 mutates(CatalogLoader::class);
@@ -32,12 +33,14 @@ it('ignores non-directory entries directly under content collections', function 
     expect($this->catalog()->count())->toBe(0);
 });
 
-it('rejects invalid and reserved slugs', function (string $slug, string $message): void {
+it('rejects invalid and reserved slugs', function (string $slug, string $message, ContentType $type = ContentType::Page): void {
     $this->content();
-    mkdir($this->directory . '/content/pages/' . $slug, 0777, true);
+    $collection = $type === ContentType::Page ? 'pages' : 'articles/2026/01/01';
+    mkdir($this->directory . '/content/' . $collection . '/' . $slug, 0777, true);
     expect(fn() => $this->catalog())->toThrow(ContentException::class, $message);
 })->with([
     ['Bad_slug', 'Invalid'],
+    ['Bad_article', 'Invalid', ContentType::Article],
     ['double--hyphen', 'Invalid'],
     ['café', 'Invalid'],
     ['日本語', 'Invalid'],
@@ -51,8 +54,11 @@ it('requires both page content files', function (string $present, string $missin
     $path = $this->directory . '/content/pages/post';
     mkdir($path, 0777, true);
     file_put_contents($path . '/' . $present, $present === 'page.md' ? 'Text' : "<?php declare(strict_types=1); return [];\n");
-    $this->catalog();
-})->throws(ContentException::class)->with([
+    expect(fn() => $this->catalog())->toThrow(
+        ContentException::class,
+        "Content item 'post' is missing {$missing}.",
+    );
+})->with([
     ['page.md', 'meta.php'],
     ['meta.php', 'page.md'],
 ]);
@@ -105,11 +111,33 @@ it('rejects content symlinks at every depth', function (string $position): void 
 
     $this->catalog();
 })->throws(ContentException::class, 'symlink')->with(['root', 'nested']);
+
+it('identifies the exact collection entry when a content directory is a symlink', function (): void {
+    $this->content();
+    symlink($this->directory, $this->directory . '/content/pages/post');
+
+    expect(fn() => $this->catalog())->toThrow(
+        ContentException::class,
+        "Page collection entry 'post' is a symlink; symlinks are not allowed.",
+    );
+});
+
 it('rejects a content asset whose first path component is index.html', function (): void {
     $path = $this->item('post', ['title' => 'T', 'description' => 'D']);
     file_put_contents($path . '/index.html', 'collision');
     $this->catalog();
 })->throws(ContentException::class, 'first component is reserved');
+
+it('rejects nested content beneath the reserved index.html component', function (): void {
+    $path = $this->item('post', ['title' => 'T', 'description' => 'D']);
+    mkdir($path . '/index.html');
+    file_put_contents($path . '/index.html/asset.txt', 'collision');
+
+    expect(fn() => $this->catalog())->toThrow(
+        ContentException::class,
+        "Content item 'post' contains asset path 'index.html/asset.txt', whose first component is reserved.",
+    );
+});
 
 it('rejects metadata output and invalid loading', function (string $body, string $message): void {
     $path = $this->item('post', ['title' => 'T', 'description' => 'D']);
@@ -134,6 +162,17 @@ it('rejects invalid text fields', function (array $metadata, string $message): v
     [['title' => 'T', 'description' => 2], 'description'],
 ]);
 
+it('rejects exactly empty required text as non-empty text', function (string $field): void {
+    $metadata = ['title' => 'T', 'description' => 'D'];
+    $metadata[$field] = '';
+    $this->item('post', $metadata);
+
+    expect(fn() => $this->catalog())->toThrow(
+        ContentException::class,
+        "Metadata field '{$field}' for 'post' must be a non-empty string.",
+    );
+})->with(['title', 'description']);
+
 it('enforces exact page fields', function (array $metadata, string $message): void {
     /** @var array<string, mixed> $metadata */
     $this->item('post', $metadata);
@@ -149,6 +188,24 @@ it('requires article-specific fields', function (): void {
     $this->catalog();
 })->throws(ContentException::class, 'missing field(s): date, tags');
 
+it('reports exact missing and unknown metadata field lists', function (array $metadata, string $message, ContentType $type): void {
+    /** @var array<string, mixed> $metadata */
+    $this->item('post', $metadata, type: $type);
+
+    expect(fn() => $this->catalog())->toThrow(ContentException::class, $message);
+})->with([
+    'missing article fields' => [
+        ['title' => 'T', 'description' => 'D'],
+        "Metadata for 'post' is missing field(s): date, tags.",
+        ContentType::Article,
+    ],
+    'unknown page fields' => [
+        ['title' => 'T', 'description' => 'D', 'first' => true, 'second' => true],
+        "Metadata for 'post' has unknown field(s): first, second.",
+        ContentType::Page,
+    ],
+]);
+
 it('validates real article dates', function (mixed $date): void {
     $this->article('post', ['title' => 'T', 'description' => 'D', 'date' => $date, 'tags' => []]);
     $this->catalog();
@@ -159,6 +216,7 @@ it('validates article tags', function (mixed $tags, string $message): void {
     $this->catalog();
 })->throws(ContentException::class)->with([
     [null, 'list'],
+    [true, 'list'],
     [['name' => 'php'], 'list'],
     [[2], 'strings'],
     [[['label' => 'PHP']], 'strings'],
@@ -167,6 +225,15 @@ it('validates article tags', function (mixed $tags, string $message): void {
     [['---'], 'Unicode'],
     [['PHP', 'php'], 'duplicate'],
 ]);
+
+it('reports an exactly empty tag at its source index', function (): void {
+    $this->article('post', ['title' => 'T', 'description' => 'D', 'date' => '2026-01-01', 'tags' => ['Valid', '']]);
+
+    expect(fn() => $this->catalog())->toThrow(
+        ContentException::class,
+        "Metadata tag label for 'post' must be non-empty at index 1.",
+    );
+});
 
 it('generates canonical tag slugs from ordered labels', function (): void {
     $this->article('post', ['title' => 'T', 'description' => 'D', 'date' => '2026-01-01', 'tags' => [

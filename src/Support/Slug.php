@@ -19,7 +19,8 @@ final readonly class Slug
         $lowercase = mb_strtolower($value, 'UTF-8');
         $slug = preg_replace('/[^\p{L}\p{M}\p{N}]+/u', '-', $lowercase);
 
-        return mb_trim((string) $slug, '-');
+        // Valid UTF-8 and a constant valid pattern make preg_replace() failure impossible here.
+        return mb_trim((string) $slug, '-'); // @pest-mutate-ignore: RemoveStringCast
     }
 
     public static function isCanonicalAscii(string $value): bool

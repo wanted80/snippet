@@ -11,8 +11,9 @@ final class Utf8FileValidator
 
     public function isValid(string $path, bool $validateEncoding = true): bool
     {
+        // The fopen() guard below returns the same result; this avoids an avoidable failed open.
         if (!is_file($path)) {
-            return false;
+            return false; // @pest-mutate-ignore: RemoveEarlyReturn
         }
 
         $stream = @fopen($path, 'rb');
@@ -58,19 +59,19 @@ final class Utf8FileValidator
 
                     if ($byte >= 0xC2 && $byte <= 0xDF) {
                         $continuations = 1;
+                    } elseif (($byte >= 0xE1 && $byte <= 0xEC) || ($byte >= 0xEE && $byte <= 0xEF)) {
+                        $continuations = 2;
                     } elseif ($byte === 0xE0) {
                         $continuations = 2;
                         $minimum = 0xA0;
-                    } elseif (($byte >= 0xE1 && $byte <= 0xEC) || ($byte >= 0xEE && $byte <= 0xEF)) {
-                        $continuations = 2;
                     } elseif ($byte === 0xED) {
                         $continuations = 2;
                         $maximum = 0x9F;
+                    } elseif ($byte >= 0xF1 && $byte <= 0xF3) {
+                        $continuations = 3;
                     } elseif ($byte === 0xF0) {
                         $continuations = 3;
                         $minimum = 0x90;
-                    } elseif ($byte >= 0xF1 && $byte <= 0xF3) {
-                        $continuations = 3;
                     } elseif ($byte === 0xF4) {
                         $continuations = 3;
                         $maximum = 0x8F;

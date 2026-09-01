@@ -192,8 +192,10 @@ it('exposes separate deterministic and network-dependent maintenance gates', fun
     $root = dirname(__DIR__, 2);
     $composer = file_get_contents($root . '/composer.json');
     $makefile = file_get_contents($root . '/Makefile');
+    $builderSmoke = file_get_contents($root . '/docker/builder/smoke.sh');
     assert(is_string($composer));
     assert(is_string($makefile));
+    assert(is_string($builderSmoke));
 
     expect($composer)->toContain(
         '"app:test:mutations": [',
@@ -209,6 +211,12 @@ it('exposes separate deterministic and network-dependent maintenance gates', fun
             "demo-check: builder-image\n\tsh docker/demo/check.sh \"$(BUILDER_IMAGE)\"",
             'shellcheck .devcontainer/post-create.sh docker/builder/smoke.sh docker/demo/check.sh docker/demo/validate.sh docker/demo/workspace.sh docker/development/entrypoint.sh docker/preview/trust-caddy-ca.sh docker/quality/mutations.sh',
             'node --check resources/theme.js',
+        )
+        ->and($builderSmoke)->toContain(
+            "test ! -e \"\${workspace}/public/assets/theme.css\"",
+            "test ! -e \"\${workspace}/public/assets/theme.js\"",
+            "'^theme\\.[0-9a-f]{16}\\.css$'",
+            "'^theme\\.[0-9a-f]{16}\\.js$'",
         );
 });
 

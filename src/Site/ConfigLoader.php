@@ -88,6 +88,9 @@ final readonly class ConfigLoader
         if (!is_string($value) || str_ends_with($value, '/')) {
             throw new ContentException("Site configuration field 'url' must be an HTTPS site URL without a trailing slash.");
         }
+        if (preg_match('/[\x00-\x20\x7F"\'<>]/', $value) === 1) {
+            throw new ContentException("Site configuration field 'url' path control characters, whitespace, quotes, '<', and '>' must be percent-encoded.");
+        }
 
         $parts = parse_url($value);
         if (filter_var($value, FILTER_VALIDATE_URL) === false || $parts === false || ($parts['scheme'] ?? null) !== 'https' || !isset($parts['host']) || array_diff(array_keys($parts), ['scheme', 'host', 'port', 'path']) !== []) {

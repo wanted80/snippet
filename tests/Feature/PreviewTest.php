@@ -37,7 +37,9 @@ it('serves the initial build, watches changes, and injects live reload only in p
         $response = file_get_contents("http://127.0.0.1:{$port}/post/");
         $version = file_get_contents("http://127.0.0.1:{$port}/.snippet-preview-version");
         $reload = file_get_contents("http://127.0.0.1:{$port}/.snippet-preview-reload.js");
-        $assetHeaders = get_headers("http://127.0.0.1:{$port}/assets/theme.css", true);
+        $stylesheets = glob($root . '/public/assets/theme.*.css');
+        assert(is_array($stylesheets) && count($stylesheets) === 1);
+        $assetHeaders = get_headers("http://127.0.0.1:{$port}/assets/" . basename($stylesheets[0]), true);
         $llmsHeaders = get_headers("http://127.0.0.1:{$port}/llms.txt", true);
         file_put_contents($path . '/page.md', 'After!!');
     };
@@ -101,7 +103,7 @@ it('requests a fresh preview process when runtime source changes', function (): 
     mkdir($source);
     file_put_contents($source . '/Runtime.php', '<?php return "before";');
     $afterPoll = static function (int $poll, string $root) use ($source): void {
-        if ($poll === 0) {
+        if ($poll === 1) {
             file_put_contents($source . '/Runtime.php', '<?php return "after";');
         }
     };
@@ -111,7 +113,7 @@ it('requests a fresh preview process when runtime source changes', function (): 
     expect(new PreviewServer(
         port: availablePreviewPort(),
         pollMicroseconds: 50_000,
-        maximumPolls: 1,
+        maximumPolls: 2,
         afterPoll: $afterPoll,
     )->run($this->directory, $stdout, $stderr))->toBe(PreviewServer::RESTART_EXIT_CODE);
 
@@ -225,6 +227,20 @@ it('binds the PHP server to the host and port supplied by the CLI', function ():
             $this->directory . '/public',
             $this->directory . '/resources/preview-router.php',
         ]);
+});
+
+it('connects the built-in server to the three standard streams', function (): void {
+    $this->content();
+    $this->resources();
+
+    expect(new PreviewServer(port: availablePreviewPort(), maximumPolls: 0)->run(
+        $this->directory,
+        new SplFileObject('php://memory', 'w+'),
+        new SplFileObject('php://memory', 'w+'),
+    ))->toBe(0)
+        ->and(PublisherFaults::calls('preview_descriptor_0'))->toBe(1)
+        ->and(PublisherFaults::calls('preview_descriptor_1'))->toBe(1)
+        ->and(PublisherFaults::calls('preview_descriptor_2'))->toBe(1);
 });
 
 it('stops its PHP server when terminated by signal', function (int $signal, int $exitCode): void {
@@ -370,15 +386,33 @@ it('rejects watched files whose identity or contents cannot be read', function (
 it('fingerprints links and other filesystem entries safely', function (): void {
     $this->content();
     $this->resources();
-    symlink($this->directory . '/site/config.php', $this->directory . '/resources/config-link');
-    posix_mkfifo($this->directory . '/resources/events.pipe', 0600);
-    PublisherFaults::set('preview_readlink', ['fail']);
+    $target = $this->directory . '/site/config.php';
+    $directory = $this->directory . '/inventory';
+    mkdir($directory);
+    symlink($target, $directory . '/config-link');
+    posix_mkfifo($directory . '/events.pipe', 0600);
+    $method = new ReflectionMethod(PreviewServer::class, 'inventory');
+    $watchedFiles = [];
+    $arguments = [$directory, 'inventory', &$watchedFiles];
+    $inventory = $method->invokeArgs(new PreviewServer(), $arguments);
+    assert($inventory instanceof Generator);
+    $records = iterator_to_array($inventory, false);
 
-    expect(new PreviewServer(port: availablePreviewPort(), maximumPolls: 0)->run(
-        $this->directory,
-        new SplFileObject('php://memory', 'w+'),
-        new SplFileObject('php://memory', 'w+'),
-    ))->toBe(0);
+    expect($records)->toBe([
+        "inventory/config-link:link:{$target}",
+        'inventory/events.pipe:other',
+    ])->and($watchedFiles)->toBeEmpty();
+
+    PublisherFaults::set('preview_readlink', ['fail']);
+    $watchedFiles = [];
+    $arguments = [$directory, 'inventory', &$watchedFiles];
+    $inventory = $method->invokeArgs(new PreviewServer(), $arguments);
+    assert($inventory instanceof Generator);
+
+    expect(iterator_to_array($inventory, false))->toBe([
+        'inventory/config-link:link:',
+        'inventory/events.pipe:other',
+    ])->and($watchedFiles)->toBeEmpty();
 });
 
 it('serves only the configured mount path and scopes redirects and live reload beneath it', function (): void {
@@ -420,8 +454,8 @@ it('serves only the configured mount path and scopes redirects and live reload b
         ->and($mounted)->toBeString()->toContain(
             'Mounted.',
             '<script src="/snippet/.snippet-preview-reload.js"',
-            '<link rel="stylesheet" href="/snippet/assets/theme.css">',
         )
+        ->toMatch('~<link rel="stylesheet" href="/snippet/assets/theme\.[0-9a-f]{16}\.css">~')
         ->and($reload)->toBeString()->toContain(
             'const basePath = "/snippet";',
             "fetch(basePath + '/.snippet-preview-version'",
@@ -433,8 +467,8 @@ it('serves only the configured mount path and scopes redirects and live reload b
         ->and($missing)->toBeString()->toContain(
             '<h1 id="not-found-title">Page not found</h1>',
             '<a class="button-link" href="/snippet/">Return home',
-            '<link rel="stylesheet" href="/snippet/assets/theme.css">',
             '<script src="/snippet/.snippet-preview-reload.js"',
         )
+        ->toMatch('~<link rel="stylesheet" href="/snippet/assets/theme\.[0-9a-f]{16}\.css">~')
         ->and($stdout->fread(8192))->toContain("Preview available at http://127.0.0.1:{$port}/snippet/");
 });

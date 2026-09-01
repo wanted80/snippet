@@ -65,7 +65,7 @@ PHP);
     expect(loadSiteConfig($this->directory)->title)->toBe('Title');
 });
 
-it('accepts root and path-hosted HTTPS site URLs', function (string $url, string $basePath): void {
+it('accepts root and path-hosted HTTPS site URLs', function (string $url, string $basePath, string $origin): void {
     $this->site(['url' => $url]);
 
     $config = loadSiteConfig($this->directory);
@@ -74,13 +74,32 @@ it('accepts root and path-hosted HTTPS site URLs', function (string $url, string
         ->and($config->basePath)->toBe($basePath)
         ->and($config->publicPath('/articles/post/'))->toBe($basePath . '/articles/post/')
         ->and($config->canonicalUrl('/articles/post/'))->toBe($url . '/articles/post/')
-        ->and($config->origin())->toBe('https://example.test');
+        ->and($config->origin())->toBe($origin);
 })->with([
-    'root' => ['https://example.test', ''],
-    'project' => ['https://example.test/snippet', '/snippet'],
-    'multiple segments' => ['https://example.test/work/sites/snippet', '/work/sites/snippet'],
-    'encoded segment' => ['https://example.test/caf%C3%A9', '/caf%C3%A9'],
+    'root' => ['https://example.test', '', 'https://example.test'],
+    'project' => ['https://example.test/snippet', '/snippet', 'https://example.test'],
+    'multiple segments' => ['https://example.test/work/sites/snippet', '/work/sites/snippet', 'https://example.test'],
+    'encoded segment' => ['https://example.test/caf%C3%A9', '/caf%C3%A9', 'https://example.test'],
+    'encoded browser delimiters' => ['https://example.test/%22%20%3C%3E%27', '/%22%20%3C%3E%27', 'https://example.test'],
+    'explicit port' => ['https://example.test:8443/snippet', '/snippet', 'https://example.test:8443'],
 ]);
+
+it('rejects raw browser delimiters and whitespace in the deployment URL', function (string $character): void {
+    $this->site(['url' => 'https://example.test/path' . $character . 'segment']);
+
+    loadSiteConfig($this->directory);
+})->throws(ContentException::class, 'percent-encoded')
+    ->with([
+        'space' => ' ',
+        'tab' => "\t",
+        'line feed' => "\n",
+        'carriage return' => "\r",
+        'double quote' => '"',
+        'single quote' => "'",
+        'less-than sign' => '<',
+        'greater-than sign' => '>',
+        'delete control' => "\x7F",
+    ]);
 
 it('rejects malformed HTTPS site URLs', function (mixed $url): void {
     $this->site(['url' => $url]);

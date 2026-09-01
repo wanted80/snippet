@@ -18,7 +18,7 @@ use Snippet\Site\Limits;
 use Snippet\Support\ApplicationVersion;
 use Snippet\Support\TrustedPhpLoader;
 
-mutates(CatalogLoader::class, Parser::class, TemplateLoader::class);
+mutates(CatalogLoader::class, Parser::class, TemplateLoader::class, TrustedPhpLoader::class);
 
 it('accepts menu opt-ins and rejects duplicate orders', function (): void {
     $this->item('about', ['title' => 'About', 'description' => 'D', 'menu_order' => 2]);
@@ -129,8 +129,8 @@ it('enforces each content resource boundary', function (string $boundary, string
         };
         $path = $this->item('one', ['title' => $boundary === 'title' ? 'AB' : 'A', 'description' => 'D'], $markdown);
         if ($boundary === 'asset depth') {
-            mkdir($path . '/one/two', 0777, true);
-            file_put_contents($path . '/one/two/a', 'a');
+            mkdir($path . '/one', 0777, true);
+            file_put_contents($path . '/one/a', 'a');
         } elseif ($boundary === 'asset size') {
             file_put_contents($path . '/asset', 'ab');
         } elseif (in_array($boundary, ['asset aggregate', 'asset count', 'catalog assets'], true)) {
@@ -205,6 +205,8 @@ it('allows placeholders in ordinary text and quoted attributes containing equals
         'social_metadata' => '',
         'base_path' => '',
         'preloads' => '',
+        'theme_script' => '<script src="/assets/theme.0123456789abcdef.js"></script>',
+        'theme_stylesheet' => '<link rel="stylesheet" href="/assets/theme.fedcba9876543210.css">',
         'site_stylesheet' => '',
         'site_script' => '',
         'sitename' => 'Brand',
@@ -212,7 +214,8 @@ it('allows placeholders in ordinary text and quoted attributes containing equals
         'body' => 'Body',
     ]);
 
-    expect($rendered)->toContain('lang="locale=en"', 'example=Body');
+    expect($rendered)->toContain('lang="locale=en"', 'example=Body')
+        ->not->toContain('{{');
 });
 
 it('rejects declarative PHP token edge cases without evaluation', function (string $source, string $message): void {
@@ -222,7 +225,9 @@ it('rejects declarative PHP token edge cases without evaluation', function (stri
 })->with([
     'parse error' => ["<?php declare(strict_types=1); return [;", 'parse'],
     'wrong declaration name' => ["<?php declare(ticks=1); return [];", 'literal array'],
+    'declaration keyword lookalike' => ["<?php configure(strict_types=1); return [];", 'parse'],
     'wrong strict value' => ["<?php declare(strict_types=0); return [];", 'literal array'],
+    'wrong declaration assignment delimiter' => ["<?php declare(strict_types:1); return [];", 'parse'],
     'non-array return' => ["<?php declare(strict_types=1); return 1;", 'literal array'],
     'duplicate key' => ["<?php declare(strict_types=1); return ['a' => 1, 'a' => 2];", 'duplicate array key'],
     'constant' => ["<?php declare(strict_types=1); return ['a' => UNKNOWN];", 'literal array'],
@@ -234,21 +239,43 @@ it('rejects declarative PHP token edge cases without evaluation', function (stri
     'implicit key after maximum integer' => ["<?php declare(strict_types=1); return ['value' => [9223372036854775807 => true, false]];", 'literal array'],
     'lowest surrogate escape' => ['<?php declare(strict_types=1); return [\'value\' => "\\u{D800}"];', 'literal array'],
     'highest surrogate escape' => ['<?php declare(strict_types=1); return [\'value\' => "\\u{DFFF}"];', 'literal array'],
+    'Unicode escape above maximum' => ['<?php declare(strict_types=1); return [\'value\' => "\\u{110000}"];', 'parse'],
 ]);
+
+it('preserves the tokenizer parse failure as the exception cause', function (): void {
+    $path = $this->directory . '/literal.php';
+    file_put_contents($path, '<?php declare(strict_types=1); return [;');
+
+    try {
+        (void) (new TrustedPhpLoader()->load($path, 'literal'));
+        throw new LogicException('Expected malformed declarative PHP to be rejected.');
+    } catch (ContentException $contentException) {
+        expect($contentException->getCode())->toBe(0)
+            ->and($contentException->getPrevious())->toBeInstanceOf(ParseError::class);
+    }
+});
 
 it('decodes literal values with PHP semantics without executing the file', function (): void {
     $path = $this->directory . '/literal.php';
     file_put_contents($path, <<<'PHP'
 <?php
-/* config */ declare(strict_types=1);
+/* config */ /** declarative values */ declare(strict_types=1);
 return [
-    'value' => ["\n\r\t\v\f\0\7\377\x41\u{D7FF}\u{E000}\u{10FFFF}", 5 => "\u{1F600}\e\q\$\101\x42", true, false, null],
+    'value' => ["\n\r\t\v\f\0\7\012\377\x41\u{D7FF}\u{E000}\u{10FFFF}", 5 => "\u{1F600}\e\q\$\101\x42", true, false, null],
+    'single' => 'slash\\quote\'end',
+    'integer-keys' => [0 => 'zero', 'one'],
+    'mixed-keys' => ['label' => 'named', 'implicit'],
 ];
 ?>
 PHP);
     $value = new TrustedPhpLoader()->load($path, 'literal');
 
-    expect($value)->toBe(['value' => ["\n\r\t\v\f\0\7\377A\u{D7FF}\u{E000}\u{10FFFF}", 5 => "😀\x1B\\q\$AB", 6 => true, 7 => false, 8 => null]]);
+    expect($value)->toBe([
+        'value' => ["\n\r\t\v\f\0\7\n\377A\u{D7FF}\u{E000}\u{10FFFF}", 5 => "😀\x1B\\q\$AB", 6 => true, 7 => false, 8 => null],
+        'single' => "slash\\quote'end",
+        'integer-keys' => ['zero', 'one'],
+        'mixed-keys' => ['label' => 'named', 0 => 'implicit'],
+    ]);
 });
 
 it('rejects an oversized declarative file before tokenization', function (): void {

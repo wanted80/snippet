@@ -1,6 +1,6 @@
 # Contributing to Snippet
 
-Snippet is a small publishing system built for one author. Focused bug fixes, documentation corrections, accessibility improvements, and presentation refinements are welcome. Discuss a change before implementing a new product capability: the engine is frozen, and feeds, search, pagination, drafts, image processing, plugins, generated 404 pages, deployment integrations, and new content types require an explicit product decision.
+Snippet is a small publishing system built for one author. Focused bug fixes, documentation corrections, accessibility improvements, and presentation refinements are welcome. Discuss a change before implementing a new product capability: the engine is frozen, and feeds, search, pagination, drafts, image processing, plugins, deployment integrations, and new content types require an explicit product decision.
 
 ## Development workflow
 
@@ -21,7 +21,7 @@ Native PHP contributors may use `composer app:fix`, `composer app:analyse`, `com
 
 ## Architecture map
 
-The publication path is intentionally linear: `Application` dispatches the CLI, `PublicationInputLoader` creates one validated configuration/catalog/template snapshot, `Publisher` transactionally promotes the complete output, and `HtmlRenderer` turns the typed snapshot into pages. In short: `Application → PublicationInputLoader → validated inputs → Publisher → HtmlRenderer`.
+The publication path is intentionally linear: `Application` dispatches the CLI, `PublicationInputLoader` creates one validated snapshot containing configuration, catalog, templates, and retained fingerprinted entry assets, `Publisher` transactionally promotes the complete output, and `HtmlRenderer` turns that same snapshot into pages. In short: `Application → PublicationInputLoader → validated inputs → Publisher → HtmlRenderer`.
 
 `Limits` contains internal safety budgets for pathological input and output. Those values are neither author configuration nor compatibility promises; change them only when evidence shows that an implementation boundary is inappropriate, and keep the matching validation tests explicit.
 

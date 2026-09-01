@@ -9,6 +9,7 @@ use Snippet\Markdown\InlineBuilder;
 use Snippet\Publishing\PublicationInputLoader;
 use Snippet\Publishing\PublicationInventory;
 use Snippet\Publishing\ReferenceValidator;
+use Snippet\Rendering\AssetPaths;
 use Snippet\Site\Config;
 
 mutates(ReferenceValidator::class);
@@ -39,8 +40,11 @@ MARKDOWN);
     file_put_contents($this->directory . '/site/assets/downloads/guide.pdf', 'PDF');
     $markdown = file_get_contents($path . '/article.md');
     assert(is_string($markdown));
-    file_put_contents($path . '/article.md', $markdown . "\n[site asset](/assets/site/downloads/guide.pdf)\n[theme](/assets/theme.css)\n");
     $this->resources();
+    $theme = file_get_contents($this->directory . '/resources/theme.css');
+    assert(is_string($theme));
+    $themePath = '/assets/theme.' . hash('xxh3', $theme) . '.css';
+    file_put_contents($path . '/article.md', $markdown . "\n[site asset](/assets/site/downloads/guide.pdf)\n[theme]({$themePath})\n");
 
     expect(validatePublication($this->directory)[0])->toBe(0);
 });
@@ -98,12 +102,12 @@ it('exposes a sorted deterministic publication inventory', function (): void {
     $this->resources();
 
     $inputs = new PublicationInputLoader()->load($this->directory);
-    $paths = new PublicationInventory($inputs->config, $inputs->catalog)->paths();
+    $paths = new PublicationInventory($inputs->config, $inputs->catalog, $inputs->assets->paths)->paths();
     $sorted = $paths;
     sort($sorted, SORT_STRING);
 
     expect($paths)->toBe($sorted)
-        ->toContain('/404.html', '/articles/post/', '/articles/post/index.html', '/articles/post/notes.txt', '/assets/theme.css', '/assets/theme.js', '/assets/site.css', '/assets/site.js', '/favicon.svg', '/llms.txt', '/tags/caf%C3%A9/');
+        ->toContain('/404.html', '/articles/post/', '/articles/post/index.html', '/articles/post/notes.txt', $inputs->assets->themeStylesheet->publishedPath, $inputs->assets->themeScript->publishedPath, $inputs->assets->siteStylesheet?->publishedPath, $inputs->assets->siteScript?->publishedPath, '/favicon.svg', '/llms.txt', '/tags/caf%C3%A9/');
 });
 
 it('fails explicitly if URL parsing invariants are bypassed', function (string $kind, string $message): void {
@@ -136,7 +140,7 @@ it('fails explicitly if URL parsing invariants are bypassed', function (string $
         $this->directory,
         $config,
         $catalog,
-        new PublicationInventory($config, $catalog),
+        new PublicationInventory($config, $catalog, new AssetPaths('/assets/theme.a.css', '/assets/theme.b.js', null, null)),
     ))->toThrow(LogicException::class, $message);
 })->with([
     'malformed parsed target' => [

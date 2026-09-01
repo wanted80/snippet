@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Snippet\Tests\TestCase;
 
 require_once __DIR__ . '/PublisherFunctions.php';
+require_once __DIR__ . '/ApplicationClock.php';
 require_once __DIR__ . '/DraftFunctions.php';
 require_once __DIR__ . '/PreviewFunctions.php';
 require_once __DIR__ . '/ScaffoldingFunctions.php';

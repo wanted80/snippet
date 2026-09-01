@@ -36,13 +36,12 @@ REGEX;
             $offset += mb_strlen($chunk, '8bit');
             if ($chunk[0] !== '<') {
                 $output .= $previousWasTag && $offset < $length && $this->whitespaceOnly($chunk) ? ' ' : $chunk;
-                $previousWasTag = false;
                 continue;
             }
 
             $output .= $chunk;
             $name = $this->openingTagName($chunk);
-            if ($name !== null && in_array($name, self::RAW_ELEMENTS, true) && !str_ends_with(mb_rtrim($chunk), '/>')) {
+            if (in_array($name, self::RAW_ELEMENTS, true) && !str_ends_with(mb_rtrim($chunk), '/>')) {
                 $pattern = '~\G(?:(?!</' . preg_quote($name, '~') . '(?=[\s>]))[\s\S])*</' . preg_quote($name, '~') . '\s*>~Ai';
                 if (preg_match($pattern, $html, $match, 0, $offset) !== 1) {
                     return $html;
@@ -66,7 +65,8 @@ REGEX;
 
     private function openingTagName(string $token): ?string
     {
-        if (preg_match('/\A<([A-Za-z][A-Za-z0-9:-]*)(?:\s|\/?>)/', $token, $match) !== 1) {
+        // preg_match() returns only 1, 0, or false, so neighbouring integer comparisons are equivalent.
+        if (preg_match('/\A<([A-Za-z][A-Za-z0-9:-]*)(?:\s|\/?>)/', $token, $match) !== 1) { // @pest-mutate-ignore: DecrementInteger,IncrementInteger
             return null;
         }
 

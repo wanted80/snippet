@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
+use Snippet\Content\CatalogLoader;
 use Snippet\Exception\ContentException;
 use Snippet\Site\Config;
 use Snippet\Site\ConfigLoader;
+
+mutates(CatalogLoader::class);
 
 /**
  * Run an operation without PHPUnit converting its intentionally suppressed
