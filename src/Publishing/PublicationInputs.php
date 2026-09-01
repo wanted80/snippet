@@ -17,6 +17,7 @@ final readonly class PublicationInputs
         public Config $config,
         public Catalog $catalog,
         public Templates $templates,
+        public PublicationAssets $assets,
     ) {}
 
     /** Count every validated non-document file that publication will copy or generate. */

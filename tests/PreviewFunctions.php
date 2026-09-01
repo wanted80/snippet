@@ -37,3 +37,33 @@ function stat(string $filename): array|false
 {
     return PublisherFaults::fails('preview_stat') ? false : \stat($filename);
 }
+
+/**
+ * @param list<string>|string $command
+ * @param array<int, array{0: string, 1: string, 2: string}> $descriptorSpec
+ * @param array<int, resource>|null $pipes
+ * @param array<string, string>|null $environment
+ * @param array<string, bool>|null $options
+ * @return resource|false
+ */
+function proc_open(
+    array|string $command,
+    array $descriptorSpec,
+    mixed &$pipes,
+    ?string $directory = null,
+    ?array $environment = null,
+    ?array $options = null,
+): mixed {
+    $expectedDescriptors = [
+        0 => ['file', 'php://stdin', 'r'],
+        1 => ['file', 'php://stdout', 'a'],
+        2 => ['file', 'php://stderr', 'a'],
+    ];
+    foreach ($expectedDescriptors as $descriptor => $expected) {
+        if (($descriptorSpec[$descriptor] ?? null) === $expected) {
+            PublisherFaults::record("preview_descriptor_{$descriptor}");
+        }
+    }
+
+    return \proc_open($command, $descriptorSpec, $pipes, $directory, $environment, $options);
+}

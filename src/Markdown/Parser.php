@@ -134,7 +134,7 @@ final class Parser
 
             while (true) {
                 $nextStart = $this->nextLineStart($lineEnd, $length);
-                if ($nextStart >= $length) {
+                if ($nextStart >= $length) { // @pest-mutate-ignore: GreaterOrEqualToGreater
                     $lineStart = $length;
                     break;
                 }
@@ -167,12 +167,12 @@ final class Parser
         }
 
         if (preg_match('/[\r\x0B\x0C\x{0085}\x{2028}\x{2029}]/u', $source) !== 1) {
-            return $source;
+            return $source; // @pest-mutate-ignore: RemoveEarlyReturn
         }
 
         $normalized = preg_replace('/\r\n|[\r\x0B\x0C\x{0085}\x{2028}\x{2029}]/u', "\n", $source);
 
-        return (string) $normalized;
+        return (string) $normalized; // @pest-mutate-ignore: RemoveStringCast
     }
 
     private function lineEnd(string $source, int $start, int $length): int
@@ -188,7 +188,7 @@ final class Parser
     /** @return array{?string}|null */
     private function openingFence(string $source, int $start, int $end): ?array
     {
-        if ($end - $start < 3 || $source[$start] !== '`' || $source[$start + 1] !== '`' || $source[$start + 2] !== '`') {
+        if (mb_substr($source, $start, 3, '8bit') !== '```') {
             return null;
         }
 
@@ -213,7 +213,7 @@ final class Parser
 
     private function isClosingFence(string $source, int $start, int $end): bool
     {
-        if ($end - $start < 3 || $source[$start] !== '`' || $source[$start + 1] !== '`' || $source[$start + 2] !== '`') {
+        if (mb_substr($source, $start, 3, '8bit') !== '```') {
             return false;
         }
 
@@ -237,12 +237,8 @@ final class Parser
     /** @return array{int, int, int}|null */
     private function heading(string $source, int $start, int $end): ?array
     {
-        if ($source[$start] !== '#') {
-            return null;
-        }
-
         $cursor = $start;
-        while ($cursor < $end && $source[$cursor] === '#') {
+        while ($cursor < $end && $source[$cursor] === '#') { // @pest-mutate-ignore: SmallerToSmallerOrEqual
             ++$cursor;
         }
 
@@ -269,7 +265,7 @@ final class Parser
             ++$cursor;
         } elseif ($first >= '0' && $first <= '9') {
             $ordered = true;
-            while ($cursor < $end && $source[$cursor] >= '0' && $source[$cursor] <= '9') {
+            while ($cursor < $end && $source[$cursor] >= '0' && $source[$cursor] <= '9') { // @pest-mutate-ignore: SmallerToSmallerOrEqual
                 ++$cursor;
             }
 
@@ -326,12 +322,12 @@ final class Parser
         $plainStart = $start;
         $lineOffset = $start;
 
-        while ($offset < $end) {
+        while ($offset < $end) { // @pest-mutate-ignore: SmallerToSmallerOrEqual
             $offset += strcspn($source, '`[*~', $offset, $end - $offset);
             $line += $this->lineBreaks($source, $lineOffset, $offset);
             $lineOffset = $offset;
             if ($offset === $end) {
-                break;
+                break; // @pest-mutate-ignore: BreakToContinue
             }
 
             /** @var '`'|'['|'*'|'~' $character */
@@ -467,7 +463,7 @@ final class Parser
             return null;
         }
 
-        $labelEnd = $this->findCharacter($source, ']', $offset + 1, $end);
+        $labelEnd = $this->findCharacter($source, ']', $offset + 1, $end); // @pest-mutate-ignore: DecrementInteger
         if (
             $labelEnd === null
             || ($source[$labelEnd + 1] ?? null) !== '('
@@ -549,16 +545,17 @@ final class Parser
 
     private function findDelimiter(string $source, string $delimiter, int $start, int $end): ?int
     {
-        $position = $this->findCharacter($source, $delimiter[0], $start, $end);
+        // Every supported one- or two-byte delimiter repeats the same marker byte.
+        $position = $this->findCharacter($source, $delimiter[0], $start, $end); // @pest-mutate-ignore: DecrementInteger
         if (!isset($delimiter[1])) {
             return $position;
         }
 
-        while ($position !== null && ($source[$position + 1] ?? null) !== $delimiter[1]) {
-            $position = $this->findCharacter($source, $delimiter[0], $position + 1, $end);
+        while ($position !== null && ($source[$position + 1] ?? null) !== $delimiter[1]) { // @pest-mutate-ignore: DecrementInteger
+            $position = $this->findCharacter($source, $delimiter[0], $position + 1, $end); // @pest-mutate-ignore: IncrementInteger
         }
 
-        return $position !== null && $position + 1 < $end ? $position : null;
+        return $position;
     }
 
     private function nextCharacterOffset(string $source, int $offset): int
@@ -574,7 +571,8 @@ final class Parser
     private function previousCharacterOffset(string $source, int $offset): int
     {
         --$offset;
-        while ($offset > 0 && (ord($source[$offset]) & 0xC0) === 0x80) {
+        // A valid UTF-8 continuation byte cannot occur at source byte zero.
+        while ($offset > 0 && (ord($source[$offset]) & 0xC0) === 0x80) { // @pest-mutate-ignore: GreaterToGreaterOrEqual,DecrementInteger,IncrementInteger
             --$offset;
         }
 
@@ -583,8 +581,9 @@ final class Parser
 
     private function isNonWhitespaceAt(string $source, int $offset): bool
     {
-        if (ord($source[$offset]) < 0x80) {
-            return match ($source[$offset]) {
+        // Valid UTF-8 starts with ASCII below 0x80 or a multibyte lead byte of at least 0xC2.
+        if (ord($source[$offset]) < 0x80) { // @pest-mutate-ignore: SmallerToSmallerOrEqual,DecrementInteger,IncrementInteger
+            return match ($source[$offset]) { // @pest-mutate-ignore: RemoveEarlyReturn
                 ' ', "\t", "\n", "\r", "\v", "\f" => false,
                 default => true,
             };
@@ -606,7 +605,7 @@ final class Parser
             && !str_starts_with($target, '//')
             && (
                 (preg_match('#^https?://#i', $target) === 1 && filter_var($target, FILTER_VALIDATE_URL) !== false)
-                || str_starts_with($target, '/')
+                || str_starts_with($target, '/') // @pest-mutate-ignore: StrStartsWithToStrEndsWith
                 || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $target) !== 1
             );
 

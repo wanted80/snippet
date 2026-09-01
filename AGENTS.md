@@ -21,7 +21,7 @@ The current builder discovers and validates site configuration, content, metadat
 
 Publication validates first, builds in a unique temporary sibling directory, and replaces `public/` only after every page and asset succeeds. The preview command performs the same build, serves it locally, watches `content/`, `site/`, and `resources/`, reloads fresh runtime code after changes beneath `bin/` or `src/`, preserves the last valid publication after an invalid edit, and live-reloads open pages after a successful rebuild.
 
-Do not implement feeds, pagination, search, drafts, Markdown images, a generated 404 page, or additional content types unless explicitly requested.
+Do not implement feeds, pagination, search, drafts, Markdown images, or additional content types unless explicitly requested.
 
 ## Project goals
 
@@ -82,6 +82,8 @@ The canonical direct CLI commands are:
 bin/snippet validate
 bin/snippet build
 bin/snippet preview [--host=<host>] [--port=<port>]
+bin/snippet new page <slug>
+bin/snippet new article <slug> [--date=YYYY-MM-DD]
 ```
 
 `validate` reads and validates without changing `public/`. `build` transactionally publishes the static site to `public/`. `preview` builds, serves, watches, and live-reloads the site over direct HTTP at `127.0.0.1:8080` by default. Production hosting contains only the generated static files.
@@ -266,7 +268,8 @@ The build generates:
 - `/articles/index.html`, `/pages/index.html`, and `/tags/index.html`;
 - `/articles/<slug>/index.html` for articles;
 - `/<slug>/index.html` for pages;
-- `/tags/<tag-slug>/index.html` for tag archives; and
+- `/tags/<tag-slug>/index.html` for tag archives;
+- `/llms.txt`, containing the metadata-only language-model index; and
 - presentation assets beneath `/assets/`, plus content assets beside their generated item page.
 
 Articles are ordered by date descending and then slug ascending. Pages are ordered by title and then slug. Popular tags are ordered by article count descending, then label and slug ascending. All routes use the same validated configuration, metadata, document model, and templates. Templates, the default CSS, theme behavior, optional site CSS, site assets, and content assets are publication inputs rather than generated source.

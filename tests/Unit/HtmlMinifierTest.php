@@ -28,6 +28,17 @@ it('preserves raw element content byte for byte', function (string $element, str
     'style' => ['style', ".x { white-space:  pre; }\n"],
 ]);
 
+it('distinguishes raw element boundaries and self-closing lookalikes exactly', function (): void {
+    $minifier = new HtmlMinifier();
+
+    expect($minifier->minify("<SCRIPT><span></span>\n   <span></span></SCRIPT>"))
+        ->toBe("<SCRIPT><span></span>\n   <span></span></SCRIPT>")
+        ->and($minifier->minify("<pre>first</pre>\n   <pre>second</pre>"))
+        ->toBe('<pre>first</pre> <pre>second</pre>')
+        ->and($minifier->minify("<pre/>\n   <div>after</div>"))
+        ->toBe('<pre/> <div>after</div>');
+});
+
 it('returns malformed or uncertain input unchanged', function (string $html): void {
     expect(new HtmlMinifier()->minify($html))->toBe($html);
 })->with([

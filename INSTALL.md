@@ -190,16 +190,18 @@ Snippet publishes assets with ownership-reflecting names:
 
 | Source | Output | Behavior |
 | --- | --- | --- |
-| `resources/theme.css` | `/assets/theme.css` | Required built-in theme; minified when configured. |
-| `resources/theme.js` | `/assets/theme.js` | Required progressive enhancement; copied byte-for-byte. |
-| `site/site.css` | `/assets/site.css` | Optional site CSS; loaded after the built-in theme and minified when configured. |
-| `site/site.js` | `/assets/site.js` | Optional local script; copied byte-for-byte and loaded with `defer` after the built-in script. |
+| `resources/theme.css` | `/assets/theme.<xxh3>.css` | Required built-in theme; minified when configured, then fingerprinted from the published bytes. |
+| `resources/theme.js` | `/assets/theme.<xxh3>.js` | Required progressive enhancement; copied byte-for-byte and fingerprinted. |
+| `site/site.css` | `/assets/site.<xxh3>.css` | Optional site CSS; loaded after the built-in theme, minified when configured, then fingerprinted from the published bytes. |
+| `site/site.js` | `/assets/site.<xxh3>.js` | Optional local script; copied byte-for-byte, fingerprinted, and loaded with `defer` after the built-in script. |
 
 Both optional files must be regular non-symlink UTF-8 files within the asset-size ceiling. If one is absent, Snippet emits neither its output file nor its HTML tag. Custom JavaScript is a same-origin escape hatch; there is no bundler, external dependency, or extra CSP origin.
 
+Existing workspaces initialized by an earlier v2 release may retain the exact released `/assets/theme.js` script tag and `/assets/theme.css` stylesheet tag in `resources/templates/layout.html`. During validation Snippet transparently maps those two exact tags to the current fingerprinted asset placeholders, so `init` does not need to overwrite the customized layout. Near-miss, modified, or incomplete legacy tags remain invalid; new scaffolds use `{{theme_script}}` and `{{theme_stylesheet}}` directly.
+
 The no-JavaScript site remains readable and navigable. Authored content, links, and native-popover navigation work normally; the system color preference applies, and the inactive manual theme control stays hidden.
 
-Files beneath `site/assets/` publish beneath `/assets/site/`. `site/favicon.svg` publishes at `/favicon.svg`. Content assets remain beside their generated page or article.
+Each `<xxh3>` token is the complete 16-character lowercase XXH3 digest. Files beneath `site/assets/` retain their relative names beneath `/assets/site/`; `site/favicon.svg` remains `/favicon.svg`; and content assets remain beside their generated page or article.
 
 ## CI validation, build, and GitHub Pages
 

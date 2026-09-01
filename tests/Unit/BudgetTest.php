@@ -68,3 +68,10 @@ it('accumulates generated pages and copied assets into one build ceiling', funct
     })
         ->toThrow(ContentException::class, '1-byte total build limit');
 });
+
+it('rejects one publication asset above its individual byte ceiling', function (): void {
+    $budget = new BuildBudget(new Limits(assetBytes: 1));
+
+    expect(fn() => $budget->addAsset(2, '/asset'))
+        ->toThrow(ContentException::class, "Publication asset '/asset' exceeds the 1-byte asset limit.");
+});

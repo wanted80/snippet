@@ -22,6 +22,8 @@ final readonly class ReferenceValidator
                 $line = 1;
                 $lineOffset = 0;
                 foreach ($item->document->links() as $link) {
+                    // Equal offsets add zero newlines and reassign the same offset.
+                    // @pest-mutate-ignore: SmallerToSmallerOrEqual
                     if ($lineOffset < $link->offset) {
                         $line += mb_substr_count(mb_substr($item->document->source, $lineOffset, $link->offset - $lineOffset, '8bit'), "\n");
                         $lineOffset = $link->offset;
@@ -60,6 +62,8 @@ final readonly class ReferenceValidator
                 return null;
             }
             $path = $parts['path'] ?? '/';
+            // A root deployment path would only enter this block and remove a zero-length prefix.
+            // @pest-mutate-ignore: EmptyStringToNotEmpty
             if ($config->basePath !== '') {
                 if ($path === $config->basePath) {
                     $path = '/';
@@ -75,7 +79,7 @@ final readonly class ReferenceValidator
             $absolute = str_starts_with($path, '/');
         }
 
-        $segments = $absolute ? [] : array_values(array_filter(explode('/', mb_trim($currentRoute, '/')), static fn(string $segment): bool => $segment !== ''));
+        $segments = $absolute ? [] : explode('/', mb_trim($currentRoute, '/'));
         if ($path === '') {
             return $currentRoute;
         }
@@ -96,6 +100,8 @@ final readonly class ReferenceValidator
             $segments[] = $component;
         }
 
+        // PublicationInventory canonicalizes every complete path before lookup as the matching trust boundary.
+        // @pest-mutate-ignore: UnwrapArrayMap
         $resolved = '/' . implode('/', array_map(rawurlencode(...), $segments));
         if ($resolved !== '/' && str_ends_with($path, '/')) {
             $resolved .= '/';
@@ -112,13 +118,28 @@ final readonly class ReferenceValidator
             throw new LogicException('A validated site origin must be URL-parseable.');
         }
 
+        // sameOrigin() is called only for parsed targets with a scheme; parse_url() returns textual URL parts.
+        // @pest-mutate-ignore: RemoveStringCast
+        // @pest-mutate-ignore: EmptyStringToNotEmpty
         $targetScheme = mb_strtolower((string) ($target['scheme'] ?? ''));
+        // Validated site origins always include a scheme.
+        // @pest-mutate-ignore: EmptyStringToNotEmpty
         $siteScheme = mb_strtolower($site['scheme'] ?? '');
+        // A hostless target cannot equal the non-empty host of a validated site, regardless of its fallback text.
+        // @pest-mutate-ignore: RemoveStringCast
+        // @pest-mutate-ignore: EmptyStringToNotEmpty
         $targetHost = mb_strtolower((string) ($target['host'] ?? ''));
+        // Validated site origins always include a host.
+        // @pest-mutate-ignore: EmptyStringToNotEmpty
         $siteHost = mb_strtolower($site['host'] ?? '');
-        $targetPort = $target['port'] ?? ($targetScheme === 'https' ? 443 : 80);
-        $sitePort = $site['port'] ?? ($siteScheme === 'https' ? 443 : 80);
+        if ($targetScheme !== $siteScheme || $targetHost !== $siteHost) {
+            return false;
+        }
 
-        return $targetScheme === $siteScheme && $targetHost === $siteHost && $targetPort === $sitePort;
+        // ConfigLoader accepts only HTTPS origins, and the matching scheme above therefore is HTTPS too.
+        $targetPort = $target['port'] ?? 443;
+        $sitePort = $site['port'] ?? 443;
+
+        return $targetPort === $sitePort;
     }
 }

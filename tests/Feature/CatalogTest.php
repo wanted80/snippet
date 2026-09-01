@@ -87,3 +87,30 @@ it('discovers pages and date-organized articles from separate trees', function (
         ->and($article . '/article.md')->toBeFile()
         ->and($this->catalog()->count())->toBe(2);
 });
+
+it('orders longer catalog runs without confusing comparison results with equality', function (): void {
+    foreach ([
+        'e' => '2026-01-01',
+        'c' => '2026-01-02',
+        'd' => '2026-01-03',
+        'a' => '2026-01-04',
+        'b' => '2026-01-04',
+    ] as $slug => $date) {
+        $this->article($slug, ['title' => $date, 'description' => 'D', 'date' => $date, 'tags' => []]);
+    }
+    foreach ([
+        'a' => 'C',
+        'b' => 'B',
+        'c' => 'A',
+        'd' => 'A',
+    ] as $slug => $title) {
+        $this->item($slug, ['title' => $title, 'description' => 'D']);
+    }
+
+    $catalog = $this->catalog();
+
+    expect(array_map(static fn(Article $article): string => $article->slug, $catalog->articles))
+        ->toBe(['a', 'b', 'd', 'c', 'e'])
+        ->and(array_map(static fn(Page $page): string => $page->slug, $catalog->pages))
+        ->toBe(['c', 'd', 'b', 'a']);
+});

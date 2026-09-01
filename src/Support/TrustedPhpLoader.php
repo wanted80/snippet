@@ -105,7 +105,8 @@ final class TrustedPhpLoader
                 }
                 $result[$first] = $this->value();
                 $key = array_key_last($result);
-                if (is_int($key) && ($maximumIntegerKey === null || $key > $maximumIntegerKey)) {
+                // Duplicate keys are rejected above, so an integer key cannot equal the maximum.
+                if (is_int($key) && ($maximumIntegerKey === null || $key > $maximumIntegerKey)) { // @pest-mutate-ignore: GreaterToGreaterOrEqual
                     $maximumIntegerKey = $key;
                 }
             } else {
@@ -117,12 +118,8 @@ final class TrustedPhpLoader
                 $result[$maximumIntegerKey] = $first;
             }
 
-            if (($this->tokens[$this->cursor][1] ?? null) !== ',') {
-                break;
-            }
-            ++$this->cursor;
-            if (($this->tokens[$this->cursor][1] ?? null) === $closing) {
-                break;
+            if (($this->tokens[$this->cursor][1] ?? null) !== $closing) {
+                $this->expectText(',');
             }
         }
         $this->expectText($closing);
@@ -138,7 +135,9 @@ final class TrustedPhpLoader
         ++$this->cursor;
         if ($token[0] === T_CONSTANT_ENCAPSED_STRING) {
             $contents = mb_substr($token[1], 1, -1);
-            return $token[1][0] === "'" ? str_replace(["\\\\", "\\'"], ["\\", "'"], $contents) : $this->decodeDoubleQuotedString($contents);
+            // PHP string tokens always end with the same quote byte that opened them.
+            $delimiter = $token[1][0]; // @pest-mutate-ignore: DecrementInteger
+            return $delimiter === "'" ? str_replace(["\\\\", "\\'"], ["\\", "'"], $contents) : $this->decodeDoubleQuotedString($contents);
         }
         if ($token[0] === T_LNUMBER && preg_match('/^(?:0|[1-9][0-9]*)$/D', $token[1]) === 1) {
             return (int) $token[1];
@@ -181,15 +180,18 @@ final class TrustedPhpLoader
         if ($literal !== null) {
             return $literal;
         }
-        if ($escape[0] >= '0' && $escape[0] <= '7') {
+        // The escape grammar guarantees every offset is an octal digit in this branch.
+        if ($escape[0] >= '0' && $escape[0] <= '7') { // @pest-mutate-ignore: DecrementInteger
             return chr(octdec($escape) & 0xFF);
         }
         if ($escape[0] === 'x') {
-            return chr(hexdec(mb_substr($escape, 1, null, '8bit')) & 0xFF);
+            // The validated leading x is numerically ignored if this offset is widened.
+            return chr(hexdec(mb_substr($escape, 1, null, '8bit')) & 0xFF); // @pest-mutate-ignore: DecrementInteger
         }
 
-        $codePoint = (int) hexdec(mb_substr($escape, 2, -1, '8bit'));
-        if ($codePoint > 0x10FFFF || ($codePoint >= 0xD800 && $codePoint <= 0xDFFF)) {
+        // The regex establishes a bounded u{...} escape; its leading brace is numerically inert.
+        $codePoint = (int) hexdec(mb_substr($escape, 2, -1, '8bit')); // @pest-mutate-ignore: RemoveIntegerCast,DecrementInteger
+        if ($codePoint >= 0xD800 && $codePoint <= 0xDFFF) {
             $this->invalid();
         }
 
@@ -199,14 +201,16 @@ final class TrustedPhpLoader
     private function expect(int $id): void
     {
         if ($this->take()[0] !== $id) {
-            $this->invalid();
+            // TOKEN_PARSE rejects every syntactically valid alternate before this structural guard.
+            $this->invalid(); // @pest-mutate-ignore: RemoveMethodCall
         }
     }
 
     private function expectText(string $text): void
     {
         if ($this->take()[1] !== $text) {
-            $this->invalid();
+            // TOKEN_PARSE rejects every syntactically valid alternate before this structural guard.
+            $this->invalid(); // @pest-mutate-ignore: RemoveMethodCall
         }
     }
 

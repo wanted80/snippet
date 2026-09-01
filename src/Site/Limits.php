@@ -26,6 +26,7 @@ final readonly class Limits
         public int $catalogAssets = 5_000,
         public int $assetDepth = 12,
         public int $assetBytes = 26_214_400,
+        public int $retainedEntryAssetBytes = 4_194_304,
         public int $catalogAssetBytes = 536_870_912,
         public int $templateBytes = 131_072,
         public int $allTemplateBytes = 1_048_576,

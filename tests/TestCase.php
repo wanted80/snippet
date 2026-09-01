@@ -30,6 +30,7 @@ abstract class TestCase extends BaseTestCase
         unlink($temporary);
         mkdir($temporary);
         $this->directory = $temporary;
+        ApplicationClock::reset();
         PublisherFaults::reset();
         $this->site();
         copy(dirname(__DIR__) . '/site/favicon.svg', $this->directory . '/site/favicon.svg');
@@ -37,6 +38,7 @@ abstract class TestCase extends BaseTestCase
 
     protected function tearDown(): void
     {
+        ApplicationClock::reset();
         PublisherFaults::reset();
         $this->remove($this->directory);
         parent::tearDown();
@@ -136,6 +138,20 @@ abstract class TestCase extends BaseTestCase
         foreach (array_diff($templates, ['.', '..']) as $template) {
             copy($source . '/templates/' . $template, $this->directory . '/resources/templates/' . $template);
         }
+    }
+
+    /** Resolve the sole fingerprinted publication asset for one logical entry-asset name. */
+    protected function publishedAsset(string $logicalName): string
+    {
+        $extensionOffset = mb_strrpos($logicalName, '.', 0, '8bit');
+        self::assertIsInt($extensionOffset);
+        $basename = mb_substr($logicalName, 0, $extensionOffset, '8bit');
+        $extension = mb_substr($logicalName, $extensionOffset, null, '8bit');
+        $matches = glob($this->directory . '/public/assets/' . $basename . '.*' . $extension);
+        self::assertIsArray($matches);
+        self::assertCount(1, $matches);
+
+        return $matches[0];
     }
 
     private function remove(string $path): void

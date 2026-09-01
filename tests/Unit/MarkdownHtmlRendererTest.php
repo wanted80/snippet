@@ -11,7 +11,7 @@ it('renders the typed Markdown document with escaping and contextual links', fun
     $markdown = <<<'MARKDOWN'
 # Heading
 
-Text <raw>, *emphasis*, **strong**, ~~removed~~, `code`, [web](https://example.test/?a=1&b=2), and [asset](file.txt).
+Text <raw>, *emphasis*, **strong**, ~~removed~~, `code`, [web](https://example.test/?a=1&b=2), [fragment](#part), and [asset](file.txt).
 
 ---
 
@@ -29,7 +29,7 @@ MARKDOWN;
 
     expect($html)->toContain(
         '<h3>Heading</h3>',
-        '<p>Text &lt;raw&gt;, <em>emphasis</em>, <strong>strong</strong>, <s>removed</s>, <code>code</code>, <a href="https://example.test/?a=1&amp;b=2">web</a>, and <a href="/articles/post/file.txt">asset</a>.</p>',
+        '<p>Text &lt;raw&gt;, <em>emphasis</em>, <strong>strong</strong>, <s>removed</s>, <code>code</code>, <a href="https://example.test/?a=1&amp;b=2">web</a>, <a href="#part">fragment</a>, and <a href="/articles/post/file.txt">asset</a>.</p>',
         '<hr>',
         "<ul>\n<li>item</li>\n</ul>",
         "<ol>\n<li>ordered</li>\n</ol>",

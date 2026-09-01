@@ -34,6 +34,7 @@ final readonly class HtmlRenderer
         private Config $config,
         private Catalog $catalog,
         private Templates $templates,
+        private AssetPaths $assets,
     ) {
         $this->menuPages = $this->orderedMenuPages();
         $this->preloads = $this->renderPreloads();
@@ -110,7 +111,7 @@ final readonly class HtmlRenderer
     public function notFound(): string
     {
         $body = $this->templates->render(Template::NotFound, [
-            'home_url' => $this->config->publicPath('/'),
+            'home_url' => $this->browserPath('/'),
         ]);
 
         return $this->layout(
@@ -253,10 +254,10 @@ final readonly class HtmlRenderer
         $preloads = '';
         if ($this->config->hasSiteStylesheet) {
             if (in_array(self::UPRIGHT_FONT_ASSET, $this->config->assets, true)) {
-                $preloads .= '<link rel="preload" href="' . $this->config->publicPath('/assets/site/') . self::UPRIGHT_FONT_ASSET . '" as="font" type="font/woff2" crossorigin>' . "\n";
+                $preloads .= '<link rel="preload" href="' . $this->browserPath('/assets/site/' . self::UPRIGHT_FONT_ASSET) . '" as="font" type="font/woff2" crossorigin>' . "\n"; // @pest-mutate-ignore: ConcatEqualToEqual
             }
             if (in_array(self::WORDMARK_FONT_ASSET, $this->config->assets, true)) {
-                $preloads .= '<link rel="preload" href="' . $this->config->publicPath('/assets/site/') . self::WORDMARK_FONT_ASSET . '" as="font" type="font/woff2" crossorigin>' . "\n";
+                $preloads .= '<link rel="preload" href="' . $this->browserPath('/assets/site/' . self::WORDMARK_FONT_ASSET) . '" as="font" type="font/woff2" crossorigin>' . "\n";
             }
         }
 
@@ -265,15 +266,15 @@ final readonly class HtmlRenderer
 
     private function renderSiteStylesheet(): string
     {
-        return $this->config->hasSiteStylesheet
-            ? '<link rel="stylesheet" href="' . $this->config->publicPath('/assets/site.css') . "\">\n"
+        return $this->assets->siteStylesheet !== null
+            ? '<link rel="stylesheet" href="' . $this->browserPath($this->assets->siteStylesheet) . "\">\n"
             : '';
     }
 
     private function renderSiteScript(): string
     {
-        return $this->config->hasSiteScript
-            ? '<script src="' . $this->config->publicPath('/assets/site.js') . '" defer></script>' . "\n"
+        return $this->assets->siteScript !== null
+            ? '<script src="' . $this->browserPath($this->assets->siteScript) . '" defer></script>' . "\n"
             : '';
     }
 
@@ -307,6 +308,8 @@ final readonly class HtmlRenderer
                 . $this->socialMetadata($socialTitle ?? $title, $description, $route, $socialType, $socialImage),
             'base_path' => $this->escape($this->config->basePath),
             'preloads' => $this->preloads,
+            'theme_script' => '<script src="' . $this->browserPath($this->assets->themeScript) . '"></script>',
+            'theme_stylesheet' => '<link rel="stylesheet" href="' . $this->browserPath($this->assets->themeStylesheet) . '">',
             'site_stylesheet' => $this->siteStylesheet,
             'site_script' => $this->siteScript,
             'sitename' => $this->escape($this->config->sitename),
@@ -318,7 +321,7 @@ final readonly class HtmlRenderer
     private function featuredArticle(Article $article): string
     {
         return $this->templates->render(Template::FeaturedArticle, [
-            'url' => $this->config->publicPath($article->url()),
+            'url' => $this->browserPath($article->url()),
             'title' => $this->escape($article->title),
             'date' => $this->date($article),
             'tags' => $this->tagList($article->tags),
@@ -335,10 +338,10 @@ final readonly class HtmlRenderer
 
         $path = implode('/', array_map(rawurlencode(...), explode('/', $article->image->path)));
         return $this->templates->render(Template::ArticleFigure, [
-            'url' => $this->config->publicPath($article->url()) . $path,
+            'url' => $this->browserPath($article->url() . $path),
             'alt' => $this->escape($article->image->alt),
-            'width' => (string) $article->image->width,
-            'height' => (string) $article->image->height,
+            'width' => (string) $article->image->width, // @pest-mutate-ignore: RemoveStringCast
+            'height' => (string) $article->image->height, // @pest-mutate-ignore: RemoveStringCast
         ]);
     }
 
@@ -391,7 +394,7 @@ final readonly class HtmlRenderer
     private function homeArticleSummary(Article $article): string
     {
         return $this->templates->render(Template::ArchiveItem, [
-            'url' => $this->config->publicPath($article->url()),
+            'url' => $this->browserPath($article->url()),
             'title' => $this->escape($article->title),
             'date' => $this->date($article),
         ]);
@@ -402,7 +405,7 @@ final readonly class HtmlRenderer
         $isArticle = $item instanceof Article;
 
         return $this->templates->render(Template::ContentSummary, [
-            'url' => $this->config->publicPath($item->url()),
+            'url' => $this->browserPath($item->url()),
             'title' => $this->escape($item->title),
             'date' => $isArticle ? $this->date($item) : '',
             'description' => $this->escape($item->description),
@@ -422,9 +425,9 @@ final readonly class HtmlRenderer
         $accessibleLabel = $usage->tag->label . ', ' . $usage->articles . ' ' . $countLabel;
 
         return $this->templates->render(Template::TagUsage, [
-            'url' => $this->config->publicPath($usage->tag->url()),
+            'url' => $this->browserPath($usage->tag->url()),
             'label' => $this->escape($usage->tag->label),
-            'count' => (string) $usage->articles,
+            'count' => (string) $usage->articles, // @pest-mutate-ignore: RemoveStringCast
             'accessible_label' => $this->escape($accessibleLabel),
         ]);
     }
@@ -437,7 +440,7 @@ final readonly class HtmlRenderer
     private function indexLink(string $url, string $label): string
     {
         return '<p class="index-link"><a class="button-link" href="'
-            . $this->escape($this->config->publicPath($url))
+            . $this->browserPath($url)
             . '">' . $this->escape($label)
             . '<svg class="button-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14m-6-6 6 6-6 6"></path></svg></a></p>';
     }
@@ -447,13 +450,13 @@ final readonly class HtmlRenderer
         $escapedLabel = $this->escape($label);
         $ariaCurrent = $current ? ' aria-current="page"' : '';
 
-        return '<a class="menu-link" href="' . $this->escape($this->config->publicPath($url)) . '"' . $ariaCurrent . '>' . $escapedLabel . '</a>';
+        return '<a class="menu-link" href="' . $this->browserPath($url) . '"' . $ariaCurrent . '>' . $escapedLabel . '</a>';
     }
 
     private function tagItem(Tag $tag): string
     {
         return $this->templates->render(Template::TagItem, [
-            'url' => $this->config->publicPath($tag->url()),
+            'url' => $this->browserPath($tag->url()),
             'label' => $this->escape($tag->label),
         ]);
     }
@@ -478,5 +481,10 @@ final readonly class HtmlRenderer
     private function escape(string $value): string
     {
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+    }
+
+    private function browserPath(string $route): string
+    {
+        return $this->escape($this->config->publicPath($route));
     }
 }

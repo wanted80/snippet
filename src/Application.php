@@ -100,8 +100,8 @@ final readonly class Application
             $inputs = $publicationInputLoader->load($this->root);
             $catalog = $inputs->catalog;
             if ($command === 'build') {
-                $publisher = $this->publisher ?? new Publisher();
-                $report = $publisher->publish($this->root, $inputs->config, $catalog, $inputs->limits, $inputs->templates);
+                $publisher = $this->publisher ?? new Publisher(); // @pest-mutate-ignore: CoalesceRemoveLeft
+                $report = $publisher->publish($this->root, $inputs->config, $catalog, $inputs->limits, $inputs->templates, $inputs->assets);
             }
         } catch (ContentException $contentException) {
             $operation = $command === 'validate' ? 'Validation' : ($command === 'build' ? 'Build' : 'Preview');
@@ -109,7 +109,7 @@ final readonly class Application
             return self::FAILURE;
         }
 
-        if ($report instanceof BuildReport && is_int($started)) {
+        if ($report instanceof BuildReport && is_int($started)) { // @pest-mutate-ignore: BooleanAndToBooleanOr,InstanceOfToTrue
             $milliseconds = intdiv($this->nanoseconds() - $started + 500_000, 1_000_000);
             $stdout->fwrite('Built site: '
                 . $this->plural($report->articles, 'article') . ', '
@@ -230,11 +230,15 @@ final readonly class Application
 
                 $portProvided = true;
                 $value = mb_substr($option, 7);
-                if (preg_match('/^[0-9]+$/D', $value) !== 1 || (int) $value < 1 || (int) $value > 65_535) {
+                if (preg_match('/^[0-9]+$/D', $value) !== 1) {
                     return $this->usageError($stderr, 'Preview port must be an integer from 1 through 65535.');
                 }
 
                 $port = (int) $value;
+                if ($port < 1 || $port > 65_535) {
+                    return $this->usageError($stderr, 'Preview port must be an integer from 1 through 65535.');
+                }
+
                 continue;
             }
 

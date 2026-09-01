@@ -31,12 +31,29 @@ final readonly class TemplateLoader
             if ($contents === false || !mb_check_encoding($contents, 'UTF-8')) {
                 throw new ContentException("HTML template '{$path}' must be readable UTF-8 text.");
             }
+            $contents = $this->normalizeReleasedLayout($template, $contents);
             $this->validateContexts($contents, $path);
             $this->validatePlaceholders($template, $contents, $path);
             $templates[$template->value] = $contents;
         }
 
         return new Templates($templates);
+    }
+
+    private function normalizeReleasedLayout(Template $template, string $contents): string
+    {
+        if ($template !== Template::Layout) {
+            return $contents;
+        }
+
+        return str_replace(
+            [
+                '<script src="{{base_path}}/assets/theme.js"></script>',
+                '<link rel="stylesheet" href="{{base_path}}/assets/theme.css">',
+            ],
+            ['{{theme_script}}', '{{theme_stylesheet}}'],
+            $contents,
+        );
     }
 
     private function validateContexts(string $contents, string $path): void

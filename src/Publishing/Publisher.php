@@ -27,28 +27,36 @@ final readonly class Publisher
         private Utf8FileValidator $utf8FileValidator = new Utf8FileValidator(),
     ) {}
 
-    /** Validate and load every non-content file required for publication. */
-    #[NoDiscard('the validated templates should be reused by publication')]
-    public function validate(string $root, Config $config, ?Limits $limits = null): Templates
+    /**
+     * Validate and retain every non-content resource required for one publication snapshot.
+     *
+     * @throws ContentException when a required template or asset is invalid or unreadable
+     */
+    #[NoDiscard('the validated resources should be reused by publication')]
+    public function validatedResources(string $root, Config $config, ?Limits $limits = null): PublicationResources
     {
         $limits ??= new Limits();
+        $retainedAssetBytes = 0;
         $templates = $this->templateLoader->load($root . '/resources/templates', $limits);
-        $this->validateAsset($root . '/resources/theme.css', $limits, true);
-        $this->validateAsset($root . '/resources/theme.js', $limits, true);
+        $themeStylesheet = $this->stylesheet($root . '/resources/theme.css', '/assets/theme.css', $config->minify, $limits, $retainedAssetBytes);
+        $themeScript = $this->asset($root . '/resources/theme.js', '/assets/theme.js', $limits, $retainedAssetBytes);
         $this->validateAsset($root . '/site/favicon.svg', $limits, true);
 
-        if ($config->hasSiteStylesheet) {
-            $this->validateAsset($root . '/site/site.css', $limits, true);
-        }
-        if ($config->hasSiteScript) {
-            $this->validateAsset($root . '/site/site.js', $limits, true);
-        }
+        $siteStylesheet = $config->hasSiteStylesheet
+            ? $this->stylesheet($root . '/site/site.css', '/assets/site.css', $config->minify, $limits, $retainedAssetBytes)
+            : null;
+        $siteScript = $config->hasSiteScript
+            ? $this->asset($root . '/site/site.js', '/assets/site.js', $limits, $retainedAssetBytes)
+            : null;
 
         foreach ($config->assets as $asset) {
             $this->validateAsset($root . '/site/assets/' . $asset, $limits, false);
         }
 
-        return $templates;
+        return new PublicationResources(
+            $templates,
+            new PublicationAssets($themeStylesheet, $themeScript, $siteStylesheet, $siteScript),
+        );
     }
 
     /** @throws ContentException when rendering, copying, or publication fails */
@@ -58,6 +66,7 @@ final readonly class Publisher
         Catalog $catalog,
         ?Limits $limits = null,
         ?Templates $templates = null,
+        ?PublicationAssets $assets = null,
         ?string $previewVersion = null,
     ): BuildReport {
         $public = $root . '/public';
@@ -66,7 +75,11 @@ final readonly class Publisher
         }
 
         $limits ??= new Limits();
-        $templates ??= $this->validate($root, $config, $limits);
+        if (!$templates instanceof Templates || !$assets instanceof PublicationAssets) {
+            $resources = $this->validatedResources($root, $config, $limits);
+            $templates ??= $resources->templates;
+            $assets ??= $resources->assets;
+        }
         $budget = new BuildBudget($limits);
         $suffix = bin2hex(random_bytes(8));
         $temporary = $root . '/.snippet-build-' . $suffix;
@@ -74,7 +87,7 @@ final readonly class Publisher
 
         try {
             $this->directory($temporary);
-            $this->buildTree($root, $temporary, $config, $catalog, $templates, $budget, $previewVersion);
+            $this->buildTree($root, $temporary, $config, $catalog, $templates, $assets, $budget, $previewVersion);
             $this->promote($temporary, $public, $backup);
         } catch (ContentException $contentException) {
             $this->removeIfPresent($temporary);
@@ -93,10 +106,11 @@ final readonly class Publisher
         Config $config,
         Catalog $catalog,
         Templates $templates,
+        PublicationAssets $assets,
         BuildBudget $budget,
         ?string $previewVersion,
     ): void {
-        $renderer = new HtmlRenderer($config, $catalog, $templates);
+        $renderer = new HtmlRenderer($config, $catalog, $templates, $assets->paths);
         $this->writeHtml($output . '/index.html', $renderer->home(), $config->minify, $budget);
         $this->writeHtml($output . '/404.html', $renderer->notFound(), $config->minify, $budget);
 
@@ -125,16 +139,10 @@ final readonly class Publisher
             $this->writeFile($path, $contents);
         }
 
-        $this->publishCss($root . '/resources/theme.css', $output . '/assets/theme.css', $config->minify, $budget);
-        $this->copy($root . '/resources/theme.js', $output . '/assets/theme.js', $budget);
+        foreach ($assets->all() as $asset) {
+            $this->writeAsset($output . $asset->publishedPath, $asset, $budget);
+        }
         $this->copy($root . '/site/favicon.svg', $output . '/favicon.svg', $budget);
-
-        if ($config->hasSiteStylesheet) {
-            $this->publishCss($root . '/site/site.css', $output . '/assets/site.css', $config->minify, $budget);
-        }
-        if ($config->hasSiteScript) {
-            $this->copy($root . '/site/site.js', $output . '/assets/site.js', $budget);
-        }
 
         foreach ($config->assets as $asset) {
             $this->copy($root . '/site/assets/' . $asset, $output . '/assets/site/' . $asset, $budget);
@@ -200,6 +208,12 @@ final readonly class Publisher
         }
     }
 
+    private function writeAsset(string $path, PublicationAsset $asset, BuildBudget $budget): void
+    {
+        $budget->addAsset($asset->bytes(), $path);
+        $this->writeFile($path, $asset->contents);
+    }
+
     private function writeLlms(string $path, LlmsTxtRenderer $renderer, BuildBudget $budget): void
     {
         $this->directory(dirname($path));
@@ -222,39 +236,66 @@ final readonly class Publisher
         }
     }
 
-    private function publishCss(string $source, string $destination, bool $minify, BuildBudget $budget): void
+    private function stylesheet(string $source, string $logicalPath, bool $minify, Limits $limits, int &$retainedAssetBytes): PublicationAsset
     {
+        $sourceBytes = $this->validateAsset($source, $limits, true);
         if (!$minify) {
-            $this->copy($source, $destination, $budget);
-            return;
+            return $this->readAsset($source, $logicalPath, $sourceBytes, $limits, $retainedAssetBytes);
         }
 
-        if (!is_file($source) || is_link($source)) {
-            throw new ContentException("Unable to minify '{$source}' to '{$destination}'.");
-        }
-
-        $this->directory(dirname($destination));
         $input = @fopen($source, 'rb');
         if (!is_resource($input)) {
-            throw new ContentException("Unable to minify '{$source}' to '{$destination}'.");
+            throw new ContentException("Unable to minify publication stylesheet '{$source}'.");
         }
 
-        $output = @fopen($destination, 'wb');
+        $output = @fopen('php://temp', 'w+b');
         if (!is_resource($output)) {
             fclose($input);
-            throw new ContentException("Unable to minify '{$source}' to '{$destination}'.");
+            throw new ContentException("Unable to minify publication stylesheet '{$source}'.");
         }
 
         try {
-            $bytes = $this->cssMinifier->minify($input, $output);
+            $publishedBytes = $this->cssMinifier->minify($input, $output);
+            $this->retainEntryAsset($publishedBytes, $source, $limits, $retainedAssetBytes);
+            if (!rewind($output)) {
+                throw new ContentException("Unable to read minified publication stylesheet '{$source}'.");
+            }
+            $contents = stream_get_contents($output);
+            if (!is_string($contents)) {
+                throw new ContentException("Unable to read minified publication stylesheet '{$source}'.");
+            }
         } finally {
             fclose($input);
             fclose($output);
         }
 
-        $budget->addAsset($bytes, $destination);
-        if (!@chmod($destination, 0644)) {
-            throw new ContentException("Unable to minify '{$source}' to '{$destination}'.");
+        return new PublicationAsset($logicalPath, $contents);
+    }
+
+    private function asset(string $source, string $logicalPath, Limits $limits, int &$retainedAssetBytes): PublicationAsset
+    {
+        $sourceBytes = $this->validateAsset($source, $limits, true);
+
+        return $this->readAsset($source, $logicalPath, $sourceBytes, $limits, $retainedAssetBytes);
+    }
+
+    private function readAsset(string $source, string $logicalPath, int $bytes, Limits $limits, int &$retainedAssetBytes): PublicationAsset
+    {
+        $this->retainEntryAsset($bytes, $source, $limits, $retainedAssetBytes);
+
+        $contents = @file_get_contents($source);
+        if (!is_string($contents)) {
+            throw new ContentException("Unable to read publication asset '{$source}'.");
+        }
+
+        return new PublicationAsset($logicalPath, $contents);
+    }
+
+    private function retainEntryAsset(int $bytes, string $source, Limits $limits, int &$retainedAssetBytes): void
+    {
+        $retainedAssetBytes += $bytes;
+        if ($retainedAssetBytes > $limits->retainedEntryAssetBytes) {
+            throw new ContentException("Retained entry assets exceed the {$limits->retainedEntryAssetBytes}-byte retained-entry-asset ceiling while loading '{$source}'.");
         }
     }
 
@@ -291,7 +332,7 @@ final readonly class Publisher
         }
     }
 
-    private function validateAsset(string $path, Limits $limits, bool $utf8): void
+    private function validateAsset(string $path, Limits $limits, bool $utf8): int
     {
         if (!is_file($path) || is_link($path)) {
             throw new ContentException("Publication asset '{$path}' must be a regular non-symlink file.");
@@ -305,6 +346,8 @@ final readonly class Publisher
         if (!$this->utf8FileValidator->isValid($path, $utf8)) {
             throw new ContentException("Publication asset '{$path}' must be readable" . ($utf8 ? ' UTF-8 text.' : '.'));
         }
+
+        return $size;
     }
 
     private function directory(string $path): void

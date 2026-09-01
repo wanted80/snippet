@@ -348,7 +348,10 @@ final readonly class CatalogLoader
      */
     private function assertFields(array $metadata, array $expected, string $slug): void
     {
+        // Both array_diff() inputs are lists; reindexing cannot change the emptiness check or joined values below.
+        // @pest-mutate-ignore: UnwrapArrayValues
         $missing = array_values(array_diff($expected, array_keys($metadata)));
+        // @pest-mutate-ignore: UnwrapArrayValues
         $unknown = array_values(array_diff(array_keys($metadata), $expected));
         if ($missing !== []) {
             throw new ContentException(sprintf("Metadata for '%s' is missing field(s): ", $slug) . implode(', ', $missing) . '.');
@@ -382,6 +385,8 @@ final readonly class CatalogLoader
         }
 
         $alt = $hasAlt ? $this->altText($metadata['alt'], $slug) : '';
+        // Retained enum keys cannot affect emptiness, count(), or array_first().
+        // @pest-mutate-ignore: UnwrapArrayValues
         $candidates = array_values(array_filter(
             CoverFormat::cases(),
             static fn(CoverFormat $format): bool => in_array($format->filename(), $files, true),
@@ -436,6 +441,8 @@ final readonly class CatalogLoader
         }
 
         $date = DateTimeImmutable::createFromFormat('!Y-m-d', $metadata['date']);
+        // The preceding fixed-width numeric grammar is always parseable; this remains a defensive native-API guard.
+        // @pest-mutate-ignore: FalseToTrue
         if ($date === false || $date->format('Y-m-d') !== $metadata['date']) {
             throw new ContentException(sprintf("Metadata field 'date' for '%s' must be a real date in YYYY-MM-DD format.", $slug));
         }

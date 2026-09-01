@@ -20,6 +20,11 @@ function file_put_contents(string $filename, string $data): int|false
     };
 }
 
+function file_get_contents(string $filename): string|false
+{
+    return PublisherFaults::fails('publishing_file_get_contents') ? false : \file_get_contents($filename);
+}
+
 function chmod(string $filename, int $permissions): bool
 {
     return !PublisherFaults::fails('chmod') && \chmod($filename, $permissions);
@@ -70,8 +75,16 @@ function rewind(mixed $stream): bool
 }
 
 /** @param resource $stream */
+function stream_get_contents(mixed $stream): string|false
+{
+    return PublisherFaults::fails('publishing_stream_get_contents') ? false : \stream_get_contents($stream);
+}
+
+/** @param resource $stream */
 function fclose(mixed $stream): bool
 {
+    PublisherFaults::record('publishing_fclose');
+
     return \fclose($stream);
 }
 
@@ -106,7 +119,7 @@ use Snippet\Tests\PublisherFaults;
 /** @return resource|false */
 function fopen(string $filename, string $mode): mixed
 {
-    return PublisherFaults::fails('support_fopen') ? false : \fopen($filename, $mode);
+    return PublisherFaults::fails('support_fopen') ? false : @\fopen($filename, $mode);
 }
 
 /**
@@ -116,4 +129,12 @@ function fopen(string $filename, string $mode): mixed
 function fread(mixed $stream, int $length): string|false
 {
     return PublisherFaults::fails('support_fread') ? false : \fread($stream, $length);
+}
+
+/** @param resource $stream */
+function fclose(mixed $stream): bool
+{
+    PublisherFaults::record('support_fclose');
+
+    return \fclose($stream);
 }

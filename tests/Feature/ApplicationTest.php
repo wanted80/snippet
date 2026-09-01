@@ -7,6 +7,7 @@ use Snippet\Preview\Previewer;
 use Snippet\Publishing\PublicationInputLoader;
 use Snippet\Site\Limits;
 use Snippet\Support\ApplicationVersion;
+use Snippet\Tests\ApplicationClock;
 
 /**
  * @param list<string> $arguments
@@ -56,6 +57,36 @@ it('reports successful publication counts and rounded full-command duration', fu
             return $reading;
         },
     ))->toBe([0, "Built site: 1 article, 1 page, 2 tags, 4 assets, 14 files in 13 ms.\n", '']);
+});
+
+it('rounds build durations exactly at the half-millisecond boundary', function (int $elapsed, int $milliseconds): void {
+    $this->content();
+    $this->resources();
+    $readings = [1_000_000, 1_000_000 + $elapsed];
+
+    expect(runApplication(
+        $this->directory,
+        ['bin/snippet', 'build'],
+        nanoseconds: static function () use (&$readings): int {
+            $reading = array_shift($readings);
+            assert(is_int($reading));
+
+            return $reading;
+        },
+    ))->toBe([0, "Built site: 0 articles, 0 pages, 0 tags, 3 assets, 9 files in {$milliseconds} ms.\n", '']);
+})->with([
+    'below half a millisecond' => [499_999, 0],
+    'at half a millisecond' => [500_000, 1],
+]);
+
+it('requests numeric high-resolution time from the native clock boundary', function (): void {
+    $this->content();
+    $this->resources();
+    ApplicationClock::replace([1_000_000.75, 14_000_000.75]);
+
+    expect(runApplication($this->directory, ['bin/snippet', 'build']))
+        ->toBe([0, "Built site: 0 articles, 0 pages, 0 tags, 3 assets, 9 files in 13 ms.\n", ''])
+        ->and(ApplicationClock::requests())->toBe([true, true]);
 });
 
 it('uses correct plurals in validation and build summaries', function (): void {
@@ -247,6 +278,7 @@ it('rejects invalid and duplicate preview options', function (array $arguments, 
     'host with scheme' => [['bin/snippet', 'preview', '--host=https://localhost'], 'Preview host must be a valid IP address or hostname.'],
     'empty port' => [['bin/snippet', 'preview', '--port='], 'Preview port must be an integer from 1 through 65535.'],
     'non-numeric port' => [['bin/snippet', 'preview', '--port=eighty'], 'Preview port must be an integer from 1 through 65535.'],
+    'partially numeric port' => [['bin/snippet', 'preview', '--port=1x'], 'Preview port must be an integer from 1 through 65535.'],
     'port too low' => [['bin/snippet', 'preview', '--port=0'], 'Preview port must be an integer from 1 through 65535.'],
     'port too high' => [['bin/snippet', 'preview', '--port=65536'], 'Preview port must be an integer from 1 through 65535.'],
     'duplicate host' => [['bin/snippet', 'preview', '--host=localhost', '--host=0.0.0.0'], 'Preview option --host may be provided only once.'],
@@ -294,7 +326,7 @@ it('delegates the long-running preview command without building through the norm
         ->and($stdout->fgets())->toBe("Preview stopped.\n");
 });
 
-it('passes valid preview host and port overrides to the preview server', function (): void {
+it('passes valid preview host and port overrides to the preview server', function (int $port): void {
     $previewer = new class implements Previewer {
         /** @var array{string, int}|null */
         public ?array $address = null;
@@ -314,14 +346,17 @@ it('passes valid preview host and port overrides to the preview server', functio
     $stdout = new SplFileObject('php://memory', 'w+');
     $stderr = new SplFileObject('php://memory', 'w+');
     $status = new Application($this->directory, previewer: $previewer)->run(
-        ['bin/snippet', 'preview', '--port=9000', '--host=0.0.0.0'],
+        ['bin/snippet', 'preview', "--port={$port}", '--host=0.0.0.0'],
         $stdout,
         $stderr,
     );
 
     expect($status)->toBe(0)
-        ->and($previewer->address)->toBe(['0.0.0.0', 9000]);
-});
+        ->and($previewer->address)->toBe(['0.0.0.0', $port]);
+})->with([
+    'lowest port' => 1,
+    'highest port' => 65_535,
+]);
 
 it('identifies the failed operation in actionable content errors', function (string $command, string $operation): void {
     expect(runApplication($this->directory, ['bin/snippet', $command]))

@@ -19,8 +19,8 @@ it('renders independent document, author, and multilingual wordmark identities',
     new Publisher()->publish($this->directory, $config, $this->catalog());
 
     $home = file_get_contents($this->directory . '/public/index.html');
-    $css = file_get_contents($this->directory . '/public/assets/theme.css');
-    $javascript = file_get_contents($this->directory . '/public/assets/theme.js');
+    $css = file_get_contents($this->publishedAsset('theme.css'));
+    $javascript = file_get_contents($this->publishedAsset('theme.js'));
     assert(is_string($home));
     assert(is_string($css));
     assert(is_string($javascript));
@@ -62,7 +62,7 @@ it('ships and copies the configured wordmark font byte for byte', function (): v
     $config = new ConfigLoader()->load($this->directory . '/site');
     new Publisher()->publish($this->directory, $config, $this->catalog());
     $published = file_get_contents($this->directory . '/public/assets/site/fonts/snippet-logo/snippet-logo.woff2');
-    $theme = file_get_contents($this->directory . '/public/assets/site.css');
+    $theme = file_get_contents($this->publishedAsset('site.css'));
     assert(is_string($published));
     assert(is_string($theme));
 

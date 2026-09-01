@@ -170,6 +170,7 @@ final class PreviewServer implements Previewer
             $inputs->catalog,
             $inputs->limits,
             $inputs->templates,
+            $inputs->assets,
             previewVersion: bin2hex(random_bytes(8)),
         );
 
@@ -277,6 +278,8 @@ final class PreviewServer implements Previewer
             $childRelative = $relative . '/' . $entry;
             if (is_link($child)) {
                 $target = readlink($child);
+                // readlink() returns string|false, so comparing its result with true has the same concatenation result.
+                // @pest-mutate-ignore: FalseToTrue
                 yield $childRelative . ':link:' . ($target === false ? '' : $target);
             } elseif (is_dir($child)) {
                 yield $childRelative . ':directory';

@@ -27,10 +27,10 @@ final readonly class PublicationInputLoader
     {
         $config = $this->configLoader->load($root . '/site', $this->limits);
         $catalog = $this->catalogLoader->load($root . '/content', $this->limits);
-        $templates = $this->publisher->validate($root, $config, $this->limits);
-        $inventory = new PublicationInventory($config, $catalog);
+        $resources = $this->publisher->validatedResources($root, $config, $this->limits);
+        $inventory = new PublicationInventory($config, $catalog, $resources->assets->paths);
         $this->referenceValidator->validate($root, $config, $catalog, $inventory);
 
-        return new PublicationInputs($this->limits, $config, $catalog, $templates);
+        return new PublicationInputs($this->limits, $config, $catalog, $resources->templates, $resources->assets);
     }
 }

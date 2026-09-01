@@ -16,7 +16,7 @@ it('defines the consolidated thirteen-template interface', function (): void {
     }
 
     expect($contracts)->toBe([
-        'layout.html' => ['language', 'description', 'author', 'version', 'title', 'canonical', 'social_metadata', 'base_path', 'preloads', 'site_stylesheet', 'site_script', 'sitename', 'navigation', 'body'],
+        'layout.html' => ['language', 'description', 'author', 'version', 'title', 'canonical', 'social_metadata', 'base_path', 'preloads', 'theme_script', 'theme_stylesheet', 'site_stylesheet', 'site_script', 'sitename', 'navigation', 'body'],
         'home.html' => ['site_title', 'featured_article', 'archive_section', 'tag_section', 'empty_state', 'home_grid_class'],
         'featured-article.html' => ['url', 'title', 'date', 'tags', 'figure', 'document'],
         'article-figure.html' => ['url', 'alt', 'width', 'height'],
@@ -76,6 +76,8 @@ it('keeps the default layout self-contained and loads only local stylesheets', f
         'social_metadata' => '',
         'base_path' => '',
         'preloads' => '',
+        'theme_script' => '<script src="/assets/theme.1234567890abcdef.js"></script>',
+        'theme_stylesheet' => '<link rel="stylesheet" href="/assets/theme.1234567890abcdef.css">',
         'site_stylesheet' => '',
         'site_script' => '',
         'sitename' => 'Brand',
@@ -87,7 +89,7 @@ it('keeps the default layout self-contained and loads only local stylesheets', f
         '<meta name="author" content="Writer &amp; Editor">',
         '<meta name="generator" content="Snippet ' . ApplicationVersion::CURRENT . '">',
         '<link rel="icon" href="/favicon.svg" type="image/svg+xml">',
-        '<link rel="stylesheet" href="/assets/theme.css">',
+        '<link rel="stylesheet" href="/assets/theme.1234567890abcdef.css">',
         '<p class="site-footer-row">',
         '<span>Generated and published with</span>',
         '<span class="site-footer-heart" aria-hidden="true">♥</span>',
@@ -96,8 +98,76 @@ it('keeps the default layout self-contained and loads only local stylesheets', f
         "style-src 'self'",
         "font-src 'self'",
         "img-src 'self'",
-    )->not->toContain('{{preloads}}', '{{site_stylesheet}}', '{{site_script}}', '{{social_metadata}}', 'fonts.bunny.net', 'frame-ancestors');
+    )->not->toContain('{{preloads}}', '{{theme_script}}', '{{theme_stylesheet}}', '{{site_stylesheet}}', '{{site_script}}', '{{social_metadata}}', 'fonts.bunny.net', 'frame-ancestors');
 });
+
+it('normalizes the exact released v2 theme tags to engine-owned placeholders', function (): void {
+    $this->resources();
+    $path = $this->directory . '/resources/templates/layout.html';
+    $layout = file_get_contents($path);
+    assert(is_string($layout));
+    file_put_contents($path, str_replace(
+        ['{{theme_script}}', '{{theme_stylesheet}}'],
+        [
+            '<script src="{{base_path}}/assets/theme.js"></script>',
+            '<link rel="stylesheet" href="{{base_path}}/assets/theme.css">',
+        ],
+        $layout,
+    ));
+
+    $templates = new TemplateLoader()->load($this->directory . '/resources/templates');
+    $rendered = $templates->render(Template::Layout, [
+        'language' => 'en',
+        'description' => 'Description',
+        'author' => 'Writer',
+        'version' => ApplicationVersion::CURRENT,
+        'title' => 'Title',
+        'canonical' => 'https://example.test/',
+        'social_metadata' => '',
+        'base_path' => '',
+        'preloads' => '',
+        'theme_script' => '<script src="/assets/theme.0123456789abcdef.js"></script>',
+        'theme_stylesheet' => '<link rel="stylesheet" href="/assets/theme.fedcba9876543210.css">',
+        'site_stylesheet' => '',
+        'site_script' => '',
+        'sitename' => 'Brand',
+        'navigation' => '',
+        'body' => '',
+    ]);
+
+    expect($rendered)->toContain(
+        '<script src="/assets/theme.0123456789abcdef.js"></script>',
+        '<link rel="stylesheet" href="/assets/theme.fedcba9876543210.css">',
+    )->not->toContain('/assets/theme.js', '/assets/theme.css', '{{theme_script}}', '{{theme_stylesheet}}');
+});
+
+it('rejects near-miss and incomplete released v2 theme tags', function (string $script, string $stylesheet): void {
+    $this->resources();
+    $path = $this->directory . '/resources/templates/layout.html';
+    $layout = file_get_contents($path);
+    assert(is_string($layout));
+    file_put_contents($path, str_replace(
+        ['{{theme_script}}', '{{theme_stylesheet}}'],
+        [$script, $stylesheet],
+        $layout,
+    ));
+
+    (void) new TemplateLoader()->load($this->directory . '/resources/templates');
+})->throws(ContentException::class, 'must contain exactly these placeholders')
+    ->with([
+        'near-miss script tag' => [
+            '<script defer src="{{base_path}}/assets/theme.js"></script>',
+            '<link rel="stylesheet" href="{{base_path}}/assets/theme.css">',
+        ],
+        'near-miss stylesheet tag' => [
+            '<script src="{{base_path}}/assets/theme.js"></script>',
+            '<link href="{{base_path}}/assets/theme.css" rel="stylesheet">',
+        ],
+        'incomplete legacy layout' => [
+            '<script src="{{base_path}}/assets/theme.js"></script>',
+            '',
+        ],
+    ]);
 
 it('rejects a missing or linked required template', function (string $kind): void {
     $this->resources();
