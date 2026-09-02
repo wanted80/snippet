@@ -12,7 +12,8 @@
         "ext-mbstring": "*",
         "ext-pcre": "*",
         "ext-random": "*",
-        "ext-tokenizer": "*"
+        "ext-tokenizer": "*",
+        "ext-uri": "*"
     },
     "require-dev": {
         "ext-json": "*",

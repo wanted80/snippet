@@ -10,6 +10,10 @@ use Snippet\Content\Catalog;
 use Snippet\Content\Page;
 use Snippet\Exception\ContentException;
 use Snippet\Site\Config;
+use Snippet\Support\UriReferenceParser;
+use Uri\Rfc3986\Uri;
+
+use function mb_ltrim;
 
 /** Checks authored Markdown references against one generated-path inventory. */
 final readonly class ReferenceValidator
@@ -52,16 +56,17 @@ final readonly class ReferenceValidator
 
     private function resolve(string $target, string $currentRoute, Config $config, string $source, int $line): ?string
     {
-        $parts = parse_url($target);
-        if ($parts === false) {
+        $uri = UriReferenceParser::parse($target);
+        if (!$uri instanceof Uri) {
             throw new LogicException('A parsed Markdown link target must be URL-parseable.');
         }
 
-        if (isset($parts['scheme'])) {
-            if (!$this->sameOrigin($parts, $config->url)) {
+        $scheme = $uri->getScheme();
+        if ($scheme !== null) {
+            if (!$this->sameOrigin($uri, $scheme, $config->url)) {
                 return null;
             }
-            $path = $parts['path'] ?? '/';
+            $path = '/' . mb_ltrim($uri->getRawPath(), '/');
             // A root deployment path would only enter this block and remove a zero-length prefix.
             // @pest-mutate-ignore: EmptyStringToNotEmpty
             if ($config->basePath !== '') {
@@ -75,7 +80,7 @@ final readonly class ReferenceValidator
             }
             $absolute = true;
         } else {
-            $path = $parts['path'] ?? '';
+            $path = $uri->getRawPath();
             $absolute = str_starts_with($path, '/');
         }
 
@@ -110,35 +115,37 @@ final readonly class ReferenceValidator
         return $resolved;
     }
 
-    /** @param array<string, int|string> $target */
-    private function sameOrigin(array $target, string $siteOrigin): bool
+    private function sameOrigin(Uri $target, string $targetScheme, string $siteOrigin): bool
     {
-        $site = parse_url($siteOrigin);
-        if ($site === false) {
+        $targetHost = $target->getHost();
+        if ($targetHost === null || $targetHost === '') {
+            throw new LogicException('A parsed Markdown link target must be URL-parseable.');
+        }
+
+        $site = Uri::parse($siteOrigin);
+        if (!$site instanceof Uri) {
+            throw new LogicException('A validated site origin must be URL-parseable.');
+        }
+        $siteScheme = $site->getScheme();
+        if ($siteScheme === null) {
+            throw new LogicException('A validated site origin must be URL-parseable.');
+        }
+        $siteHost = $site->getHost();
+        if ($siteHost === null || $siteHost === '') {
             throw new LogicException('A validated site origin must be URL-parseable.');
         }
 
-        // sameOrigin() is called only for parsed targets with a scheme; parse_url() returns textual URL parts.
-        // @pest-mutate-ignore: RemoveStringCast
-        // @pest-mutate-ignore: EmptyStringToNotEmpty
-        $targetScheme = mb_strtolower((string) ($target['scheme'] ?? ''));
-        // Validated site origins always include a scheme.
-        // @pest-mutate-ignore: EmptyStringToNotEmpty
-        $siteScheme = mb_strtolower($site['scheme'] ?? '');
-        // A hostless target cannot equal the non-empty host of a validated site, regardless of its fallback text.
-        // @pest-mutate-ignore: RemoveStringCast
-        // @pest-mutate-ignore: EmptyStringToNotEmpty
-        $targetHost = mb_strtolower((string) ($target['host'] ?? ''));
-        // Validated site origins always include a host.
-        // @pest-mutate-ignore: EmptyStringToNotEmpty
-        $siteHost = mb_strtolower($site['host'] ?? '');
+        $targetScheme = mb_strtolower($targetScheme);
+        $siteScheme = mb_strtolower($siteScheme);
+        $targetHost = mb_strtolower($targetHost);
+        $siteHost = mb_strtolower($siteHost);
         if ($targetScheme !== $siteScheme || $targetHost !== $siteHost) {
             return false;
         }
 
         // ConfigLoader accepts only HTTPS origins, and the matching scheme above therefore is HTTPS too.
-        $targetPort = $target['port'] ?? 443;
-        $sitePort = $site['port'] ?? 443;
+        $targetPort = $target->getPort() ?? 443;
+        $sitePort = $site->getPort() ?? 443;
 
         return $targetPort === $sitePort;
     }

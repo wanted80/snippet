@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Snippet\Site;
 
+use Uri\Rfc3986\Uri;
+
 /** Validated site identity, presentation inventory, and build preferences. */
 final readonly class Config
 {
@@ -24,8 +26,7 @@ final readonly class Config
         public int $homeTags = 20,
         public bool $minify = false,
     ) {
-        $path = parse_url($url, PHP_URL_PATH);
-        $this->basePath = is_string($path) ? $path : '';
+        $this->basePath = Uri::parse($url)?->getRawPath() ?? '';
     }
 
     /** Prefix a validated logical publication route for browser-facing output. */
@@ -43,10 +44,6 @@ final readonly class Config
     /** Return the HTTPS origin independently from the configured deployment path. */
     public function origin(): string
     {
-        $scheme = parse_url($this->url, PHP_URL_SCHEME);
-        $host = parse_url($this->url, PHP_URL_HOST);
-        $port = parse_url($this->url, PHP_URL_PORT);
-
-        return $scheme . '://' . $host . ($port === null ? '' : ':' . $port);
+        return new Uri($this->url)->withPath('')->toRawString();
     }
 }

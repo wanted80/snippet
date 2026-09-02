@@ -6,6 +6,8 @@ namespace Snippet\Markdown;
 
 use NoDiscard;
 use Snippet\Exception\ContentException;
+use Snippet\Support\UriReferenceParser;
+use Uri\Rfc3986\Uri;
 
 use function count;
 use function filter_var;
@@ -601,8 +603,8 @@ final class Parser
 
     private function validateLink(string $target, string $path, int $line): void
     {
-        $valid = preg_match('/[\x00-\x20\x7f]/', $target) !== 1
-            && !str_starts_with($target, '//')
+        $valid = !str_starts_with($target, '//')
+            && UriReferenceParser::parse($target) instanceof Uri
             && (
                 (preg_match('#^https?://#i', $target) === 1 && filter_var($target, FILTER_VALIDATE_URL) !== false)
                 || str_starts_with($target, '/') // @pest-mutate-ignore: StrStartsWithToStrEndsWith
