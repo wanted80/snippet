@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.2](https://github.com/wanted80/snippet/compare/v2.1.1...v2.1.2) (2026-09-02)
+
+
+### Bug Fixes
+
+* **favicon:** update gradient fill for slash style in favicon.svg ([#31](https://github.com/wanted80/snippet/issues/31)) ([a9bba65](https://github.com/wanted80/snippet/commit/a9bba65da0977d29c242e1bdf3ee6d31b76a5eaa))
+
 ## [2.1.1](https://github.com/wanted80/snippet/compare/v2.1.0...v2.1.1) (2026-09-02)
 
 
