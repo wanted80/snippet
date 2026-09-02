@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.3](https://github.com/wanted80/snippet/compare/v2.1.2...v2.1.3) (2026-09-02)
+
+
+### Bug Fixes
+
+* **uri:** update URI parsing for PHP 8.5 and upgrade rector version ([#33](https://github.com/wanted80/snippet/issues/33)) ([4ae2385](https://github.com/wanted80/snippet/commit/4ae2385b7a57c21b2a581eb413ca5d4236902b38))
+
 ## [2.1.2](https://github.com/wanted80/snippet/compare/v2.1.1...v2.1.2) (2026-09-02)
 
 
