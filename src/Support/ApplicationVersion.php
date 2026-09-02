@@ -7,5 +7,5 @@ namespace Snippet\Support;
 /** Provides the release-managed application version to runtime consumers. */
 final class ApplicationVersion
 {
-    public const string CURRENT = '2.1.1'; // x-release-please-version
+    public const string CURRENT = '2.1.2'; // x-release-please-version
 }
