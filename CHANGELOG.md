@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.1](https://github.com/wanted80/snippet/compare/v2.1.0...v2.1.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* **ci:** deploy Pages from tested main revisions ([#29](https://github.com/wanted80/snippet/issues/29)) ([3d16fd1](https://github.com/wanted80/snippet/commit/3d16fd19bb7a523454462870f26bb6094eece51f))
+
 ## [2.1.0](https://github.com/wanted80/snippet/compare/v2.0.0...v2.1.0) (2026-09-01)
 
 
