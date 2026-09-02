@@ -486,6 +486,7 @@ it('rejects unsafe link schemes and protocol-relative targets', function (string
     'protocol relative' => '//example.com/path',
     'whitespace' => 'hello world',
     'malformed https' => 'https://:',
+    'malformed percent encoding' => 'https://example.test/bad%escape',
 ]);
 
 it('reports link errors on the correct line across block and inline contexts', function (string $source, int $line): void {

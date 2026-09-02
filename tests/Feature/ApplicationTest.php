@@ -446,6 +446,7 @@ it('declares direct PHP extension requirements in their matching dependency scop
         'ext-pcre' => '*',
         'ext-random' => '*',
         'ext-tokenizer' => '*',
+        'ext-uri' => '*',
     ])->and($development)->toBe([
         'ext-json' => '*',
         'ext-pcntl' => '*',

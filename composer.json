@@ -12,7 +12,8 @@
         "ext-mbstring": "*",
         "ext-pcre": "*",
         "ext-random": "*",
-        "ext-tokenizer": "*"
+        "ext-tokenizer": "*",
+        "ext-uri": "*"
     },
     "require-dev": {
         "ext-json": "*",
@@ -31,7 +32,7 @@
         "phpstan/phpstan-deprecation-rules": "^2.0.4",
         "phpstan/phpstan-phpunit": "^2.0",
         "phpstan/phpstan-strict-rules": "^2.0",
-        "rector/rector": "^2.6.5"
+        "rector/rector": "^2.6.6"
     },
     "autoload": {
         "psr-4": {

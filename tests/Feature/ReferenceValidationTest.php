@@ -28,6 +28,7 @@ it('accepts every generated route and copied-asset reference form', function ():
 [normalized asset](./files/../files/data.txt)
 [parent page](../../about/)
 [same origin](https://example.test/about/#details)
+[same origin root](https://example.test)
 [Unicode tag route](/tags/caf%C3%A9/)
 [raw Unicode tag route](/tags/café/)
 [fragment](#local)
@@ -110,18 +111,17 @@ it('exposes a sorted deterministic publication inventory', function (): void {
         ->toContain('/404.html', '/articles/post/', '/articles/post/index.html', '/articles/post/notes.txt', $inputs->assets->themeStylesheet->publishedPath, $inputs->assets->themeScript->publishedPath, $inputs->assets->siteStylesheet?->publishedPath, $inputs->assets->siteScript?->publishedPath, '/favicon.svg', '/llms.txt', '/tags/caf%C3%A9/');
 });
 
-it('fails explicitly if URL parsing invariants are bypassed', function (string $kind, string $message): void {
+it('fails explicitly if URL parsing invariants are bypassed', function (string $configUrl, string $target, string $message): void {
     $config = new Config(
         title: 'Test Site',
         sitename: 'Test Site',
         author: 'Test Author',
         description: 'D',
-        url: $kind === 'origin' ? 'https://' : 'https://example.test',
+        url: $configUrl,
         language: 'en',
         assets: [],
         hasSiteStylesheet: false,
     );
-    $target = $kind === 'target' ? 'https://' : 'https://example.test/';
     $inlines = new InlineBuilder();
     $inlines->link(0, mb_strlen($target, '8bit'));
 
@@ -144,11 +144,33 @@ it('fails explicitly if URL parsing invariants are bypassed', function (string $
     ))->toThrow(LogicException::class, $message);
 })->with([
     'malformed parsed target' => [
-        'target',
+        'https://example.test',
+        'https://example.test/bad%escape',
         'A parsed Markdown link target must be URL-parseable.',
     ],
-    'malformed validated origin' => [
-        'origin',
+    'hostless parsed target' => [
+        'https://example.test',
+        'https://',
+        'A parsed Markdown link target must be URL-parseable.',
+    ],
+    'unparseable validated origin' => [
+        'https://example.test/bad%escape',
+        'https://example.test/',
+        'A validated site origin must be URL-parseable.',
+    ],
+    'schemeless validated origin' => [
+        'example.test',
+        'https://example.test/',
+        'A validated site origin must be URL-parseable.',
+    ],
+    'hostless validated origin' => [
+        'https:',
+        'https://example.test/',
+        'A validated site origin must be URL-parseable.',
+    ],
+    'empty-host validated origin' => [
+        'https://',
+        'https://example.test/',
         'A validated site origin must be URL-parseable.',
     ],
 ]);

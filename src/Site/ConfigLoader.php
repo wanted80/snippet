@@ -9,6 +9,7 @@ use Snippet\Exception\ContentException;
 use Snippet\Support\RegularFileInventory;
 use Snippet\Support\TrustedPhpLoader;
 use Snippet\Support\Utf8FileValidator;
+use Uri\Rfc3986\Uri;
 
 use function array_diff;
 use function array_keys;
@@ -92,12 +93,12 @@ final readonly class ConfigLoader
             throw new ContentException("Site configuration field 'url' path control characters, whitespace, quotes, '<', and '>' must be percent-encoded.");
         }
 
-        $parts = parse_url($value);
-        if (filter_var($value, FILTER_VALIDATE_URL) === false || $parts === false || ($parts['scheme'] ?? null) !== 'https' || !isset($parts['host']) || array_diff(array_keys($parts), ['scheme', 'host', 'port', 'path']) !== []) {
+        $uri = Uri::parse($value);
+        if (filter_var($value, FILTER_VALIDATE_URL) === false || !$uri instanceof Uri || $uri->getRawScheme() !== 'https' || $uri->getRawHost() === null || $uri->getRawUserInfo() !== null || $uri->getRawQuery() !== null || $uri->getRawFragment() !== null) {
             throw new ContentException("Site configuration field 'url' must be an HTTPS site URL without credentials, query, or fragment.");
         }
 
-        $path = $parts['path'] ?? '';
+        $path = $uri->getRawPath();
         if (($path !== '' && !str_starts_with($path, '/')) || str_contains($path, '//') || str_contains($path, '\\') || preg_match('/%(?![0-9A-Fa-f]{2})/', $path) === 1) {
             throw new ContentException("Site configuration field 'url' must be an HTTPS site URL with a well-formed absolute path.");
         }
