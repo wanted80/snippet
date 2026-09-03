@@ -15,7 +15,10 @@ RUN composer install \
 
 FROM php:8.5-cli-alpine AS builder
 
-RUN addgroup -S snippet \
+RUN apk add --no-cache --virtual .snippet-build-dependencies ${PHPIZE_DEPS} \
+    && docker-php-ext-install -j"$(nproc)" pcntl \
+    && apk del .snippet-build-dependencies \
+    && addgroup -S snippet \
     && adduser -S -G snippet snippet \
     && mkdir /workspace \
     && chown snippet:snippet /workspace
@@ -32,6 +35,7 @@ COPY src/Content src/Content
 COPY src/Exception src/Exception
 COPY src/Markdown src/Markdown
 COPY src/Publishing src/Publishing
+COPY src/Preview src/Preview
 COPY src/Rendering src/Rendering
 COPY src/Scaffolding src/Scaffolding
 COPY src/Site src/Site
@@ -39,6 +43,7 @@ COPY src/Support src/Support
 COPY site site
 COPY resources/theme.css resources/theme.css
 COPY resources/theme.js resources/theme.js
+COPY resources/preview-router.php resources/preview-router.php
 COPY resources/templates resources/templates
 COPY LICENSE LICENSE
 COPY docker/builder/entrypoint.sh /usr/local/bin/snippet

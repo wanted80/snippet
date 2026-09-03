@@ -5,9 +5,10 @@ declare(strict_types=1);
 
 use Snippet\Application;
 use Snippet\Cli\ErrorReporter;
+use Snippet\Preview\PreviewServer;
 use Snippet\Scaffolding\WorkspaceInitializer;
 
-const USAGE = "Usage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n";
+const USAGE = "Usage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet preview [--host=<host>] [--port=<port>]\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n";
 
 /** @var list<string> $arguments */
 $arguments = $_SERVER['argv'];
@@ -59,8 +60,26 @@ if (($arguments[1] ?? null) === 'init') {
     exit(0);
 }
 
-exit(new Application($workspace, usage: USAGE, errorReporter: $errorReporter, previewEnabled: false)->run(
-    $arguments,
-    $stdout,
-    $stderr,
-));
+do {
+    $status = new Application(
+        $workspace,
+        previewer: new PreviewServer(
+            routerPath: $engineRoot . '/resources/preview-router.php',
+            watchRuntimeSource: false,
+            errorReporter: $errorReporter,
+        ),
+        usage: USAGE,
+        errorReporter: $errorReporter,
+        previewEnabled: true,
+    )->run(
+        $arguments,
+        $stdout,
+        $stderr,
+    );
+
+    if ($status === PreviewServer::RESTART_EXIT_CODE) {
+        $stdout->fwrite("Restarting preview for the updated deployment path.\n");
+    }
+} while ($status === PreviewServer::RESTART_EXIT_CODE);
+
+exit($status);

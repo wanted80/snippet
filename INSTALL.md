@@ -18,7 +18,7 @@ docker run --rm \
   ghcr.io/wanted80/snippet:v2.1.3 init # x-release-please-version
 ```
 
-`init` creates empty `content/articles/` and `content/pages/` collections and copies the canonical generic files from `site/` and `resources/`. Existing files win, nothing is deleted, `public/` is untouched, and the engine-development preview router is not copied. Demo configuration and content are never included. Repeating `init` after changing the pinned image may add newly required shared files without replacing customization.
+`init` creates empty `content/articles/` and `content/pages/` collections and copies the canonical generic files from `site/` and `resources/`. Existing files win, nothing is deleted, `public/` is untouched, and the engine-owned preview router is not copied. Demo configuration and content are never included. Repeating `init` after changing the pinned image may add newly required shared files without replacing customization.
 
 Set the complete public HTTPS URL in `site/config.php`, then create the first page or article. Rerun the command with `init` replaced by `validate` to check the site without changing `public/`, or by `build` to create the static publication. The same image creates drafts:
 
@@ -34,7 +34,7 @@ docker run --rm \
   ghcr.io/wanted80/snippet:v2.1.3 new article first-post # x-release-please-version
 ```
 
-The image exposes only `--version`, `init`, `new page`, `new article`, `validate`, and `build`. Draft creation requires the relevant collection created by `init`, refuses symlinked or existing destinations, and leaves `public/` unchanged. The image deliberately omits preview, Composer, development tools, and source outside those commands' runtime paths. `validate` reports the catalog and prospective asset count. `build` measures validation plus transactional publication and reports the actual promoted asset and file counts. Failures retain the existing `public/` directory.
+The image exposes `--version`, `init`, `new page`, `new article`, `validate`, `build`, and the local-development `preview` command. Draft creation requires the relevant collection created by `init`, refuses symlinked or existing destinations, and leaves `public/` unchanged. The image omits Composer, development tools, and source outside those commands' runtime paths. `validate` reports the catalog and prospective asset count. `build` measures validation plus transactional publication and reports the actual promoted asset and file counts. Failures retain the existing `public/` directory.
 
 Moving release aliases and `latest` are convenient for evaluation but unsuitable for reproducible publication. Pin a full release such as `v2.1.3` or an immutable image digest. <!-- x-release-please-version -->
 
@@ -73,6 +73,75 @@ docker run --rm \
 
 Docker may need network access to pull the image before the container starts; `--network none` applies to the running builder.
 
+## Content-only container preview
+
+The same pinned image serves Snippet's live authoring preview without host PHP, Node, or a generator checkout:
+
+```bash
+docker run --rm --init \
+  --read-only \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
+  --user "$(id -u):$(id -g)" \
+  --publish 127.0.0.1:8080:8080 \
+  --mount type=bind,src="$PWD",dst=/workspace \
+  --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
+  ghcr.io/wanted80/snippet:v2.1.3 preview --host=0.0.0.0 --port=8080 # x-release-please-version
+```
+
+Visit `http://127.0.0.1:8080/`, followed by the deployment path from `site/config.php` when one is configured. The container must bind PHP to `0.0.0.0` so Docker can forward the port, but Docker publishes that port only on the host's `127.0.0.1`; do not replace the host-side address with an unrestricted binding. Change both `8080` values to select another port.
+
+Preview validates and builds before serving, watches `content/`, `site/`, and `resources/`, live-reloads after successful changes, and keeps the last valid site available after an invalid edit until it is corrected. A deployment-path change restarts the image-owned local server automatically. Ctrl+C or `docker stop` terminates the watcher and child PHP server; `--init` provides normal container process reaping. Preview opens no browser and is for local development only, never production serving.
+
+The router remains immutable engine code at `/app/resources/preview-router.php`. It is neither copied into the mounted publication by `init` nor required beneath `/workspace`. A later ordinary `build` transaction replaces preview output and cannot retain the injected reload helper or preview-only version endpoint.
+
+Keep isolated build commands and local preview as separate Compose services:
+
+```yaml
+services:
+  snippet:
+    image: ghcr.io/wanted80/snippet:v2.1.3 # x-release-please-version
+    working_dir: /workspace
+    network_mode: none
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - .:/workspace
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+
+  snippet-preview:
+    image: ghcr.io/wanted80/snippet:v2.1.3 # x-release-please-version
+    working_dir: /workspace
+    command: preview --host=0.0.0.0 --port=8080
+    init: true
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - .:/workspace
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+```
+
+Some Docker environments, including Colima configurations, suppress published host ports when a container uses an `internal: true` bridge. The example therefore uses Compose's ordinary project bridge and relies on the narrow `127.0.0.1` publication for inbound protection. Snippet preview makes no outbound requests, but this bridge does not enforce outbound isolation; add an internal network only after confirming that published loopback ports remain reachable on the target Docker platform.
+
+`docker compose run` does not publish service ports unless `--service-ports` is present; a downstream Make target can preserve host ownership and stay attached with:
+
+```make
+preview:
+	docker compose run --rm --service-ports --user "$$(id -u):$$(id -g)" snippet-preview
+```
+
+Continue using `docker compose run --rm --user "$$(id -u):$$(id -g)" snippet build` for production output; the `snippet` service remains network-disabled.
+
 ## Direct PHP usage from a full checkout
 
 Clone Snippet when developing the engine or when using its direct PHP CLI:
@@ -98,7 +167,7 @@ Run the canonical CLI from the publication workspace. The executable may live in
 
 An article without `--date` uses the current UTC date. Draft creation deliberately produces incomplete metadata and Markdown, never replaces an existing content directory, and never changes `public/`. Complete the draft before validation.
 
-Direct preview serves HTTP at `http://127.0.0.1:8080` by default, watches `content/`, `site/`, and `resources/`, preserves the last valid output after an invalid edit, and reloads open pages after a successful rebuild. Use a different validated address when needed:
+Direct preview serves HTTP at `http://127.0.0.1:8080` by default, watches `content/`, `site/`, and `resources/`, reloads fresh contributor runtime after changes beneath `bin/` or `src/`, preserves the last valid output after an invalid edit, and reloads open pages after a successful rebuild. Use a different validated address when needed:
 
 ```bash
 bin/snippet preview --host=127.0.0.1 --port=9000
@@ -145,7 +214,7 @@ make builder-smoke
 make demo-check
 ```
 
-`docker-check` runs exact source line and type coverage, Pint, Rector, PHPStan, composed-demo validation, ShellCheck, and JavaScript syntax validation. `docker-audit` remains separate because advisory data needs the network. `builder-smoke` checks the release image and its empty-workspace initialization lifecycle; `demo-check` composes root shared files with `demo/`, validates the complete existing site, and proves its production build succeeds.
+`docker-check` runs exact source line and type coverage, Pint, Rector, PHPStan, composed-demo validation, ShellCheck, and JavaScript syntax validation. `docker-audit` remains separate because advisory data needs the network. `builder-smoke` checks the release image, its empty-workspace initialization lifecycle, and hardened content-only preview behavior; `demo-check` composes root shared files with `demo/`, validates the complete existing site, and proves its production build succeeds.
 
 The optional `.env` controls local orchestration only. Its principal settings are:
 
@@ -271,7 +340,11 @@ Deploy only `public/`. Keep it ignored; do not create a generated-output branch.
 make docker-preview PREVIEW_PORT=9443
 ```
 
-For direct preview use `bin/snippet preview --port=9000`. Run `make docker-preview-down` if an earlier Docker preview still owns the configured port.
+For direct preview use `bin/snippet preview --port=9000`. For official-image preview, change both the published host port and `--port`, for example `--publish 127.0.0.1:9000:9000` with `--port=9000`. Run `make docker-preview-down` if an earlier contributor Docker preview still owns the configured port.
+
+### Container preview is unreachable
+
+Keep the host publication as `127.0.0.1:<host-port>:<container-port>`, but pass `--host=0.0.0.0` to `snippet preview` inside the container. Binding the container process to its default `127.0.0.1` isolates it inside that container, so Docker cannot forward the published port. Also include `--service-ports` when starting the Compose preview with `docker compose run`.
 
 ### The browser warns about the local certificate
 

@@ -61,6 +61,39 @@ function removeBuilderTestSite(string $workspace): void
     rmdir($workspace . '/site');
 }
 
+function availableBuilderPreviewPort(): int
+{
+    $socket = stream_socket_server('tcp://127.0.0.1:0', $errorCode, $errorMessage);
+    expect($socket)->toBeResource($errorMessage ?? 'Unable to allocate a builder preview port.');
+    assert(is_resource($socket));
+    $address = stream_socket_get_name($socket, false);
+    fclose($socket);
+    assert(is_string($address));
+    $separator = mb_strrpos($address, ':');
+    assert(is_int($separator));
+
+    return (int) mb_substr($address, $separator + 1);
+}
+
+function waitForBuilderPreview(string $url, string $expected): string
+{
+    for ($attempt = 0; $attempt < 50; ++$attempt) {
+        set_error_handler(static fn(): true => true);
+        try {
+            $response = file_get_contents($url);
+        } finally {
+            restore_error_handler();
+        }
+        if (is_string($response) && str_contains($response, $expected)) {
+            return $response;
+        }
+
+        usleep(100_000);
+    }
+
+    throw new RuntimeException("Builder preview did not serve '{$expected}' at '{$url}'.");
+}
+
 it('runs version, validation, and builds against a content-only workspace', function (): void {
     $this->content();
     $this->item('about', ['title' => 'About', 'description' => 'About this site.']);
@@ -80,6 +113,68 @@ it('runs version, validation, and builds against a content-only workspace', func
         ->and($this->directory . '/vendor')->not->toBeDirectory()
         ->and($this->directory . '/src')->not->toBeDirectory()
         ->and($this->directory . '/bin')->not->toBeDirectory();
+});
+
+it('previews a content-only workspace through the engine router and restarts after a base-path change', function (): void {
+    $this->content();
+    $this->resources();
+    unlink($this->directory . '/resources/preview-router.php');
+    $port = availableBuilderPreviewPort();
+    $root = dirname(__DIR__, 2);
+    $process = proc_open(
+        [PHP_BINARY, $root . '/docker/builder/entrypoint.sh', 'preview', "--port={$port}"],
+        [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+        $pipes,
+        $this->directory,
+        [
+            'SNIPPET_ENGINE_ROOT' => $root,
+            'SNIPPET_WORKSPACE' => $this->directory,
+        ],
+    );
+    expect($process)->toBeResource();
+    assert(is_resource($process));
+    $processClosed = false;
+
+    try {
+        waitForBuilderPreview("http://127.0.0.1:{$port}/", '<title>Test Site</title>');
+        $this->site(['url' => 'https://example.test/snippet']);
+        waitForBuilderPreview("http://127.0.0.1:{$port}/snippet/", '<title>Test Site</title>');
+        proc_terminate($process, SIGTERM);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        assert(is_string($stdout));
+        assert(is_string($stderr));
+
+        $status = proc_close($process);
+        $processClosed = true;
+        expect($status)->toBe(143)
+            ->and($stdout)->toContain(
+                "Preview available at http://127.0.0.1:{$port}/.",
+                'Watching publication inputs for changes.',
+                'Site deployment path changed.',
+                'Restarting preview for the updated deployment path.',
+                "Preview available at http://127.0.0.1:{$port}/snippet/.",
+            )
+            ->not->toContain('runtime source')
+            ->and($stderr)->not->toContain('failed');
+
+        $socket = stream_socket_server("tcp://127.0.0.1:{$port}", $errorCode, $errorMessage);
+        expect($socket)->toBeResource($errorMessage ?? 'The builder preview server is still running.');
+        assert(is_resource($socket));
+        fclose($socket);
+    } finally {
+        if (!$processClosed) {
+            proc_terminate($process, SIGKILL);
+            proc_close($process);
+        }
+        foreach ($pipes as $pipe) {
+            if (is_resource($pipe)) {
+                fclose($pipe);
+            }
+        }
+    }
 });
 
 it('initializes an empty workspace from canonical shared inputs without demo content', function (): void {
@@ -217,10 +312,10 @@ it('refuses draft creation when the required content structure is missing', func
 it('rejects commands outside the builder image contract', function (array $arguments, string $message): void {
     /** @var list<string> $arguments */
     expect(runBuilderEntrypoint($this->directory, ...$arguments))
-        ->toBe([2, '', "Error: {$message}\n\nUsage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n"]);
+        ->toBe([2, '', "Error: {$message}\n\nUsage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet preview [--host=<host>] [--port=<port>]\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n"]);
 })->with([
     'no command' => [[], 'A command is required.'],
-    'preview' => [['preview'], "Unknown command 'preview'."],
+    'preview option' => [['preview', '--remote'], "Unknown preview option '--remote'."],
     'extra argument' => [['build', 'extra'], "Command 'build' does not accept arguments."],
 ]);
 
@@ -229,7 +324,7 @@ it('reports new-command usage through the builder interface', function (): void 
         ->toBe([
             2,
             '',
-            "Error: New command requires a content type and slug.\n\nUsage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n",
+            "Error: New command requires a content type and slug.\n\nUsage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet preview [--host=<host>] [--port=<port>]\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n",
         ]);
 });
 
@@ -251,15 +346,20 @@ it('defines a dedicated minimal builder image and runtime configuration', functi
         'FROM composer:2 AS composer',
         'FROM php:8.5-cli-alpine AS dependencies',
         'FROM php:8.5-cli-alpine AS builder',
+        'apk add --no-cache --virtual .snippet-build-dependencies ${PHPIZE_DEPS}',
+        'docker-php-ext-install -j"$(nproc)" pcntl',
+        'apk del .snippet-build-dependencies',
         'COPY --from=composer /usr/bin/composer /usr/local/bin/composer',
         'COPY --from=dependencies /app/vendor /app/vendor',
         'COPY src/Application.php src/Application.php',
         'COPY src/Authoring src/Authoring',
         'COPY src/Cli src/Cli',
         'COPY src/Content src/Content',
+        'COPY src/Preview src/Preview',
         'COPY src/Scaffolding src/Scaffolding',
         'COPY resources/theme.css resources/theme.css',
         'COPY resources/theme.js resources/theme.js',
+        'COPY resources/preview-router.php resources/preview-router.php',
         'COPY resources/templates resources/templates',
         'COPY docker/builder/entrypoint.sh /usr/local/bin/snippet',
         'USER snippet',
@@ -271,8 +371,6 @@ it('defines a dedicated minimal builder image and runtime configuration', functi
             'COPY content content',
             'COPY demo',
             '/starter',
-            'src/Preview',
-            'resources/preview-router.php',
             'EXPOSE',
         )
         ->and($configuration)->toBe(

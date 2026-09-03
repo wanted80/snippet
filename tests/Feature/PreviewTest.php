@@ -6,6 +6,8 @@ use Snippet\Exception\ContentException;
 use Snippet\Preview\PreviewServer;
 use Snippet\Tests\PublisherFaults;
 
+mutates(PreviewServer::class);
+
 function availablePreviewPort(): int
 {
     $socket = stream_socket_server('tcp://127.0.0.1:0', $errorCode, $errorMessage);
@@ -228,6 +230,94 @@ it('binds the PHP server to the host and port supplied by the CLI', function ():
             $this->directory . '/resources/preview-router.php',
         ]);
 });
+
+it('uses an injected engine router for a content-only publication without watching runtime source', function (): void {
+    $this->content();
+    $this->resources();
+    unlink($this->directory . '/resources/preview-router.php');
+    $router = dirname(__DIR__, 2) . '/resources/preview-router.php';
+    $command = null;
+    $starter = static function (array $startedCommand, string $root) use (&$command): mixed {
+        $command = $startedCommand;
+        return proc_open(
+            [PHP_BINARY, '-r', 'sleep(10);'],
+            [0 => ['file', '/dev/null', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']],
+            $pipes,
+            $root,
+        );
+    };
+    $stdout = new SplFileObject('php://memory', 'w+');
+
+    expect(new PreviewServer(
+        maximumPolls: 0,
+        processStarter: $starter,
+        routerPath: $router,
+        watchRuntimeSource: false,
+    )->run(
+        $this->directory,
+        $stdout,
+        new SplFileObject('php://memory', 'w+'),
+    ))->toBe(0)
+        ->and($this->directory . '/bin')->not->toBeDirectory()
+        ->and($this->directory . '/src')->not->toBeDirectory()
+        ->and($command)->toBe([
+            PHP_BINARY,
+            '-S',
+            '127.0.0.1:8080',
+            '-t',
+            $this->directory . '/public',
+            $router,
+        ]);
+
+    $stdout->rewind();
+    expect($stdout->fread(8192))->toContain('Watching publication inputs for changes.')
+        ->not->toContain('runtime source');
+});
+
+it('does not request a restart for runtime changes when runtime watching is disabled', function (): void {
+    $this->content();
+    $this->resources();
+    $source = $this->directory . '/src';
+    mkdir($source);
+    file_put_contents($source . '/Runtime.php', '<?php return "before";');
+    $afterPoll = static function () use ($source): void {
+        file_put_contents($source . '/Runtime.php', '<?php return "after";');
+    };
+
+    expect(new PreviewServer(
+        port: availablePreviewPort(),
+        pollMicroseconds: 50_000,
+        maximumPolls: 1,
+        afterPoll: $afterPoll,
+        watchRuntimeSource: false,
+    )->run(
+        $this->directory,
+        new SplFileObject('php://memory', 'w+'),
+        new SplFileObject('php://memory', 'w+'),
+    ))->toBe(0);
+});
+
+it('rejects an injected preview router that is not a readable regular non-symlink file', function (string $kind): void {
+    $this->content();
+    $this->resources();
+    $router = $this->directory . '/engine-router.php';
+    match ($kind) {
+        'directory' => mkdir($router),
+        'symlink' => symlink(dirname(__DIR__, 2) . '/resources/preview-router.php', $router),
+        'unreadable' => copy(dirname(__DIR__, 2) . '/resources/preview-router.php', $router) && chmod($router, 0000),
+        'missing' => null,
+        default => throw new LogicException("Unexpected router fixture '{$kind}'."),
+    };
+
+    expect(fn(): int => new PreviewServer(maximumPolls: 0, routerPath: $router)->run(
+        $this->directory,
+        new SplFileObject('php://memory', 'w+'),
+        new SplFileObject('php://memory', 'w+'),
+    ))->toThrow(
+        ContentException::class,
+        "Preview router '{$router}' must be a readable regular non-symlink file.",
+    );
+})->with(['missing', 'directory', 'symlink', 'unreadable']);
 
 it('connects the built-in server to the three standard streams', function (): void {
     $this->content();

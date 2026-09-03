@@ -39,7 +39,17 @@ docker run --rm \
 
 `--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path. Edit the generated `site/config.php` and content, then rerun the command with `init` replaced by `validate` or `build`. Create later drafts through the same image, for example by replacing `init` with `new article first-post`.
 
-The repository needs only `content/`, `site/`, and `resources/`; `public/` is disposable output. The builder image supports `--version`, `init`, `new page`, `new article`, `validate`, and `build`. See [INSTALL.md](INSTALL.md) for building another directory, direct PHP use, the contributor preview, customization, CI, and deployment.
+The repository needs only `content/`, `site/`, and `resources/`; `public/` is disposable output. The builder image supports `--version`, `init`, `new page`, `new article`, `validate`, `build`, and `preview`. Run the local development preview from a content-only repository with an explicitly published loopback port:
+
+```bash
+docker run --rm --init \
+  --user "$(id -u):$(id -g)" \
+  --publish 127.0.0.1:8080:8080 \
+  --volume "$PWD:/workspace" \
+  ghcr.io/wanted80/snippet:v2.1.3 preview --host=0.0.0.0 --port=8080 # x-release-please-version
+```
+
+Preview is for local authoring only; production deployment still consists solely of the generated `public/` directory. See [INSTALL.md](INSTALL.md) for hardened raw-Docker and Compose preview examples, building another directory, direct PHP use, the contributor HTTPS preview, customization, CI, and deployment.
 
 For a full checkout used to develop Snippet itself, Docker with Make remains the recommended environment:
 
@@ -50,7 +60,7 @@ cp .env.example .env
 make demo-check
 ```
 
-This builds the release image, assembles the demo in a temporary workspace, validates it, and proves the production build. To use live preview for a publication, run the direct CLI from that publication's workspace as documented in [INSTALL.md](INSTALL.md).
+This builds the release image, assembles the demo in a temporary workspace, validates it, and proves the production build. [INSTALL.md](INSTALL.md) documents both official-image preview for content-only publications and direct preview from a full checkout.
 
 ## Content
 
@@ -291,7 +301,7 @@ The default layout also carries a restrictive meta Content Security Policy for s
 
 ## Maintenance and releases
 
-Pull requests run the complete Docker development gate, validate both Compose environments, audit the locked Composer dependencies, and validate and build the composed demo through the release builder image. Run the same project-owned checks locally with:
+Pull requests run the complete Docker development gate, validate both Compose environments, audit the locked Composer dependencies, exercise preview through the release builder image, and validate and build the composed demo. Run the same project-owned checks locally with:
 
 ```bash
 make docker-check
