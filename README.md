@@ -43,9 +43,15 @@ The repository needs only `content/`, `site/`, and `resources/`; `public/` is di
 
 ```bash
 docker run --rm --init \
+  --read-only \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
+  --pids-limit 64 \
+  --cpus 2 \
   --user "$(id -u):$(id -g)" \
   --publish 127.0.0.1:8080:8080 \
   --volume "$PWD:/workspace" \
+  --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
   ghcr.io/wanted80/snippet:v2.1.3 preview --host=0.0.0.0 --port=8080 # x-release-please-version
 ```
 
@@ -301,7 +307,7 @@ The default layout also carries a restrictive meta Content Security Policy for s
 
 ## Maintenance and releases
 
-Pull requests run the complete Docker development gate, validate both Compose environments, audit the locked Composer dependencies, exercise preview through the release builder image, and validate and build the composed demo. Run the same project-owned checks locally with:
+Pull requests run the complete Docker development gate, validate both Compose environments, audit the locked Composer dependencies, exercise preview through the release builder image, report fixed high and critical operating-system vulnerabilities in that image, and validate and build the composed demo. Run the same project-owned checks locally with:
 
 ```bash
 make docker-check
@@ -311,7 +317,7 @@ make docker-audit
 
 `docker-check` is deterministic and includes exact line and type coverage, Pint, Rector, PHPStan, content validation, ShellCheck, and JavaScript syntax validation. The resource-intensive `docker-mutations` target separately runs the complete Pest suite against every covered source class and requires a 100% mutation score. `docker-audit` is separate because the Composer advisory lookup requires network access.
 
-Snippet follows Semantic Versioning. Pull requests are squash-merged with conventional titles, and Release Please maintains `CHANGELOG.md`, `vX.Y.Z` tags, and GitHub releases. Each stable release also publishes the official multi-platform builder image to GitHub Container Registry. See [CONTRIBUTING.md](CONTRIBUTING.md) for title conventions and the full contributor workflow. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+Snippet follows Semantic Versioning. Pull requests are squash-merged with conventional titles, and Release Please maintains `CHANGELOG.md`, `vX.Y.Z` tags, and GitHub releases. Each stable release also publishes the official multi-platform builder image to GitHub Container Registry with maximum BuildKit provenance, an SPDX SBOM, and GitHub build provenance; the release workflow records its immutable digest. See [CONTRIBUTING.md](CONTRIBUTING.md) for title conventions and the full contributor workflow. Report vulnerabilities privately and verify builder releases as described in [SECURITY.md](SECURITY.md).
 
 ## Documentation
 

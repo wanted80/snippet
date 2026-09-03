@@ -15,10 +15,20 @@ it('defines stable least-privilege continuous integration and deployment workflo
         "name: Quality\n",
         "permissions:\n  contents: read\n",
         'uses: actions/checkout@',
+        "          persist-credentials: false\n",
         'name: Run development quality gate',
         'run: make docker-check',
         'name: Smoke-test release builder image',
         'run: make builder-smoke',
+        'name: Report builder image OS vulnerabilities',
+        'uses: aquasecurity/trivy-action@',
+        "          image-ref: snippet-builder:smoke\n",
+        "          vuln-type: os\n",
+        "          severity: HIGH,CRITICAL\n",
+        "          ignore-unfixed: true\n",
+        "          exit-code: '0'\n",
+        "          version: v0.70.0\n",
+        "          cache: false\n",
         'name: Validate and build the composed demo site',
         'run: make demo-check',
         'run: make docker-audit',
@@ -26,11 +36,12 @@ it('defines stable least-privilege continuous integration and deployment workflo
     )
         ->and($quality)->not->toContain('pull_request_target', 'permissions: write-all', 'path: .', 'gh-pages')
         ->and($quality)->toMatch('~uses: actions/checkout@[0-9a-f]{40}~')
+        ->and($quality)->toMatch('~uses: aquasecurity/trivy-action@[0-9a-f]{40}~')
         ->and($pages)->toContain(
             "name: Pages\n",
             "  workflow_run:\n    workflows:\n      - Quality\n    types:\n      - completed\n",
             "github.event.workflow_run.conclusion == 'success'\n      && github.event.workflow_run.event == 'push'\n      && github.event.workflow_run.head_branch == 'main'\n      && github.event.workflow_run.head_repository.full_name == github.repository",
-            "        with:\n          ref: \${{ github.event.workflow_run.head_sha }}\n",
+            "        with:\n          ref: \${{ github.event.workflow_run.head_sha }}\n          persist-credentials: false\n",
             "    permissions:\n      contents: read\n",
             'sh docker/demo/check.sh snippet-builder:smoke "$RUNNER_TEMP/snippet-public"',
             'uses: actions/upload-pages-artifact@',
@@ -74,22 +85,32 @@ it('publishes stable released builder tags with provenance and least privilege',
     $release = file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/release.yml');
     assert(is_string($release));
     $smokePosition = mb_strpos($release, 'name: Smoke-test native builder image');
-    $loginPosition = mb_strpos($release, 'name: Log in to GitHub Container Registry');
+    $publishPosition = mb_strpos($release, "  publish:\n");
     assert(is_int($smokePosition));
-    assert(is_int($loginPosition));
+    assert(is_int($publishPosition));
 
     expect($release)->toContain(
         "name: Builder Image\n",
         "  release:\n    types:\n      - published\n",
-        "permissions:\n  contents: read\n  packages: write\n  attestations: write\n  id-token: write\n",
+        "permissions:\n  contents: read\n",
         "github.event.release.prerelease == false",
+        "  verify:\n    name: Verify builder image\n",
+        "    permissions:\n      contents: read\n",
+        "    outputs:\n      source_sha: \${{ steps.source.outputs.sha }}\n",
         'name: Validate stable release tag',
         'RELEASE_TAG: ${{ github.event.release.tag_name }}',
         'Stable builder releases require a vX.Y.Z tag',
-        "          ref: \${{ github.event.release.tag_name }}\n",
+        "          ref: \${{ github.event.release.tag_name }}\n          persist-credentials: false\n",
         'uses: actions/checkout@',
+        'name: Record tested source revision',
+        "        id: source\n",
+        'echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"',
         'name: Smoke-test native builder image',
         'run: make builder-smoke',
+        "  publish:\n    name: Publish builder image\n",
+        "    needs: verify\n",
+        "    permissions:\n      contents: read\n      packages: write\n      attestations: write\n      id-token: write\n",
+        "          ref: \${{ needs.verify.outputs.source_sha }}\n          persist-credentials: false\n",
         'uses: docker/setup-qemu-action@',
         'uses: docker/setup-buildx-action@',
         'uses: docker/login-action@',
@@ -104,7 +125,7 @@ it('publishes stable released builder tags with provenance and least privilege',
         'type=semver,pattern={{major}},value=${{ github.event.release.tag_name }}',
         'type=raw,value=latest',
         'org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}',
-        'org.opencontainers.image.revision=${{ github.sha }}',
+        'org.opencontainers.image.revision=${{ needs.verify.outputs.source_sha }}',
         'org.opencontainers.image.version=${{ github.event.release.tag_name }}',
         'org.opencontainers.image.description=A small personal static publishing system.',
         'org.opencontainers.image.licenses=MIT',
@@ -115,15 +136,26 @@ it('publishes stable released builder tags with provenance and least privilege',
         "          push: true\n",
         "          tags: \${{ steps.metadata.outputs.tags }}\n",
         "          labels: \${{ steps.metadata.outputs.labels }}\n",
+        "          provenance: mode=max\n",
+        "          sbom: true\n",
         'uses: actions/attest-build-provenance@',
         'subject-name: ghcr.io/wanted80/snippet',
         'subject-digest: ${{ steps.build.outputs.digest }}',
         "          push-to-registry: true\n",
+        'name: Verify published image provenance',
+        'IMAGE: ghcr.io/wanted80/snippet@${{ steps.build.outputs.digest }}',
+        'gh attestation verify "oci://${IMAGE}"',
+        '-R "${GITHUB_REPOSITORY}"',
+        '--signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml"',
+        '--deny-self-hosted-runners',
+        'name: Record immutable image reference',
+        'ghcr.io/wanted80/snippet:${RELEASE_TAG}@${IMAGE_DIGEST}',
     )
         ->not->toContain('workflow_dispatch', 'push:', 'pull_request_target', 'permissions: write-all', 'contents: write')
-        ->and(mb_substr_count($release, 'uses:'))->toBe(7)
-        ->and(preg_match_all('~uses: [^@\\s]+@[0-9a-f]{40}~', $release))->toBe(7)
-        ->and($smokePosition)->toBeLessThan($loginPosition);
+        ->and(mb_substr_count($release, 'uses:'))->toBe(8)
+        ->and(preg_match_all('~uses: [^@\\s]+@[0-9a-f]{40}~', $release))->toBe(8)
+        ->and(mb_substr_count($release, 'persist-credentials: false'))->toBe(2)
+        ->and($smokePosition)->toBeLessThan($publishPosition);
 });
 it('configures the first stable source release across bootstrap and subsequent runs', function (): void {
     $root = dirname(__DIR__, 2);
@@ -183,7 +215,7 @@ it('keeps dependency automation complete and release-neutral', function (): void
         'package-ecosystem: composer',
         'package-ecosystem: github-actions',
         'package-ecosystem: docker',
-        "    directories:\n      - /\n      - /docker\n",
+        "    directories:\n      - /\n      - /docker/builder\n      - /docker/development\n",
         "    commit-message:\n      prefix: build\n      include: scope\n",
     );
 });
@@ -299,4 +331,37 @@ it('keeps exact builder-image examples release-managed', function (): void {
         expect($count)->toBeGreaterThan(0)
             ->and($matches[0])->each->toContain('x-release-please-version');
     }
+});
+
+it('documents immutable builder consumption and optional runtime containment', function (): void {
+    $root = dirname(__DIR__, 2);
+    $installation = file_get_contents($root . '/INSTALL.md');
+    $security = file_get_contents($root . '/SECURITY.md');
+    $builderSmoke = file_get_contents($root . '/docker/builder/smoke.sh');
+    assert(is_string($installation));
+    assert(is_string($security));
+    assert(is_string($builderSmoke));
+
+    expect($installation)->toContain(
+        'ghcr.io/wanted80/snippet:vX.Y.Z@sha256:<release-index-digest>',
+        'gh attestation verify "oci://${SNIPPET_IMAGE}"',
+        '--signer-workflow wanted80/snippet/.github/workflows/release.yml',
+        '--deny-self-hosted-runners',
+        'persist-credentials: false',
+        '--pids-limit 64',
+        '--cpus 2',
+        'pids_limit: 64',
+        'cpus: 2',
+    )
+        ->and($security)->toContain(
+            '## Builder image integrity',
+            'multi-platform base-image digests',
+            'report-only scan',
+            'SPDX SBOM',
+            'ghcr.io/wanted80/snippet:vX.Y.Z@sha256:<release-index-digest>',
+        )
+        ->and($builderSmoke)->toContain(
+            "    --pids-limit 64 \\\n",
+            "    --cpus 2 \\\n",
+        );
 });

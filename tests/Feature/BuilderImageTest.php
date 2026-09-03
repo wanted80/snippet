@@ -342,30 +342,31 @@ it('defines a dedicated minimal builder image and runtime configuration', functi
     assert(is_string($configuration));
     assert(is_string($developmentDockerfile));
 
-    expect($dockerfile)->toContain(
-        'FROM composer:2 AS composer',
-        'FROM php:8.5-cli-alpine AS dependencies',
-        'FROM php:8.5-cli-alpine AS builder',
-        'apk add --no-cache --virtual .snippet-build-dependencies ${PHPIZE_DEPS}',
-        'docker-php-ext-install -j"$(nproc)" pcntl',
-        'apk del .snippet-build-dependencies',
-        'COPY --from=composer /usr/bin/composer /usr/local/bin/composer',
-        'COPY --from=dependencies /app/vendor /app/vendor',
-        'COPY src/Application.php src/Application.php',
-        'COPY src/Authoring src/Authoring',
-        'COPY src/Cli src/Cli',
-        'COPY src/Content src/Content',
-        'COPY src/Preview src/Preview',
-        'COPY src/Scaffolding src/Scaffolding',
-        'COPY resources/theme.css resources/theme.css',
-        'COPY resources/theme.js resources/theme.js',
-        'COPY resources/preview-router.php resources/preview-router.php',
-        'COPY resources/templates resources/templates',
-        'COPY docker/builder/entrypoint.sh /usr/local/bin/snippet',
-        'USER snippet',
-        'WORKDIR /workspace',
-        'ENTRYPOINT ["snippet"]',
-    )
+    expect($dockerfile)
+        ->toMatch('~^FROM composer:2@sha256:[0-9a-f]{64} AS composer$~m')
+        ->toMatch('~^FROM php:8[.]5-cli-alpine@sha256:[0-9a-f]{64} AS dependencies$~m')
+        ->toMatch('~^FROM php:8[.]5-cli-alpine@sha256:[0-9a-f]{64} AS builder$~m')
+        ->and($dockerfile)->toContain(
+            'apk add --no-cache --virtual .snippet-build-dependencies ${PHPIZE_DEPS}',
+            'docker-php-ext-install -j"$(nproc)" pcntl',
+            'apk del .snippet-build-dependencies',
+            'COPY --from=composer /usr/bin/composer /usr/local/bin/composer',
+            'COPY --from=dependencies /app/vendor /app/vendor',
+            'COPY src/Application.php src/Application.php',
+            'COPY src/Authoring src/Authoring',
+            'COPY src/Cli src/Cli',
+            'COPY src/Content src/Content',
+            'COPY src/Preview src/Preview',
+            'COPY src/Scaffolding src/Scaffolding',
+            'COPY resources/theme.css resources/theme.css',
+            'COPY resources/theme.js resources/theme.js',
+            'COPY resources/preview-router.php resources/preview-router.php',
+            'COPY resources/templates resources/templates',
+            'COPY docker/builder/entrypoint.sh /usr/local/bin/snippet',
+            'USER snippet',
+            'WORKDIR /workspace',
+            'ENTRYPOINT ["snippet"]',
+        )
         ->not->toContain(
             'COPY . .',
             'COPY content content',

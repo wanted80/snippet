@@ -185,6 +185,8 @@ docker run --detach \
     --read-only \
     --cap-drop ALL \
     --security-opt no-new-privileges \
+    --pids-limit 64 \
+    --cpus 2 \
     --user "$(id -u):$(id -g)" \
     --publish 127.0.0.1::8080 \
     --mount "type=bind,source=${workspace},destination=/workspace" \

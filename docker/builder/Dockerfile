@@ -1,6 +1,6 @@
-FROM composer:2 AS composer
+FROM composer:2@sha256:d8f6343d3fae98107426bc49163ccad46ef85aabd4a27d80a74401fab4aba332 AS composer
 
-FROM php:8.5-cli-alpine AS dependencies
+FROM php:8.5-cli-alpine@sha256:aa66ee4275e0472bafcd18e35142499fcbda6ac90e641e751418e052e6a0d812 AS dependencies
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ RUN composer install \
     --prefer-dist \
     --optimize-autoloader
 
-FROM php:8.5-cli-alpine AS builder
+FROM php:8.5-cli-alpine@sha256:aa66ee4275e0472bafcd18e35142499fcbda6ac90e641e751418e052e6a0d812 AS builder
 
 RUN apk add --no-cache --virtual .snippet-build-dependencies ${PHPIZE_DEPS} \
     && docker-php-ext-install -j"$(nproc)" pcntl \

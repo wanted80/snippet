@@ -82,6 +82,8 @@ docker run --rm --init \
   --read-only \
   --cap-drop ALL \
   --security-opt no-new-privileges \
+  --pids-limit 64 \
+  --cpus 2 \
   --user "$(id -u):$(id -g)" \
   --publish 127.0.0.1:8080:8080 \
   --mount type=bind,src="$PWD",dst=/workspace \
@@ -92,6 +94,8 @@ docker run --rm --init \
 Visit `http://127.0.0.1:8080/`, followed by the deployment path from `site/config.php` when one is configured. The container must bind PHP to `0.0.0.0` so Docker can forward the port, but Docker publishes that port only on the host's `127.0.0.1`; do not replace the host-side address with an unrestricted binding. Change both `8080` values to select another port.
 
 Preview validates and builds before serving, watches `content/`, `site/`, and `resources/`, live-reloads after successful changes, and keeps the last valid site available after an invalid edit until it is corrected. A deployment-path change restarts the image-owned local server automatically. Ctrl+C or `docker stop` terminates the watcher and child PHP server; `--init` provides normal container process reaping. Preview opens no browser and is for local development only, never production serving.
+
+The example also limits the container to 64 processes and two CPUs. These bounds leave ample room for the watcher, server, and Docker init process while containing accidental process or CPU exhaustion. A memory limit is deliberately not prescribed because publication size varies; measure the largest real site before adding one locally.
 
 The router remains immutable engine code at `/app/resources/preview-router.php`. It is neither copied into the mounted publication by `init` nor required beneath `/workspace`. A later ordinary `build` transaction replaces preview output and cannot retain the injected reload helper or preview-only version endpoint.
 
@@ -123,6 +127,8 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    pids_limit: 64
+    cpus: 2
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
@@ -274,7 +280,7 @@ Each `<xxh3>` token is the complete 16-character lowercase XXH3 digest. Files be
 
 ## CI validation, build, and GitHub Pages
 
-A content-only repository can validate and build with the exact same image as local work. This copy-pasteable workflow grants only read access to repository contents, runs the container without networking or capabilities, mounts the checked-out workspace, and uploads `public/` only:
+A content-only repository can validate and build with the exact same image as local work. This workflow grants only read access to repository contents and packages, does not retain checkout credentials, verifies the image's GitHub provenance, runs the container without networking or capabilities, mounts the checked-out workspace, and uploads `public/` only:
 
 ```yaml
 name: Site
@@ -286,31 +292,55 @@ on:
 
 permissions:
   contents: read
+  packages: read
+
+env:
+  SNIPPET_IMAGE: ghcr.io/wanted80/snippet:v2.1.3 # x-release-please-version
 
 jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify builder image provenance
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh attestation verify "oci://${SNIPPET_IMAGE}" \
+            -R wanted80/snippet \
+            --signer-workflow wanted80/snippet/.github/workflows/release.yml \
+            --deny-self-hosted-runners
       - name: Validate
         run: |
           docker run --rm --network none --read-only --cap-drop ALL \
-            --security-opt no-new-privileges --user "$(id -u):$(id -g)" \
+            --security-opt no-new-privileges --pids-limit 64 --cpus 2 \
+            --user "$(id -u):$(id -g)" \
             --mount type=bind,src="$GITHUB_WORKSPACE",dst=/workspace \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-            ghcr.io/wanted80/snippet:v2.1.3 validate # x-release-please-version
+            "${SNIPPET_IMAGE}" validate
       - name: Build
         run: |
           docker run --rm --network none --read-only --cap-drop ALL \
-            --security-opt no-new-privileges --user "$(id -u):$(id -g)" \
+            --security-opt no-new-privileges --pids-limit 64 --cpus 2 \
+            --user "$(id -u):$(id -g)" \
             --mount type=bind,src="$GITHUB_WORKSPACE",dst=/workspace \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-            ghcr.io/wanted80/snippet:v2.1.3 build # x-release-please-version
+            "${SNIPPET_IMAGE}" build
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         if: github.ref == 'refs/heads/main'
         with:
           path: public/
 ```
+
+The attestation step requires a current GitHub CLI, which is preinstalled on GitHub-hosted runners. The readable version tag keeps this example release-managed. For immutable use, replace `SNIPPET_IMAGE` with the exact `ghcr.io/wanted80/snippet:vX.Y.Z@sha256:<release-index-digest>` reference printed by the Builder Image release workflow. Use the multi-platform index digest, not one architecture's child digest. Dependabot or equivalent automation should propose later digest updates; provenance verification then proves that the selected bytes were built by Snippet's hosted release workflow.
 
 For GitHub Pages, enable **Settings → Pages → Build and deployment → GitHub Actions**, then add a deployment job that depends on the build job. Because pull requests must not deploy, use the branch condition shown here:
 

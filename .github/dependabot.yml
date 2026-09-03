@@ -36,7 +36,8 @@ updates:
   - package-ecosystem: docker
     directories:
       - /
-      - /docker
+      - /docker/builder
+      - /docker/development
     schedule:
       interval: weekly
       day: monday
