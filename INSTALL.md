@@ -6,7 +6,7 @@ Snippet can build a site from a content-only repository with the official image,
 
 Install Docker Engine or Docker Desktop, then create an empty repository directory. On Windows, run these commands inside WSL 2 and keep the repository in the WSL filesystem.
 
-Use an exact release tag for reproducible output. The examples pin v2.1.3. <!-- x-release-please-version --> `--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path:
+Use an exact release tag for reproducible output. The examples pin v2.2.0. <!-- x-release-please-version --> `--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path:
 
 ```bash
 mkdir my-site
@@ -15,7 +15,7 @@ cd my-site
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v2.1.3 init # x-release-please-version
+  ghcr.io/wanted80/snippet:v2.2.0 init # x-release-please-version
 ```
 
 `init` creates empty `content/articles/` and `content/pages/` collections and copies the canonical generic files from `site/` and `resources/`. Existing files win, nothing is deleted, `public/` is untouched, and the engine-owned preview router is not copied. Demo configuration and content are never included. Repeating `init` after changing the pinned image may add newly required shared files without replacing customization.
@@ -26,17 +26,17 @@ Set the complete public HTTPS URL in `site/config.php`, then create the first pa
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v2.1.3 new page contact # x-release-please-version
+  ghcr.io/wanted80/snippet:v2.2.0 new page contact # x-release-please-version
 
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v2.1.3 new article first-post # x-release-please-version
+  ghcr.io/wanted80/snippet:v2.2.0 new article first-post # x-release-please-version
 ```
 
 The image exposes `--version`, `init`, `new page`, `new article`, `validate`, `build`, and the local-development `preview` command. Draft creation requires the relevant collection created by `init`, refuses symlinked or existing destinations, and leaves `public/` unchanged. The image omits Composer, development tools, and source outside those commands' runtime paths. `validate` reports the catalog and prospective asset count. `build` measures validation plus transactional publication and reports the actual promoted asset and file counts. Failures retain the existing `public/` directory.
 
-Moving release aliases and `latest` are convenient for evaluation but unsuitable for reproducible publication. Pin a full release such as `v2.1.3` or an immutable image digest. <!-- x-release-please-version -->
+Moving release aliases and `latest` are convenient for evaluation but unsuitable for reproducible publication. Pin a full release such as `v2.2.0` or an immutable image digest. <!-- x-release-please-version -->
 
 ## Building a separate repository
 
@@ -48,7 +48,7 @@ SITE_DIRECTORY=/absolute/path/to/my-site
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$SITE_DIRECTORY:/workspace" \
-  ghcr.io/wanted80/snippet:v2.1.3 build # x-release-please-version
+  ghcr.io/wanted80/snippet:v2.2.0 build # x-release-please-version
 ```
 
 The mounted repository owns only publication inputs and disposable output. Commit `content/`, `site/`, and `resources/`; ignore `public/`. Do not upload the source repository or container to the web host.
@@ -68,7 +68,7 @@ docker run --rm \
   --user "$(id -u):$(id -g)" \
   --mount type=bind,src="$PWD",dst=/workspace \
   --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-  ghcr.io/wanted80/snippet:v2.1.3 build # x-release-please-version
+  ghcr.io/wanted80/snippet:v2.2.0 build # x-release-please-version
 ```
 
 Docker may need network access to pull the image before the container starts; `--network none` applies to the running builder.
@@ -88,7 +88,7 @@ docker run --rm --init \
   --publish 127.0.0.1:8080:8080 \
   --mount type=bind,src="$PWD",dst=/workspace \
   --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-  ghcr.io/wanted80/snippet:v2.1.3 preview --host=0.0.0.0 --port=8080 # x-release-please-version
+  ghcr.io/wanted80/snippet:v2.2.0 preview --host=0.0.0.0 --port=8080 # x-release-please-version
 ```
 
 Visit `http://127.0.0.1:8080/`, followed by the deployment path from `site/config.php` when one is configured. The container must bind PHP to `0.0.0.0` so Docker can forward the port, but Docker publishes that port only on the host's `127.0.0.1`; do not replace the host-side address with an unrestricted binding. Change both `8080` values to select another port.
@@ -104,7 +104,7 @@ Keep isolated build commands and local preview as separate Compose services:
 ```yaml
 services:
   snippet:
-    image: ghcr.io/wanted80/snippet:v2.1.3 # x-release-please-version
+    image: ghcr.io/wanted80/snippet:v2.2.0 # x-release-please-version
     working_dir: /workspace
     network_mode: none
     read_only: true
@@ -118,7 +118,7 @@ services:
       - /tmp:rw,noexec,nosuid,nodev,size=16m
 
   snippet-preview:
-    image: ghcr.io/wanted80/snippet:v2.1.3 # x-release-please-version
+    image: ghcr.io/wanted80/snippet:v2.2.0 # x-release-please-version
     working_dir: /workspace
     command: preview --host=0.0.0.0 --port=8080
     init: true
@@ -295,7 +295,7 @@ permissions:
   packages: read
 
 env:
-  SNIPPET_IMAGE: ghcr.io/wanted80/snippet:v2.1.3 # x-release-please-version
+  SNIPPET_IMAGE: ghcr.io/wanted80/snippet:v2.2.0 # x-release-please-version
 
 jobs:
   build:

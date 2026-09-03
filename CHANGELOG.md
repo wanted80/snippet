@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/wanted80/snippet/compare/v2.1.3...v2.2.0) (2026-09-03)
+
+
+### Features
+
+* **builder:** add preview and strengthen image security ([#35](https://github.com/wanted80/snippet/issues/35)) ([0febb77](https://github.com/wanted80/snippet/commit/0febb77a857c4e44e678398d5a913b2c6afcf458))
+
 ## [2.1.3](https://github.com/wanted80/snippet/compare/v2.1.2...v2.1.3) (2026-09-02)
 
 
