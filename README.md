@@ -34,7 +34,7 @@ cd my-site
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v2.1.3 init # x-release-please-version
+  ghcr.io/wanted80/snippet:v2.2.0 init # x-release-please-version
 ```
 
 `--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path. Edit the generated `site/config.php` and content, then rerun the command with `init` replaced by `validate` or `build`. Create later drafts through the same image, for example by replacing `init` with `new article first-post`.
@@ -52,7 +52,7 @@ docker run --rm --init \
   --publish 127.0.0.1:8080:8080 \
   --volume "$PWD:/workspace" \
   --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-  ghcr.io/wanted80/snippet:v2.1.3 preview --host=0.0.0.0 --port=8080 # x-release-please-version
+  ghcr.io/wanted80/snippet:v2.2.0 preview --host=0.0.0.0 --port=8080 # x-release-please-version
 ```
 
 Preview is for local authoring only; production deployment still consists solely of the generated `public/` directory. See [INSTALL.md](INSTALL.md) for hardened raw-Docker and Compose preview examples, building another directory, direct PHP use, the contributor HTTPS preview, customization, CI, and deployment.
@@ -104,7 +104,7 @@ Content-only repositories use the equivalent builder-image command:
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v2.1.3 new article first-post # x-release-please-version
+  ghcr.io/wanted80/snippet:v2.2.0 new article first-post # x-release-please-version
 ```
 
 An article without `--date` uses the current UTC date. The command creates an empty Markdown file and a `meta.php` with empty title and description fields; articles also receive the selected date and an empty tag list. The result is intentionally incomplete, so finish both files before validating, building, or previewing. Draft creation checks that the relevant content collection is a regular non-symlink directory, does not validate the existing catalog or change `public/`, and never replaces an existing content directory. Run `snippet init` first when using an empty content-only workspace. Contributors can also run the canonical command after entering `make docker-shell`; there is deliberately no separate Make target.
