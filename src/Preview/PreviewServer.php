@@ -37,6 +37,8 @@ final class PreviewServer implements Previewer
         private readonly ?Closure $afterPoll = null,
         private readonly ?Closure $processStarter = null,
         private readonly ErrorReporter $errorReporter = new ErrorReporter(),
+        private readonly ?string $routerPath = null,
+        private readonly bool $watchRuntimeSource = true,
     ) {}
 
     public function run(
@@ -49,6 +51,7 @@ final class PreviewServer implements Previewer
         $host = $this->host ?? $host;
         $port = $this->port ?? $port;
         $config = $this->rebuild($root);
+        $routerPath = $this->resolveRouterPath($root);
         $fingerprints = $this->fingerprints($root);
         $terminationSignal = null;
         $restoreSignalHandling = null;
@@ -81,9 +84,11 @@ final class PreviewServer implements Previewer
         $poll = 0;
         $watchError = null;
         try {
-            $process = $this->start($root, $formattedHost, $port, $config->basePath);
+            $process = $this->start($root, $formattedHost, $port, $config->basePath, $routerPath);
             $stdout->fwrite("Preview available at {$address}. Press Ctrl+C to stop.\n");
-            $stdout->fwrite("Watching publication inputs and runtime source for changes.\n");
+            $stdout->fwrite($this->watchRuntimeSource
+                ? "Watching publication inputs and runtime source for changes.\n"
+                : "Watching publication inputs for changes.\n");
 
             while ($terminationSignal === null && ($this->maximumPolls === null || $poll < $this->maximumPolls)) {
                 usleep($this->pollMicroseconds);
@@ -178,9 +183,9 @@ final class PreviewServer implements Previewer
     }
 
     /** @return resource */
-    private function start(string $root, string $host, int $port, string $basePath): mixed
+    private function start(string $root, string $host, int $port, string $basePath, string $routerPath): mixed
     {
-        $command = [PHP_BINARY, '-S', $host . ':' . $port, '-t', $root . '/public', $root . '/resources/preview-router.php'];
+        $command = [PHP_BINARY, '-S', $host . ':' . $port, '-t', $root . '/public', $routerPath];
         $environment = getenv();
         $environment['SNIPPET_BASE_PATH'] = $basePath;
         $process = $this->processStarter instanceof Closure
@@ -204,13 +209,27 @@ final class PreviewServer implements Previewer
         return $process;
     }
 
+    private function resolveRouterPath(string $root): string
+    {
+        $routerPath = $this->routerPath ?? $root . '/resources/preview-router.php';
+        if (is_link($routerPath) || !is_file($routerPath) || !is_readable($routerPath)) {
+            throw new ContentException("Preview router '{$routerPath}' must be a readable regular non-symlink file.");
+        }
+
+        return $routerPath;
+    }
+
     /** @return array{publication: string, runtime: string} */
     private function fingerprints(string $root): array
     {
         $watchedFiles = [];
         $fingerprints = [
             'publication' => $this->fingerprint($root, self::PUBLICATION_WATCH_PATHS, $watchedFiles),
-            'runtime' => $this->fingerprint($root, self::RUNTIME_WATCH_PATHS, $watchedFiles),
+            'runtime' => $this->fingerprint(
+                $root,
+                $this->watchRuntimeSource ? self::RUNTIME_WATCH_PATHS : [],
+                $watchedFiles,
+            ),
         ];
 
         $this->watchedFiles = $watchedFiles;

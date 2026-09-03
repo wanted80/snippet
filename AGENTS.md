@@ -19,7 +19,7 @@ It is built for one author.
 
 The current builder discovers and validates site configuration, content, metadata, templates, and assets; applies internal resource ceilings; orders the resulting catalog; resolves routes; parses the supported Markdown into a typed document model; and renders the complete static site.
 
-Publication validates first, builds in a unique temporary sibling directory, and replaces `public/` only after every page and asset succeeds. The preview command performs the same build, serves it locally, watches `content/`, `site/`, and `resources/`, reloads fresh runtime code after changes beneath `bin/` or `src/`, preserves the last valid publication after an invalid edit, and live-reloads open pages after a successful rebuild.
+Publication validates first, builds in a unique temporary sibling directory, and replaces `public/` only after every page and asset succeeds. The preview command performs the same build, serves it locally, watches `content/`, `site/`, and `resources/`, preserves the last valid publication after an invalid edit, and live-reloads open pages after a successful rebuild. Direct contributor preview also reloads fresh runtime code after changes beneath `bin/` or `src/`; the official image uses its immutable engine-owned router and watches only mounted publication inputs.
 
 Do not implement feeds, pagination, search, drafts, Markdown images, or additional content types unless explicitly requested.
 
