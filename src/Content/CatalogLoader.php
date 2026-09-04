@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Snippet\Content;
 
-use DateTimeImmutable;
 use NoDiscard;
 use Snippet\Exception\ContentException;
 use Snippet\Markdown\Parser;
@@ -298,9 +297,12 @@ final readonly class CatalogLoader
             );
         }
 
-        $menuOrder = $metadata["menu_order"] ?? null;
-        if ($menuOrder !== null && (!is_int($menuOrder) || $menuOrder < 1)) {
-            throw new ContentException(sprintf("Metadata field 'menu_order' for '%s' must be a positive integer.", $slug));
+        $menuOrder = null;
+        if (array_key_exists('menu_order', $metadata)) {
+            $menuOrder = $metadata['menu_order'];
+            if (!is_int($menuOrder) || $menuOrder < 1) {
+                throw new ContentException(sprintf("Metadata field 'menu_order' for '%s' must be a positive integer.", $slug));
+            }
         }
 
         return new Page($slug, $title, $description, $document, $assets, $menuOrder);
@@ -326,6 +328,10 @@ final readonly class CatalogLoader
     {
         if (!isset($metadata[$field]) || !is_string($metadata[$field]) || mb_trim($metadata[$field]) === '') {
             throw new ContentException(sprintf("Metadata field '%s' for '%s' must be a non-empty string.", $field, $slug));
+        }
+
+        if (!mb_check_encoding($metadata[$field], 'UTF-8')) {
+            throw new ContentException("Metadata field '{$field}' for '{$slug}' must be valid UTF-8.");
         }
 
         if ($metadata[$field] !== mb_trim($metadata[$field])) {
@@ -384,7 +390,7 @@ final readonly class CatalogLoader
             return null;
         }
 
-        $alt = $hasAlt ? $this->altText($metadata['alt'], $slug) : '';
+        $alt = $hasAlt ? $this->requiredText($metadata, 'alt', $slug) : '';
         // Retained enum keys cannot affect emptiness, count(), or array_first().
         // @pest-mutate-ignore: UnwrapArrayValues
         $candidates = array_values(array_filter(
@@ -414,21 +420,6 @@ final readonly class CatalogLoader
         return new ArticleImage($path, $alt, $detected[0], $detected[1], $expectedFormat);
     }
 
-    private function altText(mixed $value, string $slug): string
-    {
-        if (!is_string($value) || mb_trim($value) === '') {
-            throw new ContentException("Metadata field 'alt' for '{$slug}' must be a non-empty string.");
-        }
-        if ($value !== mb_trim($value)) {
-            throw new ContentException("Metadata field 'alt' for '{$slug}' must not have surrounding whitespace.");
-        }
-        if (mb_strlen($value) > $this->limits->descriptionCharacters) {
-            throw new ContentException("Metadata field 'alt' for '{$slug}' exceeds the {$this->limits->descriptionCharacters}-character limit.");
-        }
-
-        return $value;
-    }
-
     /**
      * Validate and return a canonical calendar date.
      *
@@ -436,14 +427,11 @@ final readonly class CatalogLoader
      */
     private function date(array $metadata, string $slug): string
     {
-        if (!isset($metadata['date']) || !is_string($metadata['date']) || preg_match('/^\d{4}-\d{2}-\d{2}$/D', $metadata['date']) !== 1) {
+        if (!isset($metadata['date']) || !is_string($metadata['date']) || preg_match('/^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/D', $metadata['date'], $parts) !== 1) {
             throw new ContentException(sprintf("Metadata field 'date' for '%s' must be a real date in YYYY-MM-DD format.", $slug));
         }
 
-        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $metadata['date']);
-        // The preceding fixed-width numeric grammar is always parseable; this remains a defensive native-API guard.
-        // @pest-mutate-ignore: FalseToTrue
-        if ($date === false || $date->format('Y-m-d') !== $metadata['date']) {
+        if (!checkdate((int) $parts['month'], (int) $parts['day'], (int) $parts['year'])) {
             throw new ContentException(sprintf("Metadata field 'date' for '%s' must be a real date in YYYY-MM-DD format.", $slug));
         }
 

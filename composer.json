@@ -23,12 +23,12 @@
         "laravel/pint": "^1.30.5",
         "pestphp/pest": "^5.1.3",
         "pestphp/pest-plugin-agent": "^5.0",
-        "pestphp/pest-plugin-evals": "^5.0.2",
+        "pestphp/pest-plugin-evals": "^5.0.3",
         "pestphp/pest-plugin-phpstan": "^5.2.0",
         "pestphp/pest-plugin-rector": "^5.0.4",
         "pestphp/pest-plugin-type-coverage": "^5.0.2",
         "phpstan/extension-installer": "^1.4.3",
-        "phpstan/phpstan": "^2.2.12",
+        "phpstan/phpstan": "^2.2.13",
         "phpstan/phpstan-deprecation-rules": "^2.0.4",
         "phpstan/phpstan-phpunit": "^2.0",
         "phpstan/phpstan-strict-rules": "^2.0",
@@ -47,6 +47,7 @@
     "scripts": {
         "app:content:validate": "sh docker/demo/validate.sh",
         "app:test": "php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/pest",
+        "app:test:assets": "node --test tests/Frontend/*.test.mjs",
         "app:test:coverage": "php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/pest --no-tia --coverage --exactly=100",
         "app:test:types": "php -d memory_limit=512M vendor/bin/pest --no-tia --type-coverage --min=100",
         "app:test:mutations": [
@@ -74,6 +75,7 @@
     "scripts-descriptions": {
         "app:content:validate": "Compose and validate the demo site",
         "app:test": "Run the Pest test suite",
+        "app:test:assets": "Run dependency-free JavaScript behavior tests",
         "app:test:coverage": "Run tests with exact 100% line coverage",
         "app:test:types": "Run tests with 100% type coverage",
         "app:test:mutations": "Run the complete test suite with a 100% mutation score",

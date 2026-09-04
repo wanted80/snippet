@@ -11,6 +11,7 @@ if ($documentRoot === false || !is_string($requestPath)) {
 }
 
 header('Cache-Control: no-store');
+header('X-Content-Type-Options: nosniff');
 
 if ($basePath !== '') {
     if ($requestPath === '/') {
@@ -86,16 +87,22 @@ if ($extension !== 'html') {
         : match ($extension) {
             'css' => 'text/css; charset=utf-8',
             'js' => 'text/javascript; charset=utf-8',
+            'txt' => 'text/plain; charset=utf-8',
+            'pdf' => 'application/pdf',
+            'json' => 'application/json',
             'jpeg', 'jpg' => 'image/jpeg',
             'png' => 'image/png',
             'svg' => 'image/svg+xml',
             'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            'avif' => 'image/avif',
+            'ico' => 'image/vnd.microsoft.icon',
+            'woff' => 'font/woff',
             'woff2' => 'font/woff2',
-            default => null,
+            default => 'application/octet-stream',
         };
-    if ($contentType === null) {
-        http_response_code(404);
-        return true;
+    if ($contentType === 'application/octet-stream') {
+        header('Content-Disposition: attachment');
     }
 
     header("Content-Type: {$contentType}");

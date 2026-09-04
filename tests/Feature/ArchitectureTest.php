@@ -138,6 +138,7 @@ it('isolates the devcontainer from the host Docker Compose project', function ()
         ->and($developmentCompose)->toStartWith("name: snippet-dev\n")
         ->and($compose)->toContain(
             "      GIT_CONFIG_COUNT: \"1\"\n      GIT_CONFIG_KEY_0: safe.directory\n      GIT_CONFIG_VALUE_0: /app\n",
+            '      - ./demo/content:/app/content',
         )
         ->and($developmentCompose)->toContain(
             "entrypoint: /usr/local/bin/snippet-devcontainer-entrypoint\n",

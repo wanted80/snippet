@@ -33,15 +33,15 @@
 
 @layer tokens {
     :root {
-        --color-background: #08090a;
-        --color-background-glass: rgb(8 9 10 / 82%);
-        --color-surface: #0e1114;
-        --color-interactive: #171d22;
-        --color-text: #e8edf2;
-        --color-muted: #88919a;
-        --color-accent: #9fc5ff;
-        --color-border: #242a30;
-        --color-control-border: #38434d;
+        --color-background: light-dark(#f7f1e8, #08090a);
+        --color-background-glass: light-dark(rgb(247 241 232 / 82%), rgb(8 9 10 / 82%));
+        --color-surface: light-dark(#fffaf2, #0e1114);
+        --color-interactive: light-dark(#eee3d8, #171d22);
+        --color-text: light-dark(#2c251f, #e8edf2);
+        --color-muted: light-dark(#6f6257, #88919a);
+        --color-accent: light-dark(#8a3f2d, #9fc5ff);
+        --color-border: light-dark(#d8c9ba, #242a30);
+        --color-control-border: light-dark(#bca795, #38434d);
         --font-reading: ui-serif, Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
         --font-interface: system-ui, sans-serif;
         --font-wordmark: var(--font-interface);
@@ -49,9 +49,9 @@
         --measure-prose: 44rem;
         --measure-shell: 44rem;
         --radius-control: 0.75rem;
-        --shadow-header: 0 0.25rem 0.9rem rgb(0 0 0 / 22%);
-        --shadow-menu: 0 1rem 2.5rem rgb(0 0 0 / 38%);
-        --shadow-spine: -1rem 0 2rem -1.35rem rgb(0 0 0 / 42%), 1rem 0 2rem -1.35rem rgb(0 0 0 / 42%);
+        --shadow-header: 0 0.25rem 0.9rem light-dark(rgb(77 52 34 / 10%), rgb(0 0 0 / 22%));
+        --shadow-menu: 0 1rem 2.5rem light-dark(rgb(77 52 34 / 18%), rgb(0 0 0 / 38%));
+        --shadow-spine: -1rem 0 2rem -1.35rem light-dark(rgb(77 52 34 / 24%), rgb(0 0 0 / 42%)), 1rem 0 2rem -1.35rem light-dark(rgb(77 52 34 / 24%), rgb(0 0 0 / 42%));
         --space-1: 0.35rem;
         --space-2: 0.7rem;
         --space-3: 1rem;
@@ -65,51 +65,15 @@
 @media (prefers-color-scheme: light) {
     :root:not([data-theme]) {
         color-scheme: light;
-        --color-background: #f7f1e8;
-        --color-background-glass: rgb(247 241 232 / 82%);
-        --color-surface: #fffaf2;
-        --color-interactive: #eee3d8;
-        --color-text: #2c251f;
-        --color-muted: #6f6257;
-        --color-accent: #8a3f2d;
-        --color-border: #d8c9ba;
-        --color-control-border: #bca795;
-        --shadow-header: 0 0.25rem 0.9rem rgb(77 52 34 / 10%);
-        --shadow-menu: 0 1rem 2.5rem rgb(77 52 34 / 18%);
-        --shadow-spine: -1rem 0 2rem -1.35rem rgb(77 52 34 / 24%), 1rem 0 2rem -1.35rem rgb(77 52 34 / 24%);
     }
 }
 
 :root[data-theme="light"] {
     color-scheme: light;
-    --color-background: #f7f1e8;
-    --color-background-glass: rgb(247 241 232 / 82%);
-    --color-surface: #fffaf2;
-    --color-interactive: #eee3d8;
-    --color-text: #2c251f;
-    --color-muted: #6f6257;
-    --color-accent: #8a3f2d;
-    --color-border: #d8c9ba;
-    --color-control-border: #bca795;
-    --shadow-header: 0 0.25rem 0.9rem rgb(77 52 34 / 10%);
-    --shadow-menu: 0 1rem 2.5rem rgb(77 52 34 / 18%);
-    --shadow-spine: -1rem 0 2rem -1.35rem rgb(77 52 34 / 24%), 1rem 0 2rem -1.35rem rgb(77 52 34 / 24%);
 }
 
 :root[data-theme="dark"] {
     color-scheme: dark;
-    --color-background: #08090a;
-    --color-background-glass: rgb(8 9 10 / 82%);
-    --color-surface: #0e1114;
-    --color-interactive: #171d22;
-    --color-text: #e8edf2;
-    --color-muted: #88919a;
-    --color-accent: #9fc5ff;
-    --color-border: #242a30;
-    --color-control-border: #38434d;
-    --shadow-header: 0 0.25rem 0.9rem rgb(0 0 0 / 22%);
-    --shadow-menu: 0 1rem 2.5rem rgb(0 0 0 / 38%);
-    --shadow-spine: -1rem 0 2rem -1.35rem rgb(0 0 0 / 42%), 1rem 0 2rem -1.35rem rgb(0 0 0 / 42%);
 }
 
 @layer base {
@@ -177,6 +141,7 @@
     h2,
     h3,
     h4 {
+        overflow-wrap: anywhere;
         line-height: 1.15;
         text-wrap: balance;
     }
@@ -521,6 +486,7 @@
     }
 
     .menu-link {
+        overflow-wrap: anywhere;
         display: flex;
         inline-size: 100%;
         min-block-size: 2.75rem;
@@ -880,7 +846,9 @@
 }
 
 @media print {
-    :root {
+    :root,
+    :root[data-theme] {
+        color-scheme: only light;
         --color-background: #fff;
         --color-text: #111;
         --color-muted: #444;
@@ -900,7 +868,10 @@
         box-shadow: none;
     }
 
-    .site-header {
+    .site-header,
+    .site-header[data-scrolled] {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
         position: static;
         border: 0;
         background: transparent;

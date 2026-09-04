@@ -134,7 +134,7 @@ final class TrustedPhpLoader
         }
         ++$this->cursor;
         if ($token[0] === T_CONSTANT_ENCAPSED_STRING) {
-            $contents = mb_substr($token[1], 1, -1);
+            $contents = mb_substr($token[1], 1, -1, '8bit');
             // PHP string tokens always end with the same quote byte that opened them.
             $delimiter = $token[1][0]; // @pest-mutate-ignore: DecrementInteger
             return $delimiter === "'" ? str_replace(["\\\\", "\\'"], ["\\", "'"], $contents) : $this->decodeDoubleQuotedString($contents);

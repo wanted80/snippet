@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Snippet\Rendering;
 
 use DateTimeImmutable;
+use DateTimeZone;
 use Snippet\Content\Article;
 use Snippet\Content\ArticleImage;
 use Snippet\Content\Catalog;
@@ -415,7 +416,7 @@ final readonly class HtmlRenderer
 
     private function date(Article $article): string
     {
-        $date = new DateTimeImmutable($article->date);
+        $date = new DateTimeImmutable($article->date, new DateTimeZone('UTC'));
         return '<time datetime="' . $article->date . '">' . $date->format('F j, Y') . '</time>';
     }
 

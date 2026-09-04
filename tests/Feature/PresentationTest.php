@@ -6,6 +6,19 @@ use Snippet\Publishing\Publisher;
 use Snippet\Site\ConfigLoader;
 use Snippet\Support\ApplicationVersion;
 
+it('ships print colors and wrapping that remain usable with long titles and manual themes', function (): void {
+    $this->item('post', ['title' => str_repeat('W', 120), 'description' => 'Description']);
+    $this->resources();
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    new Publisher()->publish($this->directory, $config, $this->catalog());
+    $html = file_get_contents($this->directory . '/public/post/index.html');
+    $css = file_get_contents($this->publishedAsset('theme.css'));
+
+    expect($html)->toContain('<meta name="color-scheme" content="dark light">', str_repeat('W', 120))
+        ->and($css)->toMatch('/h4\s*\{[^}]*overflow-wrap: anywhere;/s')
+        ->toMatch('/@media print\s*\{\s*:root,\s*:root\[data-theme\]\s*\{[^}]*color-scheme: only light;[^}]*--color-background: #fff;/s');
+});
+
 it('renders independent document, author, and multilingual wordmark identities', function (): void {
     $this->content();
     $this->site([

@@ -116,3 +116,4 @@ docker-check:
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app composer app:check
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app shellcheck .devcontainer/post-create.sh docker/builder/smoke.sh docker/demo/check.sh docker/demo/validate.sh docker/demo/workspace.sh docker/development/entrypoint.sh docker/preview/trust-caddy-ca.sh docker/quality/mutations.sh
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app node --check resources/theme.js
+	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app composer app:test:assets

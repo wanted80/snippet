@@ -14,6 +14,32 @@ use Snippet\Site\Config;
 
 mutates(ReferenceValidator::class);
 
+it('encodes literal asset filenames without treating percent sequences as URLs', function (string $filename, string $encoded): void {
+    $path = $this->item('post', ['title' => 'Post', 'description' => 'D'], "[content]({$encoded}) [site](/assets/site/{$encoded})");
+    $this->resources();
+    mkdir($this->directory . '/site/assets');
+    file_put_contents($path . '/' . $filename, 'content asset');
+    file_put_contents($this->directory . '/site/assets/' . $filename, 'site asset');
+
+    expect(validatePublication($this->directory)[0])->toBe(0);
+})->with([
+    'literal space' => ['a b.txt', 'a%20b.txt'],
+    'literal encoded space' => ['a%20b.txt', 'a%2520b.txt'],
+    'literal encoded slash' => ['a%2Fb.txt', 'a%252Fb.txt'],
+    'literal fragment character' => ['a#b.txt', 'a%23b.txt'],
+    'Unicode and percent' => ['café%20.txt', 'caf%C3%A9%2520.txt'],
+]);
+
+it('rejects links that confuse a percent filename with its decoded spelling', function (): void {
+    $path = $this->item('post', ['title' => 'Post', 'description' => 'D'], '[missing](a%20b.txt)');
+    $this->resources();
+    file_put_contents($path . '/a%20b.txt', 'literal percent');
+
+    [$status, , $error] = validatePublication($this->directory);
+
+    expect($status)->toBe(1)->and($error)->toContain("Internal link target 'a%20b.txt'", 'does not exist');
+});
+
 it('accepts every generated route and copied-asset reference form', function (): void {
     $path = $this->article('post', [
         'title' => 'Post',

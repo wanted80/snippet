@@ -8,6 +8,48 @@ use Snippet\Tests\PublisherFaults;
 
 mutates(PreviewServer::class);
 
+it('serves published downloads as static bytes without executing them', function (): void {
+    $path = $this->item('post', ['title' => 'Post', 'description' => 'D'], '[notes](notes.txt) [guide](guide.pdf)');
+    $this->resources();
+    $files = [
+        'notes.txt' => ['Notes.', 'text/plain; charset=utf-8'],
+        'guide.pdf' => ['%PDF-1.4', 'application/pdf'],
+        'data.json' => ['{"ok":true}', 'application/json'],
+        'animation.gif' => ['GIF89a', 'image/gif'],
+        'photo.avif' => ['avif', 'image/avif'],
+        'icon.ico' => ['icon', 'image/vnd.microsoft.icon'],
+        'type.woff' => ['font', 'font/woff'],
+        'example.php' => ['<?php echo "executed";', 'application/octet-stream'],
+        'a%20b.bin' => ["\x00\xFF", 'application/octet-stream'],
+    ];
+    foreach ($files as $filename => [$contents]) {
+        file_put_contents($path . '/' . $filename, $contents);
+    }
+    $port = availablePreviewPort();
+    $afterPoll = static function () use ($files, $port): void {
+        foreach ($files as $filename => [$contents, $contentType]) {
+            $url = "http://127.0.0.1:{$port}/post/" . rawurlencode($filename);
+            $headers = get_headers($url, true);
+            expect($headers)->toBeArray();
+            assert(is_array($headers));
+            $headers = array_change_key_case($headers, CASE_LOWER);
+
+            expect($headers[0])->toContain('200 OK')
+                ->and($headers['content-type'])->toBe($contentType)
+                ->and($headers['x-content-type-options'])->toBe('nosniff')
+                ->and($headers['content-disposition'] ?? null)->toBe($contentType === 'application/octet-stream' ? 'attachment' : null)
+                ->and(file_get_contents($url))->toBe($contents);
+        }
+    };
+
+    expect(new PreviewServer(
+        port: $port,
+        pollMicroseconds: 100_000,
+        maximumPolls: 1,
+        afterPoll: $afterPoll,
+    )->run($this->directory, new SplFileObject('php://memory', 'w+'), new SplFileObject('php://memory', 'w+')))->toBe(0);
+});
+
 function availablePreviewPort(): int
 {
     $socket = stream_socket_server('tcp://127.0.0.1:0', $errorCode, $errorMessage);

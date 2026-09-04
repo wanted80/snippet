@@ -521,9 +521,7 @@ final class Parser
 
         $closing = $this->findDelimiter($source, $delimiter, $contentStart, $end);
         while ($closing !== null) {
-            $secondCharacter = $this->nextCharacterOffset($source, $contentStart);
-            $lastCharacter = $this->previousCharacterOffset($source, $closing);
-            if ($secondCharacter < $closing && $this->isNonWhitespaceAt($source, $lastCharacter)) {
+            if ($closing > $contentStart && $this->isNonWhitespaceAt($source, $this->previousCharacterOffset($source, $closing))) {
                 $this->appendText($plainStart, $offset, $nodes);
                 $nodes->marker($open);
                 $this->parseInline($source, $contentStart, $closing, $path, $line, $nodes, $depth + 1, $maximumDepth);
@@ -558,16 +556,6 @@ final class Parser
         }
 
         return $position;
-    }
-
-    private function nextCharacterOffset(string $source, int $offset): int
-    {
-        ++$offset;
-        while (isset($source[$offset]) && (ord($source[$offset]) & 0xC0) === 0x80) {
-            ++$offset;
-        }
-
-        return $offset;
     }
 
     private function previousCharacterOffset(string $source, int $offset): int

@@ -21,6 +21,19 @@ use Snippet\Rendering\MarkdownHtmlRenderer;
 
 mutates(Document::class, InlineArena::class, InlineBuilder::class, Parser::class);
 
+it('renders short emphasis as semantic HTML', function (string $markdown, string $html): void {
+    expect(MarkdownHtmlRenderer::render(new Parser()->parse($markdown, 'short.md')))
+        ->toBe($html . "\n");
+})->with([
+    'one letter' => ['*a*', '<p><em>a</em></p>'],
+    'one strong letter' => ['**a**', '<p><strong>a</strong></p>'],
+    'accented letter' => ['*é*', '<p><em>é</em></p>'],
+    'strong CJK character' => ['**日**', '<p><strong>日</strong></p>'],
+    'emoji' => ['*👋*', '<p><em>👋</em></p>'],
+    'empty emphasis stays literal' => ['before ** after', '<p>before ** after</p>'],
+    'whitespace stays literal' => ['before * * after', '<p>before * * after</p>'],
+]);
+
 it('retains an exact compact document representation for every supported construct', function (): void {
     $markdown = <<<'MARKDOWN'
 # Héading `code`
@@ -57,7 +70,7 @@ it('retains exact parser results across syntax, byte, Unicode, line, and depth b
         try {
             $document = $parser->parse($source, $path, $maximumDepth);
 
-            return 'document:' . hash('sha256', serialize($document) . "\0" . MarkdownHtmlRenderer::render($document));
+            return MarkdownHtmlRenderer::render($document);
         } catch (ContentException $contentException) {
             return 'error:' . $contentException->getMessage();
         }

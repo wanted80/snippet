@@ -35,6 +35,29 @@ use Snippet\Tests\PublisherFaults;
 
 mutates(CatalogLoader::class, CssMinifier::class, HtmlMinifier::class, HtmlRenderer::class, LlmsTxtRenderer::class, MarkdownHtmlRenderer::class, Parser::class, ReferenceValidator::class, TemplateLoader::class);
 
+it('validates and publishes calendar dates independently of the process timezone', function (): void {
+    $previousTimezone = date_default_timezone_get();
+    try {
+        date_default_timezone_set('UTC');
+        $this->article('post', ['title' => 'Post', 'description' => 'D', 'date' => '2011-12-30', 'tags' => []]);
+        $this->resources();
+        $config = new ConfigLoader()->load($this->directory . '/site');
+        $catalog = $this->catalog();
+        $publisher = new Publisher();
+        $publisher->publish($this->directory, $config, $catalog);
+        $expected = publicationBytes($this->directory);
+
+        date_default_timezone_set('Pacific/Apia');
+        expect(serialize($this->catalog()))->toBe(serialize($catalog));
+        $publisher->publish($this->directory, $config, $catalog);
+
+        expect(publicationBytes($this->directory))->toBe($expected)
+            ->and($expected['articles/post/index.html'])->toContain('<time datetime="2011-12-30">December 30, 2011</time>');
+    } finally {
+        date_default_timezone_set($previousTimezone);
+    }
+});
+
 /** @return array<string, string> */
 function publicationBytes(string $root): array
 {
@@ -358,9 +381,9 @@ TXT . "\n")
         ->toContain('<a class="menu-link" href="/pages/">Pages</a>', '<a class="menu-link" href="/about/">About</a>')
         ->toMatch('~>Articles</a>[\s\S]*>Tags</a>[\s\S]*>Pages</a>[\s\S]*>About</a>~')->not->toContain('Article &amp; description.')
         ->and($untagged)->not->toContain('<ul class="tag-list">')
-        ->and($css)->toContain('--color-background: #08090a;', '--color-background-glass: rgb(8 9 10 / 82%);', '--color-background-glass: rgb(247 241 232 / 82%);', '::selection', 'scrollbar-color:')
+        ->and($css)->toContain('--color-background: light-dark(#f7f1e8, #08090a);', '--color-background-glass: light-dark(rgb(247 241 232 / 82%), rgb(8 9 10 / 82%));', '::selection', 'scrollbar-color:')
         ->toContain('min-inline-size: 320px;')
-        ->toContain('--color-interactive: #171d22;', '--color-interactive: #eee3d8;', '--space-section: clamp(5rem, 12vw, 7rem);')
+        ->toContain('--color-interactive: light-dark(#eee3d8, #171d22);', '--space-section: clamp(5rem, 12vw, 7rem);')
         ->toContain('--font-reading: ui-serif, Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;')
         ->toContain('display: grid;', 'grid-template-rows: auto 1fr auto;')
         ->toContain('position: sticky;', '.site-header[data-scrolled]', '@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))')
@@ -369,7 +392,7 @@ TXT . "\n")
         ->toContain('--measure-prose: 44rem;', '--measure-shell: 44rem;', '--radius-control: 0.75rem;')
         ->toContain('inline-size: min(100% - 2rem, var(--measure-shell));', 'margin-inline: auto;')
         ->toContain('inline-size: min(100% - 1rem, calc(var(--measure-shell) + 1rem));')
-        ->toContain('--shadow-header: 0 0.25rem 0.9rem rgb(0 0 0 / 22%);', '--shadow-header: 0 0.25rem 0.9rem rgb(77 52 34 / 10%);')
+        ->toContain('--shadow-header: 0 0.25rem 0.9rem light-dark(rgb(77 52 34 / 10%), rgb(0 0 0 / 22%));')
         ->toMatch('/\.site-header\[data-scrolled\]\s*\{[^}]*background: var\(--color-surface\)/s')
         ->toMatch('/\.site-header\[data-scrolled\]\s*\{[^}]*box-shadow: var\(--shadow-header\)/s')
         ->toMatch('/@supports \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\)\s*\{\s*\.site-header\[data-scrolled\]\s*\{[^}]*\}\s*\.site-navigation\s*\{[^}]*background: var\(--color-background-glass\);[^}]*backdrop-filter: saturate\(140%\) blur\(1rem\);[^}]*\}\s*\}/s')
@@ -741,8 +764,8 @@ it('ships a storage-safe system-aware theme script as a dedicated asset', functi
         ->toContain('<button class="theme-toggle icon-button" type="button" data-theme-toggle aria-label="Toggle color theme" title="Toggle color theme">')
         ->toContain('<svg class="menu-icon theme-icon-light"', '<svg class="menu-icon theme-icon-dark"')
         ->toContain('<meta name="theme-color" content="#08090a">')->not->toContain('sha256-', "'unsafe-inline'", '<script>')
-        ->and($script)->toContain("'snippet-theme'", "matchMedia('(prefers-color-scheme: light)')", 'storage.getItem', 'storage.setItem', "themeButton.setAttribute('aria-label', label)")
-        ->toContain("if (header !== null) {", "if (themeButton === null || themeColor === null) {")
+        ->and($script)->toContain("'snippet-theme'", "matchMedia('(prefers-color-scheme: light)')", 'storage.getItem', 'storage.setItem', "themeButton?.setAttribute('aria-label', label)")
+        ->toContain("if (header !== null) {", "themeColor?.setAttribute")
         ->and($script)->toContain("if (root.dataset.theme !== theme) {", "root.dataset.themeChanging = 'true';", 'window.requestAnimationFrame', 'delete root.dataset.themeChanging;', 'const sequence = ++themeChangeSequence;', 'themeChangeSequence === sequence')
         ->toContain("window.addEventListener('storage'", 'event.storageArea !== storage', 'event.key !== storageKey && event.key !== null', 'preference ?? systemTheme()')
         ->toContain("navigation.addEventListener('toggle'", "menuButton.setAttribute('aria-label', label)")

@@ -185,6 +185,8 @@ Inside the generator checkout, `composer app:content:validate` validates the com
 
 Docker with GNU Make is the recommended full-checkout environment. It supplies the exact PHP version and extensions, isolates Composer dependencies in named volumes, and provides an HTTPS preview through Caddy.
 
+Contributor containers mount `demo/content/` at `/app/content`, alongside the canonical root `site/` and `resources/`. This lets validation, builds, authoring commands, and live preview use the normal CLI workspace layout. Edit articles and pages under `demo/content/`; template, asset, configuration, and runtime edits remain live. The preview uses the generic configuration in `site/config.php` and opens at `https://localhost:8443/` by default. `make demo-check` separately checks the published example with its `demo/site/config.php` override.
+
 Install Git, GNU Make, Docker, and Docker Compose. Linux users should configure Docker for their user. macOS users may use Docker Desktop or Colima. Windows users should use WSL 2 with Docker Desktop integration.
 
 ```bash
@@ -220,7 +222,7 @@ make builder-smoke
 make demo-check
 ```
 
-`docker-check` runs exact source line and type coverage, Pint, Rector, PHPStan, composed-demo validation, ShellCheck, and JavaScript syntax validation. `docker-audit` remains separate because advisory data needs the network. `builder-smoke` checks the release image, its empty-workspace initialization lifecycle, and hardened content-only preview behavior; `demo-check` composes root shared files with `demo/`, validates the complete existing site, and proves its production build succeeds.
+`docker-check` runs exact source line and type coverage, Pint, Rector, PHPStan, composed-demo validation, ShellCheck, JavaScript syntax validation, and dependency-free JavaScript behavior tests. Run the latter directly with `composer app:test:assets` when Node.js 20+ is available. `docker-audit` remains separate because advisory data needs the network. `builder-smoke` checks the release image, its empty-workspace initialization lifecycle, and hardened content-only preview behavior; `demo-check` composes root shared files with `demo/`, validates the complete existing site, and proves its production build succeeds.
 
 The optional `.env` controls local orchestration only. Its principal settings are:
 
