@@ -187,6 +187,8 @@ Docker with GNU Make is the recommended full-checkout environment. It supplies t
 
 Contributor containers mount `demo/content/` at `/app/content`, alongside the canonical root `site/` and `resources/`. This lets validation, builds, authoring commands, and live preview use the normal CLI workspace layout. Edit articles and pages under `demo/content/`; template, asset, configuration, and runtime edits remain live. The preview uses the generic configuration in `site/config.php` and opens at `https://localhost:8443/` by default. `make demo-check` separately checks the published example with its `demo/site/config.php` override.
 
+The generator checkout ignores the root `/content/` mount in Git and Docker build contexts. It is a second view of `demo/content/`, so edits are tracked at their real source paths only. This rule belongs to the generator checkout; an initialized author repository should still commit its own `content/` and `site/` directories.
+
 Install Git, GNU Make, Docker, and Docker Compose. Linux users should configure Docker for their user. macOS users may use Docker Desktop or Colima. Windows users should use WSL 2 with Docker Desktop integration.
 
 ```bash

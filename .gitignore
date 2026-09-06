@@ -10,6 +10,8 @@
 /.phpstan.cache/
 /.idea/
 /public/
+# Contributor containers expose demo/content here; keep its source tracked there.
+/content/
 /.snippet-build-*/
 /.snippet-backup-*/
 /.snippet-demo.*/
