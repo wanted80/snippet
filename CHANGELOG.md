@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/wanted80/snippet/compare/v2.2.0...v3.0.0) (2026-09-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* Author-workspace resources/ templates and theme assets are no longer loaded or copied by init. Customize presentation through site/site.css and optional site/site.js; HTML structure belongs to the installed engine. Workspace template overrides are no longer supported.
+
+### Features
+
+* fix publishing validation, previews, and theme behavior ([#37](https://github.com/wanted80/snippet/issues/37)) ([787c2d1](https://github.com/wanted80/snippet/commit/787c2d15813ee70aeb3147b5df664ab622f05cf3))
+
 ## [2.2.0](https://github.com/wanted80/snippet/compare/v2.1.3...v2.2.0) (2026-09-03)
 
 
