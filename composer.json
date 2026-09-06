@@ -24,7 +24,7 @@
         "pestphp/pest": "^5.1.3",
         "pestphp/pest-plugin-agent": "^5.0",
         "pestphp/pest-plugin-evals": "^5.0.3",
-        "pestphp/pest-plugin-phpstan": "^5.2.0",
+        "pestphp/pest-plugin-phpstan": "^5.2.1",
         "pestphp/pest-plugin-rector": "^5.0.4",
         "pestphp/pest-plugin-type-coverage": "^5.0.2",
         "phpstan/extension-installer": "^1.4.3",
@@ -48,7 +48,7 @@
         "app:content:validate": "sh docker/demo/validate.sh",
         "app:test": "php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/pest",
         "app:test:assets": "node --test tests/Frontend/*.test.mjs",
-        "app:test:coverage": "php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/pest --no-tia --coverage --exactly=100",
+        "app:test:coverage": "php -d memory_limit=512M -d pcov.enabled=1 -d pcov.directory=src vendor/bin/pest --no-tia --coverage --exactly=100",
         "app:test:types": "php -d memory_limit=512M vendor/bin/pest --no-tia --type-coverage --min=100",
         "app:test:mutations": [
             "Composer\\Config::disableProcessTimeout",
