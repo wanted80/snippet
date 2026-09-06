@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Snippet\Application;
 use Snippet\Cli\Command;
+use Snippet\Markdown\InlineSearch;
 use Snippet\Rendering\OpenGraphType;
 
 arch('models CLI commands and emitted Open Graph types as closed value sets')
@@ -13,6 +14,10 @@ arch('models CLI commands and emitted Open Graph types as closed value sets')
 arch('keeps Open Graph types inside the rendering layer')
     ->expect(OpenGraphType::class)
     ->toOnlyBeUsedIn('Snippet\\Rendering');
+
+arch('keeps per-document lookahead inside Markdown parsing')
+    ->expect(InlineSearch::class)
+    ->toOnlyBeUsedIn('Snippet\\Markdown');
 
 arch('uses strict types throughout the source namespace')
     ->expect('Snippet')

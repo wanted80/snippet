@@ -21,6 +21,14 @@ use Snippet\Rendering\MarkdownHtmlRenderer;
 
 mutates(Document::class, InlineArena::class, InlineBuilder::class, Parser::class);
 
+it('preserves malformed opening markers before later closing delimiters', function (string $markdown, string $html): void {
+    expect(MarkdownHtmlRenderer::render(new Parser()->parse($markdown, 'markers.md')))
+        ->toBe($html . "\n");
+})->with([
+    'single tilde' => ['~text~~', '<p>~text~~</p>'],
+    'adjacent code markers' => ['Text ``code`', '<p>Text `<code>code</code></p>'],
+]);
+
 it('renders short emphasis as semantic HTML', function (string $markdown, string $html): void {
     expect(MarkdownHtmlRenderer::render(new Parser()->parse($markdown, 'short.md')))
         ->toBe($html . "\n");
@@ -475,6 +483,21 @@ it('preserves a large plain paragraph as one text node', function (): void {
 
     expect($inlines)->toHaveCount(1)
         ->and($document->text($inlines[0]))->toBe($source);
+});
+
+it('keeps long malformed link prefixes literal while retaining later valid syntax', function (string $suffix): void {
+    $prefix = str_repeat('[', 4096) . $suffix;
+    $source = $prefix . "\n\nA [valid](/) link and *emphasis*.";
+
+    expect(MarkdownHtmlRenderer::render(new Parser()->parse($source, 'unmatched.md')))
+        ->toBe('<p>' . $prefix . "</p>\n<p>A <a href=\"/\">valid</a> link and <em>emphasis</em>.</p>\n");
+})->with(['', '] literal', '](unclosed']);
+
+it('retains literal styles when every potential closing delimiter follows whitespace', function (): void {
+    $source = str_repeat('*a ', 4096);
+
+    expect(MarkdownHtmlRenderer::render(new Parser()->parse($source, 'styles.md')))
+        ->toBe('<p>' . $source . "</p>\n");
 });
 
 it('treats unsupported and malformed markdown as ordinary text', function (): void {
