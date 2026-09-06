@@ -11,6 +11,7 @@ if ($documentRoot === false || !is_string($requestPath)) {
 }
 
 header('Cache-Control: no-store');
+header('X-Content-Type-Options: nosniff');
 
 if ($basePath !== '') {
     if ($requestPath === '/') {
@@ -28,7 +29,7 @@ if ($basePath !== '') {
         return true;
     }
 
-    $publicRequestPath = mb_substr($requestPath, mb_strlen($basePath));
+    $publicRequestPath = mb_substr($requestPath, mb_strlen($basePath, '8bit'), null, '8bit');
 } else {
     $publicRequestPath = $requestPath;
 }
@@ -65,7 +66,7 @@ JS;
     return true;
 }
 
-$candidate = $documentRoot . '/' . mb_ltrim(rawurldecode($publicRequestPath), '/');
+$candidate = $documentRoot . '/' . mb_ltrim(rawurldecode($publicRequestPath), '/', '8bit');
 if (is_dir($candidate)) {
     $candidate .= '/index.html';
 }
@@ -79,23 +80,29 @@ if ($resolved === false || !str_starts_with($resolved, $documentRoot . '/') || !
     }
     $notFound = true;
 }
-$extension = mb_strtolower(pathinfo($resolved, PATHINFO_EXTENSION));
+$extension = mb_strtolower(pathinfo($resolved, PATHINFO_EXTENSION), 'UTF-8');
 if ($extension !== 'html') {
     $contentType = $publicRequestPath === '/.snippet-preview-version' || $publicRequestPath === '/llms.txt'
         ? 'text/plain; charset=utf-8'
         : match ($extension) {
             'css' => 'text/css; charset=utf-8',
             'js' => 'text/javascript; charset=utf-8',
+            'txt' => 'text/plain; charset=utf-8',
+            'pdf' => 'application/pdf',
+            'json' => 'application/json',
             'jpeg', 'jpg' => 'image/jpeg',
             'png' => 'image/png',
             'svg' => 'image/svg+xml',
             'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            'avif' => 'image/avif',
+            'ico' => 'image/vnd.microsoft.icon',
+            'woff' => 'font/woff',
             'woff2' => 'font/woff2',
-            default => null,
+            default => 'application/octet-stream',
         };
-    if ($contentType === null) {
-        http_response_code(404);
-        return true;
+    if ($contentType === 'application/octet-stream') {
+        header('Content-Disposition: attachment');
     }
 
     header("Content-Type: {$contentType}");
@@ -117,7 +124,7 @@ if (!is_string($version) || preg_match('/\A[a-f0-9]{16}\n?\z/D', $version) !== 1
     http_response_code(500);
     return true;
 }
-$baseline = mb_trim($version);
+$baseline = mb_trim($version, encoding: 'UTF-8');
 $reloadPath = $basePath . '/.snippet-preview-reload.js';
 
 if ($notFound) {

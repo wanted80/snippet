@@ -96,10 +96,6 @@
             });
         }
 
-        if (themeButton === null || themeColor === null) {
-            return;
-        }
-
         const apply = (theme, persist) => {
             if (root.dataset.theme !== theme) {
                 root.dataset.themeChanging = 'true';
@@ -114,9 +110,9 @@
                 });
             }
             const label = theme === 'dark' ? 'Use light theme' : 'Use dark theme';
-            themeButton.setAttribute('aria-label', label);
-            themeButton.setAttribute('title', label);
-            themeColor.setAttribute('content', colors[theme]);
+            themeButton?.setAttribute('aria-label', label);
+            themeButton?.setAttribute('title', label);
+            themeColor?.setAttribute('content', colors[theme]);
             if (persist && storage !== null) {
                 try {
                     storage.setItem(storageKey, theme);
@@ -127,9 +123,9 @@
         };
 
         apply(initialTheme, false);
-        system.addEventListener('change', (event) => {
+        system.addEventListener('change', () => {
             if (preference === null) {
-                apply(event.matches ? 'light' : 'dark', false);
+                apply(systemTheme(), false);
             }
         });
         window.addEventListener('storage', (event) => {
@@ -141,7 +137,7 @@
             preference = stored === 'light' || stored === 'dark' ? stored : null;
             apply(preference ?? systemTheme(), false);
         });
-        themeButton.addEventListener('click', () => {
+        themeButton?.addEventListener('click', () => {
             preference = root.dataset.theme === 'dark' ? 'light' : 'dark';
             apply(preference, true);
         });

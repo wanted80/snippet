@@ -6,6 +6,7 @@ declare(strict_types=1);
 use Snippet\Application;
 use Snippet\Cli\ErrorReporter;
 use Snippet\Preview\PreviewServer;
+use Snippet\Publishing\Publisher;
 use Snippet\Scaffolding\WorkspaceInitializer;
 
 const USAGE = "Usage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet preview [--host=<host>] [--port=<port>]\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n";
@@ -63,8 +64,9 @@ if (($arguments[1] ?? null) === 'init') {
 do {
     $status = new Application(
         $workspace,
+        publisher: new Publisher(engineRoot: $engineRoot),
         previewer: new PreviewServer(
-            routerPath: $engineRoot . '/resources/preview-router.php',
+            engineRoot: $engineRoot,
             watchRuntimeSource: false,
             errorReporter: $errorReporter,
         ),

@@ -8,6 +8,22 @@ use Snippet\Exception\ContentException;
 
 mutates(CatalogLoader::class);
 
+it('rejects invalid UTF-8 in decoded content metadata', function (string $field): void {
+    $path = $this->item('post', ['title' => 'Post', 'description' => 'Description']);
+    $metadata = ['title' => "'Post'", 'description' => "'Description'"];
+    $metadata[$field] = '"bad\\xFF"';
+    file_put_contents($path . '/meta.php', '<?php declare(strict_types=1); return ['
+        . "'title' => " . $metadata['title'] . ", 'description' => " . $metadata['description'] . '];');
+
+    expect(fn() => $this->catalog())->toThrow(ContentException::class, "Metadata field '{$field}' for 'post' must be valid UTF-8.");
+})->with(['title', 'description']);
+
+it('rejects an explicitly null menu order', function (): void {
+    $this->item('post', ['title' => 'Post', 'description' => 'Description', 'menu_order' => null]);
+
+    expect(fn() => $this->catalog())->toThrow(ContentException::class, "Metadata field 'menu_order' for 'post' must be a positive integer.");
+});
+
 it('requires a content directory', function (): void {
     (void) new CatalogLoader()->load($this->directory . '/missing');
 })->throws(ContentException::class, 'does not exist');

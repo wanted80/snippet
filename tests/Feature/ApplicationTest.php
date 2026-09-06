@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Snippet\Application;
 use Snippet\Preview\Previewer;
 use Snippet\Publishing\PublicationInputLoader;
+use Snippet\Publishing\Publisher;
 use Snippet\Site\Limits;
 use Snippet\Support\ApplicationVersion;
 use Snippet\Tests\ApplicationClock;
@@ -19,7 +20,8 @@ function runApplication(string $root, array $arguments, ?PublicationInputLoader 
     $stderr = new SplFileObject('php://memory', 'w+');
     $status = new Application(
         $root,
-        publicationInputLoader: $publicationInputLoader ?? new PublicationInputLoader(),
+        publisher: new Publisher(engineRoot: $root),
+        publicationInputLoader: $publicationInputLoader,
         nanoseconds: $nanoseconds,
     )->run($arguments, $stdout, $stderr);
     $stdout->rewind();
@@ -139,6 +141,8 @@ it('keeps version reporting independent from preview, publishing, and Markdown c
 
 declare(strict_types=1);
 
+use Snippet\Publishing\Publisher;
+
 require $argv[1] . '/vendor/autoload.php';
 
 $stdout = new SplFileObject('php://memory', 'w+');
@@ -200,7 +204,7 @@ it('can disable preview at the shared application command boundary', function ()
 it('validates publication templates with internal limits before reporting success', function (): void {
     $this->content();
     $this->resources();
-    $publicationInputLoader = new PublicationInputLoader(limits: new Limits(templateBytes: 1));
+    $publicationInputLoader = new PublicationInputLoader(limits: new Limits(templateBytes: 1), publisher: new Publisher(engineRoot: $this->directory));
 
     expect(runApplication($this->directory, ['bin/snippet', 'validate'], $publicationInputLoader))
         ->toBe([1, '', "Validation failed: HTML template 'resources/templates/layout.html' exceeds the configured template size limits.\n"]);
@@ -215,7 +219,7 @@ it('validates required publication assets before reporting success', function (s
     } elseif ($fault === 'encoding') {
         file_put_contents($path, "\xFF");
     } else {
-        $publicationInputLoader = new PublicationInputLoader(limits: new Limits(assetBytes: 1));
+        $publicationInputLoader = new PublicationInputLoader(limits: new Limits(assetBytes: 1), publisher: new Publisher(engineRoot: $this->directory));
     }
 
     expect(runApplication($this->directory, ['bin/snippet', 'validate'], $publicationInputLoader ?? null))
@@ -240,7 +244,7 @@ it('validates the required favicon asset', function (string $fault, string $mess
         assert(is_int($size));
         file_put_contents($this->directory . '/resources/theme.css', 'x');
         file_put_contents($this->directory . '/resources/theme.js', 'x');
-        $publicationInputLoader = new PublicationInputLoader(limits: new Limits(assetBytes: $size - 1));
+        $publicationInputLoader = new PublicationInputLoader(limits: new Limits(assetBytes: $size - 1), publisher: new Publisher(engineRoot: $this->directory));
         $expectedMessage = 'exceeds the ' . ($size - 1) . '-byte asset limit.';
     }
 

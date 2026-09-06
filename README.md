@@ -12,7 +12,7 @@ Snippet provides:
 - deterministic article, page, tag, and index routes;
 - transactional publication that preserves the last valid `public/` on failure;
 - a live-reloading local preview;
-- editable semantic HTML templates, plain CSS, and light/dark themes; and
+- semantic HTML, customizable plain CSS, and light/dark themes; and
 - no third-party runtime PHP packages.
 
 ## Why I created Snippet
@@ -39,7 +39,7 @@ docker run --rm \
 
 `--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path. Edit the generated `site/config.php` and content, then rerun the command with `init` replaced by `validate` or `build`. Create later drafts through the same image, for example by replacing `init` with `new article first-post`.
 
-The repository needs only `content/`, `site/`, and `resources/`; `public/` is disposable output. The builder image supports `--version`, `init`, `new page`, `new article`, `validate`, `build`, and `preview`. Run the local development preview from a content-only repository with an explicitly published loopback port:
+The repository needs only `content/` and `site/`; `public/` is disposable output. The builder image supports `--version`, `init`, `new page`, `new article`, `validate`, `build`, and `preview`. Run the local development preview from a content-only repository with an explicitly published loopback port:
 
 ```bash
 docker run --rm --init \
@@ -67,6 +67,8 @@ make demo-check
 ```
 
 This builds the release image, assembles the demo in a temporary workspace, validates it, and proves the production build. [INSTALL.md](INSTALL.md) documents both official-image preview for content-only publications and direct preview from a full checkout.
+
+For contributor preview, run `make docker-preview` and open `https://localhost:8443/`. Docker exposes `demo/content/` as the CLI content collection and uses the canonical root `site/` and `resources/`, with live updates as those files change.
 
 ## Content
 
@@ -182,11 +184,13 @@ Validation checks every internal Markdown link against the complete generated ro
 
 ## Site customization
 
-`resources/` contains the canonical builder-shipped templates, stylesheet, theme script, and preview support. Root `site/` contains the generic configuration and customizable site assets copied by `snippet init`. The public example combines those shared inputs with `demo/content/` and the single demo-specific override at `demo/site/config.php`; no duplicate starter tree is committed.
+`snippet init` creates empty content collections and copies the generic `site/` defaults: configuration, custom CSS, favicon, and assets. These files belong to the author and are never replaced by initialization or builds. HTML templates, base CSS, theme JavaScript, and the preview router stay inside the installed builder. Each build uses that builder version’s theme, so updating the image and rebuilding delivers theme fixes without copying files into the site.
+
+Customize appearance in `site/site.css` using the [stable CSS API](#stable-css-api). Optional `site/site.js` adds local behavior and remains author-owned. Template overrides are not supported; a separate workspace’s `resources/` directory is not a publication input. Structural changes to the theme belong in the builder itself.
 
 ## Repository and demo separation
 
-The root is the generator and reference implementation. `site/` and `resources/` are the one maintained source for initialized publications, while `demo/content/` preserves the project website's articles and pages. `snippet init` creates empty `content/articles/` and `content/pages/` collections and copies only the generic root defaults—never demo configuration or content. CI composes the demo into a temporary normal workspace, validates it, builds it, and deploys only the generated output.
+The root is the generator and reference implementation. `site/` supplies author-owned defaults and `resources/` supplies the installed theme, while `demo/content/` preserves the project website's articles and pages. `snippet init` creates empty `content/articles/` and `content/pages/` collections and copies only the generic `site/` defaults—never demo configuration or content. CI composes the demo into a temporary normal workspace, validates it, builds it, and deploys only the generated output.
 
 Container support is grouped by responsibility under `docker/`: `development/` owns the contributor image, `builder/` the published minimal image, `demo/` temporary demo composition, `preview/` local Caddy support, and `quality/` container-specific quality tooling. Shell sources retain their `.sh` extension in the repository even when an image installs them as an extensionless command.
 
@@ -216,11 +220,11 @@ return [
 
 The URL must be the final HTTPS site URL, including any deployment path, without credentials, a query, fragment, or trailing slash; it supplies every canonical URL. Root hosting such as `https://example.com` and project hosting such as `https://example.com/snippet` are both supported. Path segments must be well formed and percent-encoded when necessary. Homepage counts are positive integers. The homepage renders the newest article in full, then up to the configured number of older articles and popular tags. Conditional links lead to complete indexes when either collection is truncated.
 
-The `language` value sets the document's HTML language tag. The shipped templates contain English interface text and English-formatted publication dates; translate those editable templates when using another language tag.
+The `language` value sets the document's HTML language tag. The built-in interface text and formatted publication dates remain English; this setting does not translate the theme.
 
 `title` is the document identity used in browser titles, descriptions, and the homepage's hidden heading. The required `sitename` is independent trimmed, non-empty UTF-8 text used by the centered wordmark and its “— Home” accessible label. The required `author` is also trimmed, non-empty UTF-8 text and supplies the document's author metadata; every document identifies its running Snippet version as the generator. The starter theme displays the site name in uppercase with the bundled Snippet Logo font; the stored and accessible text is unchanged, and unsupported glyphs fall back to the interface font.
 
-When `build.minify` is enabled, publication conservatively collapses whitespace-only text nodes between HTML tags. It leaves prose, attributes, comments, doctypes, inline spacing, and the contents of `pre`, `code`, `textarea`, `script`, and `style` unchanged. It also stream-minifies required `resources/theme.css` and optional `site/site.css`: external whitespace is collapsed, whitespace around `{`, `}`, `;`, and `,` is removed, and strings, escapes, comments, and meaningful token spacing are preserved. Malformed or uncertain CSS is copied unchanged. When minification is disabled, both stylesheets use the direct byte-for-byte copy path. `resources/theme.js`, optional `site/site.js`, content assets, and files beneath `site/assets/` remain byte-for-byte copies in either mode.
+When `build.minify` is enabled, publication conservatively collapses whitespace-only text nodes between HTML tags. It leaves prose, attributes, comments, doctypes, inline spacing, and the contents of `pre`, `code`, `textarea`, `script`, and `style` unchanged. It also stream-minifies required `resources/theme.css` and optional `site/site.css`: external whitespace is collapsed, whitespace around `{`, `}`, `;`, and `,` is removed, and strings, escapes, comments, and meaningful token spacing are preserved. Malformed or uncertain CSS is copied unchanged. When minification is disabled, both stylesheets use the direct byte-for-byte copy path. The bundled `resources/theme.js`, optional `site/site.js`, content assets, and files beneath `site/assets/` remain byte-for-byte copies in either mode.
 
 ### Site assets
 
@@ -230,17 +234,19 @@ Every regular file under `site/assets/` is copied to `/assets/site/` with its re
 
 ### Templates and theme
 
-The 13 editable HTML files under `resources/templates/` own the author-customizable structural markup. `layout.html` provides the document shell, metadata, header, navigation, main region, and footer; the remaining files define the homepage, not-found page, shared collection and content structures, and repeated items. Small engine-owned fragments remain in PHP when they serialize typed data or depend on validated runtime state: Markdown HTML, social and robots metadata, date markup, navigation links, resource hints, conditional stylesheet and script tags, empty states, and optional index links. This keeps loops and conditionals out of the template language without creating one-off fragment templates.
-
-Templates use named placeholders such as `{{body}}`, `{{title}}`, and `{{items}}`. Surrounding HTML, classes, and text may change, and placeholders may move or repeat, but every placeholder expected by a template must remain and unknown or malformed placeholders are rejected before publication. Placeholder values are either escaped text or trusted HTML produced by the engine or another validated template, so keep them in their intended text or attribute contexts rather than moving them into JavaScript or CSS. The layout's `{{author}}` placeholder supplies author metadata, `{{version}}` supplies the release-managed generator version, `{{base_path}}` prefixes template-owned root links, and the repeatable `{{sitename}}` placeholder supplies both wordmark text and its accessible home label. `{{social_metadata}}` emits engine-owned Open Graph and Twitter/X metadata together with the not-found page's `noindex` directive. `{{theme_script}}` and `{{theme_stylesheet}}` emit the fingerprinted built-in asset tags. Layouts initialized by an earlier v2 release may still contain the exact released stable theme `<script>` and `<link>` tags; Snippet transparently normalizes only those two tags to the fingerprinted placeholders during validation. Modified, malformed, or incomplete legacy tags remain invalid so template mistakes are not silently accepted. `{{preloads}}` belongs before `{{theme_stylesheet}}`, `{{site_stylesheet}}` follows it, and `{{site_script}}` follows `{{theme_script}}`. Each optional site placeholder renders an empty string when its validated asset is absent. The wordmark links home; the adjacent native popover contains Articles, Tags, Pages, ordered `menu_order` pages, and a final `llms.txt` link without widening the header.
+The 13 HTML templates under the builder’s `resources/templates/` own the document shell and shared page structures. They are released with the engine and validated before rendering. Named placeholders receive escaped text or trusted HTML generated from validated data. This is an internal rendering contract, not a site customization API.
 
 The default theme follows the visitor's system light or dark preference until the menu's theme action is used. That choice is stored under `snippet-theme` and synchronized across open same-origin tabs when browser storage is available. The behavior lives in `resources/theme.js`, is copied unchanged to a fingerprinted `/assets/theme.<xxh3>.js` filename, and is permitted by the generated same-origin Content Security Policy without `unsafe-inline`.
 
-The builder publishes required `resources/theme.css` as `/assets/theme.<xxh3>.css`, then loads optional UTF-8 `site/site.css` from `/assets/site.<xxh3>.css`. Optional UTF-8 `site/site.js` is copied byte-for-byte to `/assets/site.<xxh3>.js` and loaded with `defer` after `/assets/theme.<xxh3>.js`. Each `<xxh3>` token is the complete 16-character lowercase digest of the exact published bytes, after optional CSS minification. Absent optional files produce neither tags nor output. Files beneath `site/assets/`, the favicon, and content assets retain their stable paths. Put downstream CSS rules in the final layer:
+The default theme uses native popovers and CSS `light-dark()` in current browsers. Palette pairs live together in the token layer, and `@layer overrides` can customize them for both themes. Print output uses a light, high-contrast palette independently of the selected screen theme.
+
+The builder publishes its bundled `resources/theme.css` as `/assets/theme.<xxh3>.css`, then loads optional UTF-8 `site/site.css` from `/assets/site.<xxh3>.css`. Optional UTF-8 `site/site.js` is copied byte-for-byte to `/assets/site.<xxh3>.js` and loaded with `defer` after the built-in script. Each `<xxh3>` token is the complete 16-character lowercase digest of the exact published bytes, after optional CSS minification. Absent optional files produce neither tags nor output files. Files beneath `site/assets/`, the favicon, and content assets retain their stable paths. Put downstream CSS rules in the final layer:
 
 ```css
 @layer overrides {
     :root {
+        --color-accent: light-dark(#713923, #efbb9f);
+        --measure-prose: 42rem;
         --font-reading: "My Font", serif;
     }
 }
@@ -250,15 +256,21 @@ The starter site self-hosts the upright and italic variable webfonts for [Atkins
 
 Every route keeps its canonical link and receives Open Graph and Twitter/X title, description, URL, and site-name metadata. Articles use `og:type=article`; other routes use `website`. A covered article also emits its validated absolute image URL, MIME type, dimensions, and non-empty authored alt text, and uses the large-image card. No site-wide social image or additional social configuration is implied.
 
+Custom scripts should use the documented class hooks and browser APIs, guard optional elements, and preserve native navigation and accessibility. Their code is never overwritten by a build or `init`. Undocumented DOM details and internal functions in `theme.js` are not a supported JavaScript API. Scripts execute under the existing same-origin Content Security Policy; no bundler or external script origin is added.
+
 ### Stable CSS API
 
 Stable color tokens are `--color-background`, `--color-surface`, `--color-interactive`, `--color-text`, `--color-muted`, `--color-accent`, and `--color-border`. Stable font tokens are `--font-reading`, `--font-interface`, `--font-wordmark`, and `--font-code`. Stable sizing tokens are `--measure-prose`, `--measure-shell`, `--space-1` through `--space-6`, and `--space-section`.
 
-Stable hooks are `.site-header`, `.site-brand`, `.site-wordmark`, `.site-navigation`, `.site-main`, `.article-list`, `.article-figure`, `.content-header`, `.prose`, `.tag-list`, and `.site-footer`. CSS layers are ordered `reset`, `tokens`, `base`, `layout`, `components`, `overrides`. Other DOM details may evolve; changing a stable token or hook requires a migration note.
+Stable hooks are `.site-header`, `.site-brand`, `.site-wordmark`, `.site-navigation`, `.site-main`, `.article-list`, `.article-figure`, `.content-header`, `.prose`, `.tag-list`, and `.site-footer`. CSS layers are ordered `reset`, `tokens`, `base`, `layout`, `components`, `overrides`. Patch and minor releases preserve these tokens, class hooks, and layer order; removing or changing their meaning requires a major release. Target these classes directly rather than relying on tag names, child positions, or undocumented selectors. Other DOM details and default visual values may evolve.
+
+Use `light-dark(lightValue, darkValue)` for palette overrides so system preference and the theme control work together. CSS supports colors, typography, spacing, and responsive layout; it cannot change interface wording or document structure. Pin the builder image version when you need repeatable output, then update the image and rebuild to adopt a newer theme.
 
 ### Resource limits
 
 Snippet applies generous internal ceilings to catalog counts, text and file sizes, Markdown complexity, image dimensions, assets, templates, rendered pages, and total output. They protect the builder from pathological input and are tested as implementation boundaries; authors do not configure them, and no limit setup is required.
+
+Content and site asset inventories enforce file, depth, and directory-entry ceilings while traversing the source tree. Empty directories count toward the traversal budget, so unused subtrees cannot consume unlimited work or memory.
 
 Configuration and metadata files are declarative PHP rather than executed code. They may contain only `declare(strict_types=1);` and one returned literal array. Calls, expressions, variables, interpolation, includes, duplicate keys, and output are rejected.
 
@@ -299,7 +311,7 @@ Articles are ordered by date descending and then slug ascending. Pages are order
 
 Markdown inline, list-item, and link traversals, together with preview filesystem fingerprint records, are exposed internally as fresh, forward-only generators. This reduces transient allocations for one-pass consumers. The validated catalog remains materialized because ordering, complete route inventory, tag aggregation, reference validation, and snapshot-safe transactional publication all require one shared complete snapshot; generators do not replace it.
 
-Runtime code uses only PHP's standard library. Composer supplies the PHP platform requirement, PSR-4 autoloading, project scripts, and approved development-only quality tools. The selected static host owns upload configuration, public HTTPS, and certificates; only the generated `public/` directory is deployable. This repository builds `public/` through the locked production Docker workflow and deploys that artifact to GitHub Pages only when a stable GitHub release is published, checking out the released tag rather than mutable branch state. Pull requests, pushes, manual quality runs, and prereleases never deploy; generated output remains ignored, and no publication branch is used.
+Runtime code uses only PHP's standard library. Composer supplies the PHP platform requirement, PSR-4 autoloading, project scripts, and approved development-only quality tools. The selected static host owns upload configuration, public HTTPS, and certificates; only the generated `public/` directory is deployable. This repository deploys the demo to GitHub Pages after the Quality workflow succeeds for a push to `main`. The Pages workflow checks out that exact tested commit and builds the demo with the production builder image. Pull requests and manual quality runs do not deploy. Stable releases separately publish the versioned builder image; generated output remains ignored, and no publication branch is used.
 
 The root-level `/404.html` uses the same layout, navigation, theme, optional site assets, configured deployment path, and minification policy as every other document. GitHub Pages and static hosts with the same convention serve it for missing routes with a 404 response. Snippet preview mirrors that behavior beneath the configured deployment path and still injects live reload only into the served response.
 
@@ -315,7 +327,7 @@ make demo-check
 make docker-audit
 ```
 
-`docker-check` is deterministic and includes exact line and type coverage, Pint, Rector, PHPStan, content validation, ShellCheck, and JavaScript syntax validation. The resource-intensive `docker-mutations` target separately runs the complete Pest suite against every covered source class and requires a 100% mutation score. `docker-audit` is separate because the Composer advisory lookup requires network access.
+`docker-check` is deterministic and includes exact line and type coverage, Pint, Rector, PHPStan, content validation, ShellCheck, JavaScript syntax validation, and JavaScript behavior tests using Node’s built-in test runner. The resource-intensive `docker-mutations` target separately runs the complete Pest suite against every covered source class and requires a 100% mutation score. `docker-audit` is separate because the Composer advisory lookup requires network access.
 
 Snippet follows Semantic Versioning. Pull requests are squash-merged with conventional titles, and Release Please maintains `CHANGELOG.md`, `vX.Y.Z` tags, and GitHub releases. Each stable release also publishes the official multi-platform builder image to GitHub Container Registry with maximum BuildKit provenance, an SPDX SBOM, and GitHub build provenance; the release workflow records its immutable digest. See [CONTRIBUTING.md](CONTRIBUTING.md) for title conventions and the full contributor workflow. Report vulnerabilities privately and verify builder releases as described in [SECURITY.md](SECURITY.md).
 
@@ -328,7 +340,7 @@ Snippet follows Semantic Versioning. Pull requests are squash-merged with conven
 - [MIT license](LICENSE)
 - [`demo/`](demo/) for the public example site's content and configuration override
 - [`site/`](site/) for generic initialized-site configuration, fonts, and assets
-- [`resources/`](resources/) for canonical shared publication defaults and preview support
+- [`resources/`](resources/) for builder-owned templates, theme assets, and preview support
 - [`src/`](src/) for the dependency-free builder
 
 Snippet source is available under the [MIT License](LICENSE). The bundled Atkinson Hyperlegible Next font files retain their separate [SIL Open Font License 1.1](site/assets/fonts/atkinson-hyperlegible-next/OFL.txt).

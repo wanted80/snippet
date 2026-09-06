@@ -27,7 +27,7 @@ final readonly class PublicationInventory
             $targets[$assets->siteScript] = true;
         }
         foreach ($config->assets as $asset) {
-            $targets[$this->canonical('/assets/site/' . $asset)] = true;
+            $targets['/assets/site/' . $this->encodeAssetPath($asset)] = true;
         }
         foreach ([$catalog->articles, $catalog->pages] as $items) {
             foreach ($items as $item) {
@@ -35,7 +35,7 @@ final readonly class PublicationInventory
                 $targets[$route] = true;
                 $targets[$route . 'index.html'] = true;
                 foreach ($item->assets as $asset) {
-                    $targets[$this->canonical($route . $asset->path)] = true;
+                    $targets[$route . $this->encodeAssetPath($asset->path)] = true;
                 }
             }
         }
@@ -66,5 +66,11 @@ final readonly class PublicationInventory
             static fn(string $segment): string => rawurlencode(rawurldecode($segment)),
             explode('/', $path),
         ));
+    }
+
+    /** Filesystem names contain literal bytes, never pre-encoded URL segments. */
+    private function encodeAssetPath(string $path): string
+    {
+        return implode('/', array_map(rawurlencode(...), explode('/', $path)));
     }
 }

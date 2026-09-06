@@ -26,6 +26,7 @@ services:
       - "8080"
     volumes:
       - .:/app
+      - ./demo/content:/app/content
       - type: volume
         source: vendor-${ENVIRONMENT:-development}
         target: /app/vendor

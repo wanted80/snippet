@@ -8,5 +8,6 @@
 coverage.xml
 vendor
 public
+/content
 .snippet-build-*
 .snippet-backup-*

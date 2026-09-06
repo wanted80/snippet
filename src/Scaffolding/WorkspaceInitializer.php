@@ -7,17 +7,11 @@ namespace Snippet\Scaffolding;
 use NoDiscard;
 use RuntimeException;
 
-/** Creates an empty content workspace from the engine's canonical shared inputs. */
+/** Creates author-owned configuration, assets, and empty content collections. */
 final readonly class WorkspaceInitializer
 {
-    /** @var list<'site'|'resources'> */
-    private const array INPUTS = ['site', 'resources'];
-
     /** @var list<'content'|'content/articles'|'content/pages'> */
     private const array CONTENT_DIRECTORIES = ['content', 'content/articles', 'content/pages'];
-
-    /** @var list<string> */
-    private const array EXCLUDED_FILES = ['resources/preview-router.php'];
 
     public function __construct(
         private string $engineRoot,
@@ -72,9 +66,7 @@ final readonly class WorkspaceInitializer
         $directories = [];
         $files = [];
 
-        foreach (self::INPUTS as $input) {
-            $this->inventoryDirectory($input, $directories, $files);
-        }
+        $this->inventoryDirectory('site', $directories, $files);
 
         return [$directories, $files];
     }
@@ -99,9 +91,6 @@ final readonly class WorkspaceInitializer
         foreach (array_diff($entries, ['.', '..']) as $entry) {
             $child = $relative . '/' . $entry;
             $childSource = $this->engineRoot . '/' . $child;
-            if (in_array($child, self::EXCLUDED_FILES, true)) {
-                continue;
-            }
             if (is_link($childSource)) {
                 throw new RuntimeException("Canonical input entry '{$child}' must not be a symbolic link.");
             }

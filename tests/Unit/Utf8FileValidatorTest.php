@@ -15,11 +15,22 @@ it('validates UTF-8 incrementally across fixed-size chunk boundaries', function 
         ->and(PublisherFaults::calls('support_fclose'))->toBe(1);
 });
 
-it('classifies every UTF-8 lead and continuation boundary exactly', function (string $bytes, bool $valid): void {
-    $path = $this->directory . '/boundary.txt';
-    file_put_contents($path, $bytes);
+it('rejects an invalid prefix even when the final character spans two chunks', function (): void {
+    $path = $this->directory . '/invalid-prefix.css';
+    file_put_contents($path, "\xFF" . str_repeat('a', 8_190) . 'é');
 
-    expect(new Utf8FileValidator()->isValid($path))->toBe($valid);
+    expect(new Utf8FileValidator()->isValid($path))->toBeFalse();
+});
+
+it('classifies UTF-8 boundaries both within and across stream chunks', function (string $bytes, bool $valid): void {
+    $path = $this->directory . '/boundary.txt';
+    $results = [];
+    foreach ([0, 8_189, 8_190, 8_191] as $padding) {
+        file_put_contents($path, str_repeat('a', $padding) . $bytes);
+        $results[$padding] = new Utf8FileValidator()->isValid($path);
+    }
+
+    expect($results)->each->toBe($valid);
 })->with([
     'empty' => ['', true],
     'lowest ASCII' => ["\x00", true],
@@ -52,6 +63,7 @@ it('classifies every UTF-8 lead and continuation boundary exactly', function (st
     'highest Unicode sequence' => ["\xF4\x8F\xBF\xBF", true],
     'above Unicode range boundary' => ["\xF4\x90\x80\x80", false],
     'above four-byte lead range' => ["\xF5\x80\x80\x80", false],
+    'invalid prefix before a valid final character' => ["\xFFé", false],
 ]);
 
 it('rejects invalid and truncated input', function (string $bytes): void {

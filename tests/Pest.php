@@ -10,6 +10,7 @@ require_once __DIR__ . '/DraftFunctions.php';
 require_once __DIR__ . '/PreviewFunctions.php';
 require_once __DIR__ . '/ScaffoldingFunctions.php';
 require_once __DIR__ . '/PublicationFunctions.php';
+require_once __DIR__ . '/MarkdownFunctions.php';
 
 pest()
     ->extend(TestCase::class)

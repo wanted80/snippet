@@ -3,6 +3,21 @@
 declare(strict_types=1);
 
 use Snippet\Application;
+use Snippet\Cli\Command;
+use Snippet\Markdown\InlineSearch;
+use Snippet\Rendering\OpenGraphType;
+
+arch('models CLI commands and emitted Open Graph types as closed value sets')
+    ->expect([Command::class, OpenGraphType::class])
+    ->toBeEnums();
+
+arch('keeps Open Graph types inside the rendering layer')
+    ->expect(OpenGraphType::class)
+    ->toOnlyBeUsedIn('Snippet\\Rendering');
+
+arch('keeps per-document lookahead inside Markdown parsing')
+    ->expect(InlineSearch::class)
+    ->toOnlyBeUsedIn('Snippet\\Markdown');
 
 arch('uses strict types throughout the source namespace')
     ->expect('Snippet')
@@ -138,6 +153,7 @@ it('isolates the devcontainer from the host Docker Compose project', function ()
         ->and($developmentCompose)->toStartWith("name: snippet-dev\n")
         ->and($compose)->toContain(
             "      GIT_CONFIG_COUNT: \"1\"\n      GIT_CONFIG_KEY_0: safe.directory\n      GIT_CONFIG_VALUE_0: /app\n",
+            '      - ./demo/content:/app/content',
         )
         ->and($developmentCompose)->toContain(
             "entrypoint: /usr/local/bin/snippet-devcontainer-entrypoint\n",

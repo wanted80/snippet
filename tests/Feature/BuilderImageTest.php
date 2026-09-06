@@ -97,7 +97,6 @@ function waitForBuilderPreview(string $url, string $expected): string
 it('runs version, validation, and builds against a content-only workspace', function (): void {
     $this->content();
     $this->item('about', ['title' => 'About', 'description' => 'About this site.']);
-    $this->resources();
 
     $build = runBuilderEntrypoint($this->directory, 'build');
 
@@ -117,8 +116,6 @@ it('runs version, validation, and builds against a content-only workspace', func
 
 it('previews a content-only workspace through the engine router and restarts after a base-path change', function (): void {
     $this->content();
-    $this->resources();
-    unlink($this->directory . '/resources/preview-router.php');
     $port = availableBuilderPreviewPort();
     $root = dirname(__DIR__, 2);
     $process = proc_open(
@@ -185,17 +182,14 @@ it('initializes an empty workspace from canonical shared inputs without demo con
     expect($status)->toBe(0)
         ->and($stdout)->toStartWith("Initializing Snippet workspace.\n\n")
         ->and($stdout)->not->toContain('demo/', 'article.md', 'page.md')
-        ->and($stdout)->toContain("Created: resources/templates/layout.html\n")
+        ->and($stdout)->toContain("Created: site/site.css\n")
         ->and($stdout)->toEndWith("\nWorkspace initialized.\nExisting files were not overwritten.\n")
         ->and($stderr)->toBeEmpty()
         ->and($this->directory . '/public')->not->toBeDirectory();
 
     $root = dirname(__DIR__, 2);
-    foreach (['site', 'resources'] as $input) {
+    foreach (['site'] as $input) {
         foreach (builderScaffoldFiles($root . '/' . $input) as $file) {
-            if ($input . '/' . $file === 'resources/preview-router.php') {
-                continue;
-            }
             expect(file_get_contents($this->directory . '/' . $input . '/' . $file))
                 ->toBe(file_get_contents($root . '/' . $input . '/' . $file));
         }
@@ -219,7 +213,7 @@ it('adds missing scaffold files without changing existing files or public output
 
     expect($status)->toBe(0)
         ->and($stdout)->toContain("Skipped: site/config.php\n")
-        ->and($stdout)->toContain("Created: resources/templates/layout.html\n")
+        ->and($stdout)->toContain("Created: site/site.css\n")
         ->and($stderr)->toBeEmpty()
         ->and(file_get_contents($this->directory . '/site/config.php'))->toBe($customConfig)
         ->and(file_get_contents($this->directory . '/public/index.html'))->toBe('existing publication');
@@ -270,11 +264,10 @@ it('does not follow workspace symlinks while initializing', function (): void {
 
 it('reports validation failures from the mounted workspace', function (): void {
     $this->content();
-    $this->resources();
-    unlink($this->directory . '/resources/theme.css');
+    unlink($this->directory . '/site/favicon.svg');
 
     expect(runBuilderEntrypoint($this->directory, 'validate'))
-        ->toBe([1, '', "Validation failed: Publication asset 'resources/theme.css' must be a regular non-symlink file.\n"]);
+        ->toBe([1, '', "Validation failed: Publication asset 'site/favicon.svg' must be a regular non-symlink file.\n"]);
 });
 
 it('creates page and article drafts in an initialized content-only workspace', function (): void {

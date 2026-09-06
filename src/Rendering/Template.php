@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Snippet\Rendering;
 
-/** Identifies every editable HTML template and its required placeholders. */
+/** Identifies every bundled HTML template and its required placeholders. */
 enum Template: string
 {
     case Layout = 'layout.html';

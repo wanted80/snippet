@@ -18,7 +18,7 @@ docker run --rm \
   ghcr.io/wanted80/snippet:v2.2.0 init # x-release-please-version
 ```
 
-`init` creates empty `content/articles/` and `content/pages/` collections and copies the canonical generic files from `site/` and `resources/`. Existing files win, nothing is deleted, `public/` is untouched, and the engine-owned preview router is not copied. Demo configuration and content are never included. Repeating `init` after changing the pinned image may add newly required shared files without replacing customization.
+`init` creates empty `content/articles/` and `content/pages/` collections and copies the generic `site/` defaults. Existing files win, nothing is deleted, and `public/` is untouched. Templates, base CSS, theme JavaScript, and preview support stay in the image; no `resources/` directory is created in the workspace. Demo configuration and content are never included. Repeating `init` adds missing site defaults without replacing existing files. To receive theme updates, update the pinned image and rebuild.
 
 Set the complete public HTTPS URL in `site/config.php`, then create the first page or article. Rerun the command with `init` replaced by `validate` to check the site without changing `public/`, or by `build` to create the static publication. The same image creates drafts:
 
@@ -51,7 +51,7 @@ docker run --rm \
   ghcr.io/wanted80/snippet:v2.2.0 build # x-release-please-version
 ```
 
-The mounted repository owns only publication inputs and disposable output. Commit `content/`, `site/`, and `resources/`; ignore `public/`. Do not upload the source repository or container to the web host.
+The mounted repository owns only publication inputs and disposable output. Commit `content/` and `site/`; ignore `public/`. Do not upload the source repository or container to the web host.
 
 If the repository is private, the builder does not need Git credentials or network access because it reads only the mounted checkout.
 
@@ -93,7 +93,7 @@ docker run --rm --init \
 
 Visit `http://127.0.0.1:8080/`, followed by the deployment path from `site/config.php` when one is configured. The container must bind PHP to `0.0.0.0` so Docker can forward the port, but Docker publishes that port only on the host's `127.0.0.1`; do not replace the host-side address with an unrestricted binding. Change both `8080` values to select another port.
 
-Preview validates and builds before serving, watches `content/`, `site/`, and `resources/`, live-reloads after successful changes, and keeps the last valid site available after an invalid edit until it is corrected. A deployment-path change restarts the image-owned local server automatically. Ctrl+C or `docker stop` terminates the watcher and child PHP server; `--init` provides normal container process reaping. Preview opens no browser and is for local development only, never production serving.
+Preview validates and builds before serving, watches `content/` and `site/`, live-reloads after successful changes, and keeps the last valid site available after an invalid edit until it is corrected. A deployment-path change restarts the image-owned local server automatically. Ctrl+C or `docker stop` terminates the watcher and child PHP server; `--init` provides normal container process reaping. Preview opens no browser and is for local development only, never production serving.
 
 The example also limits the container to 64 processes and two CPUs. These bounds leave ample room for the watcher, server, and Docker init process while containing accidental process or CPU exhaustion. A memory limit is deliberately not prescribed because publication size varies; measure the largest real site before adding one locally.
 
@@ -173,7 +173,7 @@ Run the canonical CLI from the publication workspace. The executable may live in
 
 An article without `--date` uses the current UTC date. Draft creation deliberately produces incomplete metadata and Markdown, never replaces an existing content directory, and never changes `public/`. Complete the draft before validation.
 
-Direct preview serves HTTP at `http://127.0.0.1:8080` by default, watches `content/`, `site/`, and `resources/`, reloads fresh contributor runtime after changes beneath `bin/` or `src/`, preserves the last valid output after an invalid edit, and reloads open pages after a successful rebuild. Use a different validated address when needed:
+Direct preview serves HTTP at `http://127.0.0.1:8080` by default, watches `content/` and `site/`, reloads fresh contributor runtime after changes beneath the installed builder’s `bin/` or `src/`, rebuilds after edits to its `resources/`, preserves the last valid output after an invalid edit, and reloads open pages after a successful rebuild. Use a different validated address when needed:
 
 ```bash
 bin/snippet preview --host=127.0.0.1 --port=9000
@@ -184,6 +184,10 @@ Inside the generator checkout, `composer app:content:validate` validates the com
 ## Contributor Docker, Make, and HTTPS preview
 
 Docker with GNU Make is the recommended full-checkout environment. It supplies the exact PHP version and extensions, isolates Composer dependencies in named volumes, and provides an HTTPS preview through Caddy.
+
+Contributor containers mount `demo/content/` at `/app/content`, alongside the canonical root `site/` and `resources/`. This lets validation, builds, authoring commands, and live preview use the normal CLI workspace layout. Edit articles and pages under `demo/content/`; template, asset, configuration, and runtime edits remain live. The preview uses the generic configuration in `site/config.php` and opens at `https://localhost:8443/` by default. `make demo-check` separately checks the published example with its `demo/site/config.php` override.
+
+The generator checkout ignores the root `/content/` mount in Git and Docker build contexts. It is a second view of `demo/content/`, so edits are tracked at their real source paths only. This rule belongs to the generator checkout; an initialized author repository should still commit its own `content/` and `site/` directories.
 
 Install Git, GNU Make, Docker, and Docker Compose. Linux users should configure Docker for their user. macOS users may use Docker Desktop or Colima. Windows users should use WSL 2 with Docker Desktop integration.
 
@@ -220,7 +224,7 @@ make builder-smoke
 make demo-check
 ```
 
-`docker-check` runs exact source line and type coverage, Pint, Rector, PHPStan, composed-demo validation, ShellCheck, and JavaScript syntax validation. `docker-audit` remains separate because advisory data needs the network. `builder-smoke` checks the release image, its empty-workspace initialization lifecycle, and hardened content-only preview behavior; `demo-check` composes root shared files with `demo/`, validates the complete existing site, and proves its production build succeeds.
+`docker-check` runs exact source line and type coverage, Pint, Rector, PHPStan, composed-demo validation, ShellCheck, JavaScript syntax validation, and dependency-free JavaScript behavior tests. Run the latter directly with `composer app:test:assets` when Node.js 20+ is available. `docker-audit` remains separate because advisory data needs the network. `builder-smoke` checks the release image, its empty-workspace initialization lifecycle, and hardened content-only preview behavior; `demo-check` composes root shared files with `demo/`, validates the complete existing site, and proves its production build succeeds.
 
 The optional `.env` controls local orchestration only. Its principal settings are:
 
@@ -259,9 +263,11 @@ mounts:
 
 Inside the container, use the canonical `bin/snippet` commands. Run only one direct or Docker preview at a time because both publish the same host `public/` directory.
 
-## Optional CSS and JavaScript customization
+## CSS and JavaScript customization
 
-Snippet publishes assets with ownership-reflecting names:
+The installed builder owns the HTML and theme behavior. Customize appearance through `site/site.css` and the [stable CSS API](README.md#stable-css-api). Optional `site/site.js` adds local behavior; both customization files remain author-owned. There are no template overrides.
+
+Source paths beneath `resources/` refer to the installed builder, not the mounted workspace:
 
 | Source | Output | Behavior |
 | --- | --- | --- |
@@ -270,9 +276,9 @@ Snippet publishes assets with ownership-reflecting names:
 | `site/site.css` | `/assets/site.<xxh3>.css` | Optional site CSS; loaded after the built-in theme, minified when configured, then fingerprinted from the published bytes. |
 | `site/site.js` | `/assets/site.<xxh3>.js` | Optional local script; copied byte-for-byte, fingerprinted, and loaded with `defer` after the built-in script. |
 
-Both optional files must be regular non-symlink UTF-8 files within the asset-size ceiling. If one is absent, Snippet emits neither its output file nor its HTML tag. Custom JavaScript is a same-origin escape hatch; there is no bundler, external dependency, or extra CSP origin.
+Both optional site files must be regular non-symlink UTF-8 files within the asset-size ceiling. If one is absent, Snippet emits neither its output file nor its HTML tag. Place rules in `@layer overrides`; use documented variables and classes rather than depending on the theme’s exact HTML structure. Patch and minor releases preserve this CSS contract. Breaking changes require a major release.
 
-Existing workspaces initialized by an earlier v2 release may retain the exact released `/assets/theme.js` script tag and `/assets/theme.css` stylesheet tag in `resources/templates/layout.html`. During validation Snippet transparently maps those two exact tags to the current fingerprinted asset placeholders, so `init` does not need to overwrite the customized layout. Near-miss, modified, or incomplete legacy tags remain invalid; new scaffolds use `{{theme_script}}` and `{{theme_stylesheet}}` directly.
+Custom scripts should target documented class hooks, guard optional elements, and preserve native navigation. The theme’s internal DOM and JavaScript functions may change; they are not a public script API. The existing same-origin Content Security Policy applies.
 
 The no-JavaScript site remains readable and navigable. Authored content, links, and native-popover navigation work normally; the system color preference applies, and the inactive manual theme control stays hidden.
 

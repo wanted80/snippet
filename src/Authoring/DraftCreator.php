@@ -30,16 +30,11 @@ final readonly class DraftCreator
     /**
      * Create an incomplete draft and return its root-relative source path.
      *
-     * @throws InvalidArgumentException when the type, slug, or date is invalid
+     * @throws InvalidArgumentException when the slug or date is invalid
      * @throws ContentException when the source tree cannot be changed safely
      */
-    public function create(string $root, string $typeName, string $slug, ?string $date = null): string
+    public function create(string $root, ContentType $type, string $slug, ?string $date = null): string
     {
-        $type = ContentType::tryFrom($typeName);
-        if (!$type instanceof ContentType) {
-            throw new InvalidArgumentException("New content type '{$typeName}' is invalid; use 'page' or 'article'.");
-        }
-
         $this->validateSlug($slug);
         $collection = 'content/' . $type->collection();
         $sourceName = $type->sourceFilename();

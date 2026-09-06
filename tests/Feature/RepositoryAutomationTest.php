@@ -4,6 +4,40 @@ declare(strict_types=1);
 
 use Snippet\Support\ApplicationVersion;
 
+it('hides the contributor content mount from Git while keeping publication sources visible', function (): void {
+    $this->content();
+    mkdir($this->directory . '/demo/content', 0777, true);
+    file_put_contents($this->directory . '/content/example.md', 'Mounted content.');
+    file_put_contents($this->directory . '/demo/content/example.md', 'Tracked source.');
+    copy(dirname(__DIR__, 2) . '/.gitignore', $this->directory . '/.gitignore');
+
+    foreach ([
+        [['git', '-c', 'init.templateDir=', 'init', '--quiet'], ''],
+        [
+            ['git', 'ls-files', '--others', '--exclude-standard', '--', 'content/', 'demo/content/', 'site/'],
+            "demo/content/example.md\nsite/config.php\nsite/favicon.svg\n",
+        ],
+    ] as [$command, $expected]) {
+        $process = proc_open(
+            $command,
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+            $this->directory,
+            ['GIT_CONFIG_GLOBAL' => '/dev/null', 'GIT_CONFIG_NOSYSTEM' => '1'],
+        );
+        expect($process)->toBeResource();
+        assert(is_resource($process));
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        expect(proc_close($process))->toBe(0)
+            ->and($stdout)->toBe($expected)
+            ->and($stderr)->toBe('');
+    }
+});
+
 it('defines stable least-privilege continuous integration and deployment workflows', function (): void {
     $root = dirname(__DIR__, 2);
     $quality = file_get_contents($root . '/.github/workflows/quality.yml');
@@ -295,8 +329,7 @@ it('composes and validates the complete demo from canonical shared inputs', func
         ->and(file_get_contents($workspace . '/site/config.php'))
         ->toBe(file_get_contents($root . '/demo/site/config.php'))
         ->not->toBe(file_get_contents($root . '/site/config.php'))
-        ->and(file_get_contents($workspace . '/resources/templates/layout.html'))
-        ->toBe(file_get_contents($root . '/resources/templates/layout.html'))
+        ->and($workspace . '/resources')->not->toBeDirectory()
         ->and($workspace . '/content/articles/2026/07/25/year-of-small-projects/article.md')->toBeFile()
         ->and($workspace . '/content/articles/2026/08/26/welcome/article.md')->toBeFile()
         ->and($workspace . '/content/pages/about/page.md')->toBeFile()

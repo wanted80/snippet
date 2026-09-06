@@ -12,6 +12,20 @@ use Snippet\Site\Limits;
 
 mutates(CatalogLoader::class);
 
+it('rejects invalid UTF-8 cover alt text', function (): void {
+    $path = $this->article('post', [
+        'title' => 'Post',
+        'description' => 'Description',
+        'date' => '2026-01-01',
+        'tags' => [],
+        'cover' => true,
+        'alt' => "bad\xFF",
+    ]);
+    $this->image($path . '/cover.webp');
+
+    expect(fn() => $this->catalog())->toThrow(ContentException::class, "Metadata field 'alt' for 'post' must be valid UTF-8.");
+});
+
 it('discovers configured covers in each supported format and derives their metadata', function (string $extension, string $format, ?string $alt, int $width, int $height): void {
     $metadata = [
         'title' => 'Post',
@@ -240,7 +254,7 @@ it('renders the semantic article figure only in the canonical and featured artic
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher()->publish($this->directory, $config, $this->catalog());
+    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
     $article = file_get_contents($this->directory . '/public/articles/post/index.html');
     $home = file_get_contents($this->directory . '/public/index.html');
     $archive = file_get_contents($this->directory . '/public/articles/index.html');
@@ -267,7 +281,7 @@ it('renders empty alternative text when alt is omitted', function (): void {
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher()->publish($this->directory, $config, $this->catalog());
+    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
     $article = file_get_contents($this->directory . '/public/articles/post/index.html');
     assert(is_string($article));
 

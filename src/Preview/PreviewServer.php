@@ -20,16 +20,21 @@ final class PreviewServer implements Previewer
 
     private const string FINGERPRINT_ALGORITHM = 'xxh3';
 
-    private const array PUBLICATION_WATCH_PATHS = ['content', 'resources', 'site'];
+    private const array PUBLICATION_WATCH_PATHS = ['content', 'site'];
 
     private const array RUNTIME_WATCH_PATHS = ['bin', 'src'];
 
     /** @var array<string, array{signature: string, hash: string}> */
     private array $watchedFiles = [];
 
+    private readonly Publisher $publisher;
+
+    private readonly PublicationInputLoader $publicationInputLoader;
+
+    /** @param string $engineRoot Trusted installation supplying templates, assets, runtime code, and the router. */
     public function __construct(
-        private readonly Publisher $publisher = new Publisher(),
-        private readonly PublicationInputLoader $publicationInputLoader = new PublicationInputLoader(),
+        ?Publisher $publisher = null,
+        ?PublicationInputLoader $publicationInputLoader = null,
         private readonly ?string $host = null,
         private readonly ?int $port = null,
         private readonly int $pollMicroseconds = 250_000,
@@ -39,7 +44,11 @@ final class PreviewServer implements Previewer
         private readonly ErrorReporter $errorReporter = new ErrorReporter(),
         private readonly ?string $routerPath = null,
         private readonly bool $watchRuntimeSource = true,
-    ) {}
+        private readonly string $engineRoot = __DIR__ . '/../..',
+    ) {
+        $this->publisher = $publisher ?? new Publisher(engineRoot: $engineRoot);
+        $this->publicationInputLoader = $publicationInputLoader ?? new PublicationInputLoader(publisher: $this->publisher);
+    }
 
     public function run(
         string $root,
@@ -51,7 +60,7 @@ final class PreviewServer implements Previewer
         $host = $this->host ?? $host;
         $port = $this->port ?? $port;
         $config = $this->rebuild($root);
-        $routerPath = $this->resolveRouterPath($root);
+        $routerPath = $this->resolveRouterPath();
         $fingerprints = $this->fingerprints($root);
         $terminationSignal = null;
         $restoreSignalHandling = null;
@@ -209,9 +218,9 @@ final class PreviewServer implements Previewer
         return $process;
     }
 
-    private function resolveRouterPath(string $root): string
+    private function resolveRouterPath(): string
     {
-        $routerPath = $this->routerPath ?? $root . '/resources/preview-router.php';
+        $routerPath = $this->routerPath ?? $this->engineRoot . '/resources/preview-router.php';
         if (is_link($routerPath) || !is_file($routerPath) || !is_readable($routerPath)) {
             throw new ContentException("Preview router '{$routerPath}' must be a readable regular non-symlink file.");
         }
@@ -224,9 +233,10 @@ final class PreviewServer implements Previewer
     {
         $watchedFiles = [];
         $fingerprints = [
-            'publication' => $this->fingerprint($root, self::PUBLICATION_WATCH_PATHS, $watchedFiles),
+            'publication' => $this->fingerprint($root, self::PUBLICATION_WATCH_PATHS, $watchedFiles)
+                . $this->fingerprint($this->engineRoot, $this->watchRuntimeSource ? ['resources'] : [], $watchedFiles),
             'runtime' => $this->fingerprint(
-                $root,
+                $this->engineRoot,
                 $this->watchRuntimeSource ? self::RUNTIME_WATCH_PATHS : [],
                 $watchedFiles,
             ),

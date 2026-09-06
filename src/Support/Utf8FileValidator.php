@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Snippet\Support;
 
 /** Validates UTF-8 files in fixed-size chunks, including split code points. */
-final class Utf8FileValidator
+final readonly class Utf8FileValidator
 {
     private const int BUFFER_BYTES = 8_192;
 
@@ -21,9 +21,7 @@ final class Utf8FileValidator
             return false;
         }
 
-        $continuations = 0;
-        $minimum = 0x80;
-        $maximum = 0xBF;
+        $pending = '';
         try {
             while (true) {
                 $chunk = @fread($stream, self::BUFFER_BYTES);
@@ -32,52 +30,24 @@ final class Utf8FileValidator
                 }
 
                 if ($chunk === '') {
-                    return !$validateEncoding || $continuations === 0;
+                    return $pending === '';
                 }
 
                 if (!$validateEncoding) {
                     continue;
                 }
 
-                $length = mb_strlen($chunk, '8bit');
-                for ($offset = 0; $offset < $length; ++$offset) {
-                    $byte = ord($chunk[$offset]);
-                    if ($continuations > 0) {
-                        if ($byte < $minimum || $byte > $maximum) {
-                            return false;
-                        }
+                $chunk = $pending . $chunk;
+                if (mb_check_encoding($chunk, 'UTF-8')) {
+                    $pending = '';
+                    continue;
+                }
 
-                        --$continuations;
-                        $minimum = 0x80;
-                        $maximum = 0xBF;
-                        continue;
-                    }
-
-                    if ($byte <= 0x7F) {
-                        continue;
-                    }
-
-                    if ($byte >= 0xC2 && $byte <= 0xDF) {
-                        $continuations = 1;
-                    } elseif (($byte >= 0xE1 && $byte <= 0xEC) || ($byte >= 0xEE && $byte <= 0xEF)) {
-                        $continuations = 2;
-                    } elseif ($byte === 0xE0) {
-                        $continuations = 2;
-                        $minimum = 0xA0;
-                    } elseif ($byte === 0xED) {
-                        $continuations = 2;
-                        $maximum = 0x9F;
-                    } elseif ($byte >= 0xF1 && $byte <= 0xF3) {
-                        $continuations = 3;
-                    } elseif ($byte === 0xF0) {
-                        $continuations = 3;
-                        $minimum = 0x90;
-                    } elseif ($byte === 0xF4) {
-                        $continuations = 3;
-                        $maximum = 0x8F;
-                    } else {
-                        return false;
-                    }
+                // Only a split final code point may remain; PHP validates every complete prefix.
+                preg_match('/[\xC2-\xF4][\x80-\xBF]{0,2}\z/', $chunk, $tail);
+                $pending = $tail[0] ?? '';
+                if ($pending === '' || !mb_check_encoding(mb_substr($chunk, 0, -mb_strlen($pending, '8bit'), '8bit'), 'UTF-8')) {
+                    return false;
                 }
             }
         } finally {

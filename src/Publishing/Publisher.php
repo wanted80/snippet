@@ -20,11 +20,13 @@ use Throwable;
 /** Builds a complete temporary tree and transactionally promotes it to public/. */
 final readonly class Publisher
 {
+    /** @param string $engineRoot Trusted installation directory, independent of the author workspace. */
     public function __construct(
         private TemplateLoader $templateLoader = new TemplateLoader(),
         private HtmlMinifier $htmlMinifier = new HtmlMinifier(),
         private CssMinifier $cssMinifier = new CssMinifier(),
         private Utf8FileValidator $utf8FileValidator = new Utf8FileValidator(),
+        private string $engineRoot = __DIR__ . '/../..',
     ) {}
 
     /**
@@ -37,9 +39,9 @@ final readonly class Publisher
     {
         $limits ??= new Limits();
         $retainedAssetBytes = 0;
-        $templates = $this->templateLoader->load($root . '/resources/templates', $limits);
-        $themeStylesheet = $this->stylesheet($root . '/resources/theme.css', '/assets/theme.css', $config->minify, $limits, $retainedAssetBytes);
-        $themeScript = $this->asset($root . '/resources/theme.js', '/assets/theme.js', $limits, $retainedAssetBytes);
+        $templates = $this->templateLoader->load($this->engineRoot . '/resources/templates', $limits);
+        $themeStylesheet = $this->stylesheet($this->engineRoot . '/resources/theme.css', '/assets/theme.css', $config->minify, $limits, $retainedAssetBytes);
+        $themeScript = $this->asset($this->engineRoot . '/resources/theme.js', '/assets/theme.js', $limits, $retainedAssetBytes);
         $this->validateAsset($root . '/site/favicon.svg', $limits, true);
 
         $siteStylesheet = $config->hasSiteStylesheet

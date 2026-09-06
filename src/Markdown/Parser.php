@@ -38,12 +38,13 @@ final class Parser
         $blocks = [];
         $listItems = [];
         $inlineNodes = new InlineBuilder();
+        $search = new InlineSearch($source);
         $lineStart = 0;
         $lineNumber = 1;
         $previousHeadingLevel = null;
 
         while ($lineStart < $length) {
-            $lineEnd = $this->lineEnd($source, $lineStart, $length);
+            $lineEnd = $this->lineEnd($source, $lineStart);
             if ($lineStart === $lineEnd) {
                 $lineStart = $this->nextLineStart($lineEnd, $length);
                 ++$lineNumber;
@@ -57,7 +58,7 @@ final class Parser
                 $closingStart = $codeStart;
 
                 while ($closingStart < $length) {
-                    $closingEnd = $this->lineEnd($source, $closingStart, $length);
+                    $closingEnd = $this->lineEnd($source, $closingStart);
                     if ($this->isClosingFence($source, $closingStart, $closingEnd)) {
                         break;
                     }
@@ -76,7 +77,7 @@ final class Parser
                 }
 
                 $blocks[] = new CodeBlock($codeStart, $codeEnd - $codeStart, $fence[0]);
-                $closingEnd = $this->lineEnd($source, $closingStart, $length);
+                $closingEnd = $this->lineEnd($source, $closingStart);
                 $lineStart = $this->nextLineStart($closingEnd, $length);
                 $lineNumber += 2;
                 continue;
@@ -99,7 +100,7 @@ final class Parser
                 }
                 $previousHeadingLevel = $heading[0];
                 $inlineOffset = $inlineNodes->count();
-                $this->parseInline($source, $heading[1], $heading[1] + $heading[2], $path, $lineNumber, $inlineNodes, 0, $maximumDepth);
+                $this->parseInline($source, $heading[1], $heading[1] + $heading[2], $path, $lineNumber, $inlineNodes, $search, 0, $maximumDepth);
                 $blocks[] = new Heading($heading[0], $inlineOffset, $inlineNodes->count() - $inlineOffset);
                 $lineStart = $this->nextLineStart($lineEnd, $length);
                 ++$lineNumber;
@@ -113,7 +114,7 @@ final class Parser
 
                 while ($list !== null && $list[0] === $ordered) {
                     $inlineOffset = $inlineNodes->count();
-                    $this->parseInline($source, $list[1], $list[1] + $list[2], $path, $lineNumber, $inlineNodes, 0, $maximumDepth);
+                    $this->parseInline($source, $list[1], $list[1] + $list[2], $path, $lineNumber, $inlineNodes, $search, 0, $maximumDepth);
                     $listItems[] = new ListItem($inlineOffset, $inlineNodes->count() - $inlineOffset);
                     $lineStart = $this->nextLineStart($lineEnd, $length);
                     ++$lineNumber;
@@ -122,7 +123,7 @@ final class Parser
                         break;
                     }
 
-                    $lineEnd = $this->lineEnd($source, $lineStart, $length);
+                    $lineEnd = $this->lineEnd($source, $lineStart);
                     $list = $this->listMarker($source, $lineStart, $lineEnd);
                 }
 
@@ -141,7 +142,7 @@ final class Parser
                     break;
                 }
 
-                $nextEnd = $this->lineEnd($source, $nextStart, $length);
+                $nextEnd = $this->lineEnd($source, $nextStart);
                 if ($nextStart === $nextEnd || $this->startsBlock($source, $nextStart, $nextEnd)) {
                     $lineStart = $nextStart;
                     ++$lineNumber;
@@ -155,7 +156,7 @@ final class Parser
             }
 
             $inlineOffset = $inlineNodes->count();
-            $this->parseInline($source, $paragraphStart, $paragraphEnd, $path, $paragraphLine, $inlineNodes, 0, $maximumDepth);
+            $this->parseInline($source, $paragraphStart, $paragraphEnd, $path, $paragraphLine, $inlineNodes, $search, 0, $maximumDepth);
             $blocks[] = new Paragraph($inlineOffset, $inlineNodes->count() - $inlineOffset);
         }
 
@@ -177,9 +178,9 @@ final class Parser
         return (string) $normalized; // @pest-mutate-ignore: RemoveStringCast
     }
 
-    private function lineEnd(string $source, int $start, int $length): int
+    private function lineEnd(string $source, int $start): int
     {
-        return $this->findCharacter($source, "\n", $start, $length) ?? $length;
+        return $start + strcspn($source, "\n", $start);
     }
 
     private function nextLineStart(int $lineEnd, int $length): int
@@ -313,6 +314,7 @@ final class Parser
         string $path,
         int $line,
         InlineBuilder $nodes,
+        InlineSearch $search,
         int $depth,
         int $maximumDepth,
     ): void {
@@ -335,10 +337,10 @@ final class Parser
             /** @var '`'|'['|'*'|'~' $character */
             $character = $source[$offset];
             $next = match ($character) {
-                '`' => $this->inlineCode($source, $offset, $end, $nodes, $plainStart),
-                '[' => $this->link($source, $offset, $end, $path, $line, $nodes, $plainStart, $depth, $maximumDepth),
-                '*' => $this->styleAt($source, $offset, $end, $path, $line, $nodes, $plainStart, $depth, $maximumDepth),
-                '~' => $this->strikeAt($source, $offset, $end, $path, $line, $nodes, $plainStart, $depth, $maximumDepth),
+                '`' => $this->inlineCode($offset, $end, $nodes, $search, $plainStart),
+                '[' => $this->link($source, $offset, $end, $path, $line, $nodes, $search, $plainStart, $depth, $maximumDepth),
+                '*' => $this->styleAt($source, $offset, $end, $path, $line, $nodes, $search, $plainStart, $depth, $maximumDepth),
+                '~' => $this->strikeAt($source, $offset, $end, $path, $line, $nodes, $search, $plainStart, $depth, $maximumDepth),
             };
 
             if ($next !== null) {
@@ -357,7 +359,7 @@ final class Parser
 
     private function lineBreaks(string $source, int $start, int $end): int
     {
-        return $start === $end ? 0 : mb_substr_count(mb_substr($source, $start, $end - $start, '8bit'), "\n");
+        return $start === $end ? 0 : mb_substr_count(mb_substr($source, $start, $end - $start, '8bit'), "\n", '8bit');
     }
 
     private function strikeAt(
@@ -367,6 +369,7 @@ final class Parser
         string $path,
         int $line,
         InlineBuilder $nodes,
+        InlineSearch $search,
         int $plainStart,
         int $depth,
         int $maximumDepth,
@@ -374,13 +377,13 @@ final class Parser
         if (($source[$offset + 1] ?? null) !== "~") {
             return null;
         }
-        $closing = $this->findDelimiter($source, '~~', $offset + 2, $end);
+        $closing = $search->find('~~', $offset + 2, $end);
         if ($closing === null || $closing === $offset + 2) {
             return null;
         }
         $this->appendText($plainStart, $offset, $nodes);
         $nodes->marker(InlineMarker::StrikethroughStart);
-        $this->parseInline($source, $offset + 2, $closing, $path, $line, $nodes, $depth + 1, $maximumDepth);
+        $this->parseInline($source, $offset + 2, $closing, $path, $line, $nodes, $search, $depth + 1, $maximumDepth);
         $nodes->marker(InlineMarker::StrikethroughEnd);
         return $closing + 2;
     }
@@ -392,6 +395,7 @@ final class Parser
         string $path,
         int $line,
         InlineBuilder $nodes,
+        InlineSearch $search,
         int $plainStart,
         int $depth,
         int $maximumDepth,
@@ -407,6 +411,7 @@ final class Parser
                 $path,
                 $line,
                 $nodes,
+                $search,
                 $plainStart,
                 $depth,
                 $maximumDepth,
@@ -427,20 +432,22 @@ final class Parser
             $path,
             $line,
             $nodes,
+            $search,
             $plainStart,
             $depth,
             $maximumDepth,
         );
     }
 
-    private function inlineCode(string $source, int $offset, int $end, InlineBuilder $nodes, int $plainStart): ?int
+    private function inlineCode(int $offset, int $end, InlineBuilder $nodes, InlineSearch $search, int $plainStart): ?int
     {
-        $closing = $this->findCharacter($source, '`', $offset + 1, $end);
+        $closing = $search->find('`', $offset + 1, $end);
         if ($closing === null || $closing === $offset + 1) {
             return null;
         }
 
-        if (strcspn($source, "\n", $offset + 1, $closing - $offset - 1) !== $closing - $offset - 1) {
+        // The opening backtick itself cannot be a newline.
+        if ($search->find("\n", $offset + 1, $closing) !== null) { // @pest-mutate-ignore: DecrementInteger
             return null;
         }
 
@@ -457,6 +464,7 @@ final class Parser
         string $path,
         int $line,
         InlineBuilder $nodes,
+        InlineSearch $search,
         int $plainStart,
         int $depth,
         int $maximumDepth,
@@ -465,27 +473,27 @@ final class Parser
             return null;
         }
 
-        $labelEnd = $this->findCharacter($source, ']', $offset + 1, $end); // @pest-mutate-ignore: DecrementInteger
+        $labelEnd = $search->find(']', $offset + 1, $end); // @pest-mutate-ignore: DecrementInteger
         if (
             $labelEnd === null
             || ($source[$labelEnd + 1] ?? null) !== '('
-            || strcspn($source, "\n", $offset + 1, $labelEnd - $offset - 1) !== $labelEnd - $offset - 1
+            || $search->find("\n", $offset + 1, $labelEnd) !== null
         ) {
             return null;
         }
 
         $targetStart = $labelEnd + 2;
-        $targetEnd = $this->findCharacter($source, ')', $targetStart, $end);
+        $targetEnd = $search->find(')', $targetStart, $end);
         if (
             $targetEnd === null
             || $targetEnd === $targetStart
-            || strcspn($source, "\n", $targetStart, $targetEnd - $targetStart) !== $targetEnd - $targetStart
+            || $search->find("\n", $targetStart, $targetEnd) !== null
         ) {
             return null;
         }
 
         $label = mb_substr($source, $offset + 1, $labelEnd - $offset - 1, '8bit');
-        if (mb_trim($label) === '') {
+        if (mb_trim($label, encoding: 'UTF-8') === '') {
             throw new ContentException(sprintf("Link label in '%s' must not be blank at line %d.", $path, $line));
         }
 
@@ -493,12 +501,13 @@ final class Parser
         $this->validateLink($target, $path, $line);
         $this->appendText($plainStart, $offset, $nodes);
         $nodes->link($targetStart, $targetEnd - $targetStart);
-        $this->parseInline($source, $offset + 1, $labelEnd, $path, $line, $nodes, $depth + 1, $maximumDepth);
+        $this->parseInline($source, $offset + 1, $labelEnd, $path, $line, $nodes, $search, $depth + 1, $maximumDepth);
         $nodes->marker(InlineMarker::LinkEnd);
 
         return $targetEnd + 1;
     }
 
+    /** @param '*'|'**' $delimiter */
     private function style(
         string $source,
         int $offset,
@@ -509,89 +518,28 @@ final class Parser
         string $path,
         int $line,
         InlineBuilder $nodes,
+        InlineSearch $search,
         int $plainStart,
         int $depth,
         int $maximumDepth,
     ): ?int {
         $delimiterLength = $delimiter === '**' ? 2 : 1;
         $contentStart = $offset + $delimiterLength;
-        if ($contentStart >= $end || !$this->isNonWhitespaceAt($source, $contentStart)) {
+        if ($contentStart >= $end || !$search->isNonWhitespaceAt($contentStart)) {
             return null;
         }
 
-        $closing = $this->findDelimiter($source, $delimiter, $contentStart, $end);
-        while ($closing !== null) {
-            $secondCharacter = $this->nextCharacterOffset($source, $contentStart);
-            $lastCharacter = $this->previousCharacterOffset($source, $closing);
-            if ($secondCharacter < $closing && $this->isNonWhitespaceAt($source, $lastCharacter)) {
-                $this->appendText($plainStart, $offset, $nodes);
-                $nodes->marker($open);
-                $this->parseInline($source, $contentStart, $closing, $path, $line, $nodes, $depth + 1, $maximumDepth);
-                $nodes->marker($close);
-
-                return $closing + $delimiterLength;
-            }
-
-            $closing = $this->findDelimiter($source, $delimiter, $closing + 1, $end);
+        $closing = $search->styleEnd($delimiter, $contentStart + 1, $end);
+        if ($closing === null) {
+            return null;
         }
 
-        return null;
-    }
+        $this->appendText($plainStart, $offset, $nodes);
+        $nodes->marker($open);
+        $this->parseInline($source, $contentStart, $closing, $path, $line, $nodes, $search, $depth + 1, $maximumDepth);
+        $nodes->marker($close);
 
-    private function findCharacter(string $source, string $character, int $start, int $end): ?int
-    {
-        $distance = strcspn($source, $character, $start, $end - $start);
-
-        return $distance === $end - $start ? null : $start + $distance;
-    }
-
-    private function findDelimiter(string $source, string $delimiter, int $start, int $end): ?int
-    {
-        // Every supported one- or two-byte delimiter repeats the same marker byte.
-        $position = $this->findCharacter($source, $delimiter[0], $start, $end); // @pest-mutate-ignore: DecrementInteger
-        if (!isset($delimiter[1])) {
-            return $position;
-        }
-
-        while ($position !== null && ($source[$position + 1] ?? null) !== $delimiter[1]) { // @pest-mutate-ignore: DecrementInteger
-            $position = $this->findCharacter($source, $delimiter[0], $position + 1, $end); // @pest-mutate-ignore: IncrementInteger
-        }
-
-        return $position;
-    }
-
-    private function nextCharacterOffset(string $source, int $offset): int
-    {
-        ++$offset;
-        while (isset($source[$offset]) && (ord($source[$offset]) & 0xC0) === 0x80) {
-            ++$offset;
-        }
-
-        return $offset;
-    }
-
-    private function previousCharacterOffset(string $source, int $offset): int
-    {
-        --$offset;
-        // A valid UTF-8 continuation byte cannot occur at source byte zero.
-        while ($offset > 0 && (ord($source[$offset]) & 0xC0) === 0x80) { // @pest-mutate-ignore: GreaterToGreaterOrEqual,DecrementInteger,IncrementInteger
-            --$offset;
-        }
-
-        return $offset;
-    }
-
-    private function isNonWhitespaceAt(string $source, int $offset): bool
-    {
-        // Valid UTF-8 starts with ASCII below 0x80 or a multibyte lead byte of at least 0xC2.
-        if (ord($source[$offset]) < 0x80) { // @pest-mutate-ignore: SmallerToSmallerOrEqual,DecrementInteger,IncrementInteger
-            return match ($source[$offset]) { // @pest-mutate-ignore: RemoveEarlyReturn
-                ' ', "\t", "\n", "\r", "\v", "\f" => false,
-                default => true,
-            };
-        }
-
-        return preg_match('/\G\S/u', $source, $match, 0, $offset) === 1;
+        return $closing + $delimiterLength;
     }
 
     private function appendText(int $start, int $end, InlineBuilder $nodes): void

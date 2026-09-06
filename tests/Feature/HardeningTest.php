@@ -67,7 +67,7 @@ it('renders deterministic pages navigation, directory order, CSP, and extended M
     $this->resources();
     $config = new ConfigLoader()->load($this->directory . '/site');
     $catalog = new CatalogLoader()->load($this->directory . '/content');
-    new Publisher()->publish($this->directory, $config, $catalog);
+    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $catalog);
 
     $page = file_get_contents($this->directory . '/public/zulu/index.html');
     $directory = file_get_contents($this->directory . '/public/pages/index.html');
@@ -150,7 +150,7 @@ it('enforces each content resource boundary', function (string $boundary, string
     'asset depth' => ['asset depth', 'directory depth 1'],
     'asset size' => ['asset size', '1-byte limit'],
     'asset aggregate' => ['asset aggregate', '1-byte catalog asset limit'],
-    'asset count' => ['asset count', '1-asset limit'],
+    'asset count' => ['asset count', '3-file limit'],
     'catalog assets' => ['catalog assets', '1-asset catalog limit'],
     'title' => ['title', '1-character limit'],
     'tags' => ['tags', '1-tag limit'],

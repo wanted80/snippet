@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Snippet\Content;
 
-use DateTimeImmutable;
 use NoDiscard;
 use Snippet\Exception\ContentException;
 use Snippet\Markdown\Parser;
@@ -210,11 +209,16 @@ final readonly class CatalogLoader
         CatalogBudget $budget,
         ?string $directoryDate = null,
     ): Article|Page {
-        $files = $this->fileInventory->files($path, "content item '{$slug}'");
         $sourceName = $expectedType->sourceFilename();
         $sourcePath = $path . '/' . $sourceName;
         $metadataPath = $path . '/meta.php';
         $sourceFiles = [$sourceName, 'meta.php'];
+        $files = $this->fileInventory->files(
+            $path,
+            "content item '{$slug}'",
+            maximumFiles: $this->limits->assetsPerItem + count($sourceFiles),
+            maximumDepth: $this->limits->assetDepth,
+        );
         foreach ($sourceFiles as $name) {
             if (!is_file($path . '/' . $name)) {
                 throw new ContentException(sprintf("Content item '%s' is missing %s.", $slug, $name));
@@ -235,7 +239,7 @@ final readonly class CatalogLoader
             throw new ContentException(sprintf("%s for '%s' is not valid UTF-8.", mb_ucfirst($expectedType->value, 'UTF-8'), $slug));
         }
 
-        if (mb_trim($markdown) === '') {
+        if (mb_trim($markdown, encoding: 'UTF-8') === '') {
             throw new ContentException(sprintf("%s for '%s' must not be empty.", mb_ucfirst($expectedType->value, 'UTF-8'), $slug));
         }
 
@@ -250,18 +254,12 @@ final readonly class CatalogLoader
                     throw new ContentException(sprintf("Content item '%s' contains asset path '%s', whose first component is reserved.", $slug, $file));
                 }
 
-                if (mb_substr_count($file, "/") + 1 > $this->limits->assetDepth) {
-                    throw new ContentException(sprintf("Asset '%s' for '%s' exceeds directory depth %d.", $file, $slug, $this->limits->assetDepth));
-                }
                 $size = @filesize($path . "/" . $file);
                 if (!is_int($size) || $size > $this->limits->assetBytes) {
                     throw new ContentException(sprintf("Asset '%s' for '%s' exceeds the %d-byte limit.", $file, $slug, $this->limits->assetBytes));
                 }
                 $budget->addAsset($size);
                 $assets[] = new Asset($file);
-                if (count($assets) > $this->limits->assetsPerItem) {
-                    throw new ContentException(sprintf("Content item '%s' exceeds the %d-asset limit.", $slug, $this->limits->assetsPerItem));
-                }
             }
         }
 
@@ -298,9 +296,12 @@ final readonly class CatalogLoader
             );
         }
 
-        $menuOrder = $metadata["menu_order"] ?? null;
-        if ($menuOrder !== null && (!is_int($menuOrder) || $menuOrder < 1)) {
-            throw new ContentException(sprintf("Metadata field 'menu_order' for '%s' must be a positive integer.", $slug));
+        $menuOrder = null;
+        if (array_key_exists('menu_order', $metadata)) {
+            $menuOrder = $metadata['menu_order'];
+            if (!is_int($menuOrder) || $menuOrder < 1) {
+                throw new ContentException(sprintf("Metadata field 'menu_order' for '%s' must be a positive integer.", $slug));
+            }
         }
 
         return new Page($slug, $title, $description, $document, $assets, $menuOrder);
@@ -324,16 +325,20 @@ final readonly class CatalogLoader
      */
     private function requiredText(array $metadata, string $field, string $slug): string
     {
-        if (!isset($metadata[$field]) || !is_string($metadata[$field]) || mb_trim($metadata[$field]) === '') {
+        if (!isset($metadata[$field]) || !is_string($metadata[$field]) || mb_trim($metadata[$field], encoding: 'UTF-8') === '') {
             throw new ContentException(sprintf("Metadata field '%s' for '%s' must be a non-empty string.", $field, $slug));
         }
 
-        if ($metadata[$field] !== mb_trim($metadata[$field])) {
+        if (!mb_check_encoding($metadata[$field], 'UTF-8')) {
+            throw new ContentException("Metadata field '{$field}' for '{$slug}' must be valid UTF-8.");
+        }
+
+        if ($metadata[$field] !== mb_trim($metadata[$field], encoding: 'UTF-8')) {
             throw new ContentException(sprintf("Metadata field '%s' for '%s' must not have surrounding whitespace.", $field, $slug));
         }
 
         $maximum = $field === "title" ? $this->limits->titleCharacters : $this->limits->descriptionCharacters;
-        if (mb_strlen($metadata[$field]) > $maximum) {
+        if (mb_strlen($metadata[$field], 'UTF-8') > $maximum) {
             throw new ContentException(sprintf("Metadata field '%s' for '%s' exceeds the %d-character limit.", $field, $slug, $maximum));
         }
 
@@ -384,7 +389,7 @@ final readonly class CatalogLoader
             return null;
         }
 
-        $alt = $hasAlt ? $this->altText($metadata['alt'], $slug) : '';
+        $alt = $hasAlt ? $this->requiredText($metadata, 'alt', $slug) : '';
         // Retained enum keys cannot affect emptiness, count(), or array_first().
         // @pest-mutate-ignore: UnwrapArrayValues
         $candidates = array_values(array_filter(
@@ -414,21 +419,6 @@ final readonly class CatalogLoader
         return new ArticleImage($path, $alt, $detected[0], $detected[1], $expectedFormat);
     }
 
-    private function altText(mixed $value, string $slug): string
-    {
-        if (!is_string($value) || mb_trim($value) === '') {
-            throw new ContentException("Metadata field 'alt' for '{$slug}' must be a non-empty string.");
-        }
-        if ($value !== mb_trim($value)) {
-            throw new ContentException("Metadata field 'alt' for '{$slug}' must not have surrounding whitespace.");
-        }
-        if (mb_strlen($value) > $this->limits->descriptionCharacters) {
-            throw new ContentException("Metadata field 'alt' for '{$slug}' exceeds the {$this->limits->descriptionCharacters}-character limit.");
-        }
-
-        return $value;
-    }
-
     /**
      * Validate and return a canonical calendar date.
      *
@@ -436,14 +426,11 @@ final readonly class CatalogLoader
      */
     private function date(array $metadata, string $slug): string
     {
-        if (!isset($metadata['date']) || !is_string($metadata['date']) || preg_match('/^\d{4}-\d{2}-\d{2}$/D', $metadata['date']) !== 1) {
+        if (!isset($metadata['date']) || !is_string($metadata['date']) || preg_match('/^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/D', $metadata['date'], $parts) !== 1) {
             throw new ContentException(sprintf("Metadata field 'date' for '%s' must be a real date in YYYY-MM-DD format.", $slug));
         }
 
-        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $metadata['date']);
-        // The preceding fixed-width numeric grammar is always parseable; this remains a defensive native-API guard.
-        // @pest-mutate-ignore: FalseToTrue
-        if ($date === false || $date->format('Y-m-d') !== $metadata['date']) {
+        if (!checkdate((int) $parts['month'], (int) $parts['day'], (int) $parts['year'])) {
             throw new ContentException(sprintf("Metadata field 'date' for '%s' must be a real date in YYYY-MM-DD format.", $slug));
         }
 
@@ -472,15 +459,15 @@ final readonly class CatalogLoader
                 throw new ContentException(sprintf("Metadata field 'tags' for '%s' must contain only strings; index %d is invalid.", $slug, $index));
             }
 
-            if (mb_trim($label) === '') {
+            if (mb_trim($label, encoding: 'UTF-8') === '') {
                 throw new ContentException(sprintf("Metadata tag label for '%s' must be non-empty at index %d.", $slug, $index));
             }
 
-            if (mb_strlen($label) > $this->limits->tagCharacters) {
+            if (mb_strlen($label, 'UTF-8') > $this->limits->tagCharacters) {
                 throw new ContentException(sprintf("Metadata tag label for '%s' exceeds the %d-character limit at index %d.", $slug, $this->limits->tagCharacters, $index));
             }
 
-            if ($label !== mb_trim($label)) {
+            if ($label !== mb_trim($label, encoding: 'UTF-8')) {
                 throw new ContentException(sprintf("Metadata tag label for '%s' must not have surrounding whitespace at index %d.", $slug, $index));
             }
 

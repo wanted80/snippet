@@ -171,7 +171,7 @@ set -- "${workspace}"/public/assets/theme.*.js
 test "$#" -eq 1
 test -f "$1"
 basename "$1" | grep -Eq '^theme\.[0-9a-f]{16}\.js$'
-test ! -e "${workspace}/resources/preview-router.php"
+test ! -e "${workspace}/resources"
 
 if run_builder preview --port=0 >/dev/null 2>&1; then
     echo 'Builder accepted an invalid preview port.' >&2

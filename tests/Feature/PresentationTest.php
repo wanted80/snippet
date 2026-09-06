@@ -6,6 +6,19 @@ use Snippet\Publishing\Publisher;
 use Snippet\Site\ConfigLoader;
 use Snippet\Support\ApplicationVersion;
 
+it('ships print colors and wrapping that remain usable with long titles and manual themes', function (): void {
+    $this->item('post', ['title' => str_repeat('W', 120), 'description' => 'Description']);
+    $this->resources();
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+    $html = file_get_contents($this->directory . '/public/post/index.html');
+    $css = file_get_contents($this->publishedAsset('theme.css'));
+
+    expect($html)->toContain('<meta name="color-scheme" content="dark light">', str_repeat('W', 120))
+        ->and($css)->toMatch('/h4\s*\{[^}]*overflow-wrap: anywhere;/s')
+        ->toMatch('/@media print\s*\{\s*:root,\s*:root\[data-theme\]\s*\{[^}]*color-scheme: only light;[^}]*--color-background: #fff;/s');
+});
+
 it('renders independent document, author, and multilingual wordmark identities', function (): void {
     $this->content();
     $this->site([
@@ -16,7 +29,7 @@ it('renders independent document, author, and multilingual wordmark identities',
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher()->publish($this->directory, $config, $this->catalog());
+    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
 
     $home = file_get_contents($this->directory . '/public/index.html');
     $css = file_get_contents($this->publishedAsset('theme.css'));
@@ -60,7 +73,7 @@ it('ships and copies the configured wordmark font byte for byte', function (): v
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher()->publish($this->directory, $config, $this->catalog());
+    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
     $published = file_get_contents($this->directory . '/public/assets/site/fonts/snippet-logo/snippet-logo.woff2');
     $theme = file_get_contents($this->publishedAsset('site.css'));
     assert(is_string($published));
@@ -86,7 +99,7 @@ SVG;
     file_put_contents($this->directory . '/site/favicon.svg', $favicon);
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher()->publish($this->directory, $config, $this->catalog());
+    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
     $published = file_get_contents($this->directory . '/public/favicon.svg');
     $home = file_get_contents($this->directory . '/public/index.html');
     assert(is_string($published));
@@ -94,4 +107,49 @@ SVG;
 
     expect($published)->toBe($favicon)
         ->and($home)->toContain('<link rel="icon" href="/favicon.svg" type="image/svg+xml">');
+});
+
+
+it('preserves the public theme tokens, layers, and class hooks across generated pages', function (): void {
+    $article = $this->article('post', [
+        'title' => 'Post',
+        'description' => 'Description.',
+        'date' => '2026-01-01',
+        'tags' => ['PHP'],
+        'cover' => true,
+    ]);
+    $this->image($article . '/cover.webp');
+    [$status, , $error] = validatePublication($this->directory, 'build');
+    expect($status)->toBe(0)->and($error)->toBeEmpty();
+    $css = file_get_contents($this->publishedAsset('theme.css'));
+    assert(is_string($css));
+    expect($css)->toContain('@layer reset, tokens, base, layout, components, overrides;');
+
+    foreach ([
+        '--color-background', '--color-surface', '--color-interactive', '--color-text',
+        '--color-muted', '--color-accent', '--color-border', '--font-reading',
+        '--font-interface', '--font-wordmark', '--font-code', '--measure-prose',
+        '--measure-shell', '--space-1', '--space-2', '--space-3', '--space-4',
+        '--space-5', '--space-6', '--space-section',
+    ] as $token) {
+        expect($css)->toContain($token . ':');
+    }
+
+    $html = file_get_contents($this->directory . '/public/articles/post/index.html')
+        . file_get_contents($this->directory . '/public/articles/index.html');
+    preg_match_all('/class="([^"]+)"/', $html, $matches);
+    $classes = explode(' ', implode(' ', $matches[1]));
+    expect($classes)->toContain(
+        'site-header',
+        'site-brand',
+        'site-wordmark',
+        'site-navigation',
+        'site-main',
+        'article-list',
+        'article-figure',
+        'content-header',
+        'prose',
+        'tag-list',
+        'site-footer',
+    );
 });

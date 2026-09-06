@@ -117,6 +117,21 @@ namespace Snippet\Support;
 use Snippet\Tests\PublisherFaults;
 
 /** @return resource|false */
+function opendir(string $directory): mixed
+{
+    PublisherFaults::record('support_opendir');
+
+    return \opendir($directory);
+}
+
+/** @param resource $stream */
+function closedir(mixed $stream): void
+{
+    PublisherFaults::record('support_closedir');
+    \closedir($stream);
+}
+
+/** @return resource|false */
 function fopen(string $filename, string $mode): mixed
 {
     return PublisherFaults::fails('support_fopen') ? false : @\fopen($filename, $mode);
