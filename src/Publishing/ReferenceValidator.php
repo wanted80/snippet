@@ -29,7 +29,7 @@ final readonly class ReferenceValidator
                     // Equal offsets add zero newlines and reassign the same offset.
                     // @pest-mutate-ignore: SmallerToSmallerOrEqual
                     if ($lineOffset < $link->offset) {
-                        $line += mb_substr_count(mb_substr($item->document->source, $lineOffset, $link->offset - $lineOffset, '8bit'), "\n");
+                        $line += mb_substr_count(mb_substr($item->document->source, $lineOffset, $link->offset - $lineOffset, '8bit'), "\n", '8bit');
                         $lineOffset = $link->offset;
                     }
 
@@ -66,14 +66,14 @@ final readonly class ReferenceValidator
             if (!$this->sameOrigin($uri, $scheme, $config->url)) {
                 return null;
             }
-            $path = '/' . mb_ltrim($uri->getRawPath(), '/');
+            $path = '/' . mb_ltrim($uri->getRawPath(), '/', '8bit');
             // A root deployment path would only enter this block and remove a zero-length prefix.
             // @pest-mutate-ignore: EmptyStringToNotEmpty
             if ($config->basePath !== '') {
                 if ($path === $config->basePath) {
                     $path = '/';
                 } elseif (str_starts_with($path, $config->basePath . '/')) {
-                    $path = mb_substr($path, mb_strlen($config->basePath));
+                    $path = mb_substr($path, mb_strlen($config->basePath, '8bit'), null, '8bit');
                 } else {
                     return null;
                 }
@@ -84,7 +84,7 @@ final readonly class ReferenceValidator
             $absolute = str_starts_with($path, '/');
         }
 
-        $segments = $absolute ? [] : explode('/', mb_trim($currentRoute, '/'));
+        $segments = $absolute ? [] : explode('/', mb_trim($currentRoute, '/', '8bit'));
         if ($path === '') {
             return $currentRoute;
         }
@@ -135,10 +135,10 @@ final readonly class ReferenceValidator
             throw new LogicException('A validated site origin must be URL-parseable.');
         }
 
-        $targetScheme = mb_strtolower($targetScheme);
-        $siteScheme = mb_strtolower($siteScheme);
-        $targetHost = mb_strtolower($targetHost);
-        $siteHost = mb_strtolower($siteHost);
+        $targetScheme = mb_strtolower($targetScheme, 'UTF-8');
+        $siteScheme = mb_strtolower($siteScheme, 'UTF-8');
+        $targetHost = mb_strtolower($targetHost, 'UTF-8');
+        $siteHost = mb_strtolower($siteHost, 'UTF-8');
         if ($targetScheme !== $siteScheme || $targetHost !== $siteHost) {
             return false;
         }

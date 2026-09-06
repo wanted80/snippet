@@ -77,7 +77,7 @@ final readonly class ConfigLoader
     /** @param array<string, mixed> $value */
     private function text(array $value, string $field): string
     {
-        if (!isset($value[$field]) || !is_string($value[$field]) || !mb_check_encoding($value[$field], 'UTF-8') || mb_trim($value[$field]) === '' || $value[$field] !== mb_trim($value[$field])) {
+        if (!isset($value[$field]) || !is_string($value[$field]) || !mb_check_encoding($value[$field], 'UTF-8') || mb_trim($value[$field], encoding: 'UTF-8') === '' || $value[$field] !== mb_trim($value[$field], encoding: 'UTF-8')) {
             throw new ContentException(sprintf("Site configuration field '%s' must be a trimmed, non-empty UTF-8 string.", $field));
         }
 

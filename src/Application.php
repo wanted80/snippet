@@ -178,7 +178,7 @@ final readonly class Application
                 }
 
                 $dateProvided = true;
-                $date = mb_substr($argument, 7);
+                $date = mb_substr($argument, 7, null, '8bit');
                 continue;
             }
 
@@ -214,7 +214,7 @@ final readonly class Application
                 }
 
                 $hostProvided = true;
-                $host = mb_substr($option, 7);
+                $host = mb_substr($option, 7, null, '8bit');
                 if (!$this->validHost($host)) {
                     return $this->usageError($stderr, 'Preview host must be a valid IP address or hostname.');
                 }
@@ -228,7 +228,7 @@ final readonly class Application
                 }
 
                 $portProvided = true;
-                $value = mb_substr($option, 7);
+                $value = mb_substr($option, 7, null, '8bit');
                 if (preg_match('/^[0-9]+$/D', $value) !== 1) {
                     return $this->usageError($stderr, 'Preview port must be an integer from 1 through 65535.');
                 }

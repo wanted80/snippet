@@ -57,7 +57,7 @@ final readonly class ErrorReporter
     {
         $this->error($stderr, $message);
         if ($this->decorated) {
-            $usage = self::BOLD . 'Usage:' . self::RESET . mb_substr($usage, mb_strlen('Usage:'));
+            $usage = self::BOLD . 'Usage:' . self::RESET . mb_substr($usage, mb_strlen('Usage:', '8bit'), null, '8bit');
         }
 
         $stderr->fwrite("\n{$usage}");
@@ -80,7 +80,7 @@ final readonly class ErrorReporter
     private function message(string $message, ?string $root): string
     {
         if ($root !== null) {
-            $prefix = mb_rtrim($root, '/');
+            $prefix = mb_rtrim($root, '/', '8bit');
             if ($prefix !== '' && $prefix !== '/') {
                 $message = str_replace($prefix . '/', '', $message);
             }

@@ -29,7 +29,7 @@ if ($basePath !== '') {
         return true;
     }
 
-    $publicRequestPath = mb_substr($requestPath, mb_strlen($basePath));
+    $publicRequestPath = mb_substr($requestPath, mb_strlen($basePath, '8bit'), null, '8bit');
 } else {
     $publicRequestPath = $requestPath;
 }
@@ -66,7 +66,7 @@ JS;
     return true;
 }
 
-$candidate = $documentRoot . '/' . mb_ltrim(rawurldecode($publicRequestPath), '/');
+$candidate = $documentRoot . '/' . mb_ltrim(rawurldecode($publicRequestPath), '/', '8bit');
 if (is_dir($candidate)) {
     $candidate .= '/index.html';
 }
@@ -80,7 +80,7 @@ if ($resolved === false || !str_starts_with($resolved, $documentRoot . '/') || !
     }
     $notFound = true;
 }
-$extension = mb_strtolower(pathinfo($resolved, PATHINFO_EXTENSION));
+$extension = mb_strtolower(pathinfo($resolved, PATHINFO_EXTENSION), 'UTF-8');
 if ($extension !== 'html') {
     $contentType = $publicRequestPath === '/.snippet-preview-version' || $publicRequestPath === '/llms.txt'
         ? 'text/plain; charset=utf-8'
@@ -124,7 +124,7 @@ if (!is_string($version) || preg_match('/\A[a-f0-9]{16}\n?\z/D', $version) !== 1
     http_response_code(500);
     return true;
 }
-$baseline = mb_trim($version);
+$baseline = mb_trim($version, encoding: 'UTF-8');
 $reloadPath = $basePath . '/.snippet-preview-reload.js';
 
 if ($notFound) {

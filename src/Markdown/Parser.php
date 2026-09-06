@@ -357,7 +357,7 @@ final class Parser
 
     private function lineBreaks(string $source, int $start, int $end): int
     {
-        return $start === $end ? 0 : mb_substr_count(mb_substr($source, $start, $end - $start, '8bit'), "\n");
+        return $start === $end ? 0 : mb_substr_count(mb_substr($source, $start, $end - $start, '8bit'), "\n", '8bit');
     }
 
     private function strikeAt(
@@ -485,7 +485,7 @@ final class Parser
         }
 
         $label = mb_substr($source, $offset + 1, $labelEnd - $offset - 1, '8bit');
-        if (mb_trim($label) === '') {
+        if (mb_trim($label, encoding: 'UTF-8') === '') {
             throw new ContentException(sprintf("Link label in '%s' must not be blank at line %d.", $path, $line));
         }
 

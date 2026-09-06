@@ -41,7 +41,7 @@ REGEX;
 
             $output .= $chunk;
             $name = $this->openingTagName($chunk);
-            if (in_array($name, self::RAW_ELEMENTS, true) && !str_ends_with(mb_rtrim($chunk), '/>')) {
+            if (in_array($name, self::RAW_ELEMENTS, true) && !str_ends_with(mb_rtrim($chunk, encoding: 'UTF-8'), '/>')) {
                 $pattern = '~\G(?:(?!</' . preg_quote($name, '~') . '(?=[\s>]))[\s\S])*</' . preg_quote($name, '~') . '\s*>~Ai';
                 if (preg_match($pattern, $html, $match, 0, $offset) !== 1) {
                     return $html;
@@ -70,6 +70,6 @@ REGEX;
             return null;
         }
 
-        return mb_strtolower($match[1]);
+        return mb_strtolower($match[1], 'UTF-8');
     }
 }

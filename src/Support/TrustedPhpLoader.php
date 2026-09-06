@@ -143,7 +143,7 @@ final class TrustedPhpLoader
             return (int) $token[1];
         }
         if ($token[0] === T_STRING) {
-            return match (mb_strtolower($token[1])) {
+            return match (mb_strtolower($token[1], 'UTF-8')) {
                 'null' => null,
                 'true' => true,
                 'false' => false,

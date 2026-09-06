@@ -234,7 +234,7 @@ final readonly class CatalogLoader
             throw new ContentException(sprintf("%s for '%s' is not valid UTF-8.", mb_ucfirst($expectedType->value, 'UTF-8'), $slug));
         }
 
-        if (mb_trim($markdown) === '') {
+        if (mb_trim($markdown, encoding: 'UTF-8') === '') {
             throw new ContentException(sprintf("%s for '%s' must not be empty.", mb_ucfirst($expectedType->value, 'UTF-8'), $slug));
         }
 
@@ -326,7 +326,7 @@ final readonly class CatalogLoader
      */
     private function requiredText(array $metadata, string $field, string $slug): string
     {
-        if (!isset($metadata[$field]) || !is_string($metadata[$field]) || mb_trim($metadata[$field]) === '') {
+        if (!isset($metadata[$field]) || !is_string($metadata[$field]) || mb_trim($metadata[$field], encoding: 'UTF-8') === '') {
             throw new ContentException(sprintf("Metadata field '%s' for '%s' must be a non-empty string.", $field, $slug));
         }
 
@@ -334,12 +334,12 @@ final readonly class CatalogLoader
             throw new ContentException("Metadata field '{$field}' for '{$slug}' must be valid UTF-8.");
         }
 
-        if ($metadata[$field] !== mb_trim($metadata[$field])) {
+        if ($metadata[$field] !== mb_trim($metadata[$field], encoding: 'UTF-8')) {
             throw new ContentException(sprintf("Metadata field '%s' for '%s' must not have surrounding whitespace.", $field, $slug));
         }
 
         $maximum = $field === "title" ? $this->limits->titleCharacters : $this->limits->descriptionCharacters;
-        if (mb_strlen($metadata[$field]) > $maximum) {
+        if (mb_strlen($metadata[$field], 'UTF-8') > $maximum) {
             throw new ContentException(sprintf("Metadata field '%s' for '%s' exceeds the %d-character limit.", $field, $slug, $maximum));
         }
 
@@ -460,15 +460,15 @@ final readonly class CatalogLoader
                 throw new ContentException(sprintf("Metadata field 'tags' for '%s' must contain only strings; index %d is invalid.", $slug, $index));
             }
 
-            if (mb_trim($label) === '') {
+            if (mb_trim($label, encoding: 'UTF-8') === '') {
                 throw new ContentException(sprintf("Metadata tag label for '%s' must be non-empty at index %d.", $slug, $index));
             }
 
-            if (mb_strlen($label) > $this->limits->tagCharacters) {
+            if (mb_strlen($label, 'UTF-8') > $this->limits->tagCharacters) {
                 throw new ContentException(sprintf("Metadata tag label for '%s' exceeds the %d-character limit at index %d.", $slug, $this->limits->tagCharacters, $index));
             }
 
-            if ($label !== mb_trim($label)) {
+            if ($label !== mb_trim($label, encoding: 'UTF-8')) {
                 throw new ContentException(sprintf("Metadata tag label for '%s' must not have surrounding whitespace at index %d.", $slug, $index));
             }
 
