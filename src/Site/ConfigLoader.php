@@ -55,7 +55,7 @@ final readonly class ConfigLoader
         $minify = $this->build($value['build']);
         $assetsDirectory = $siteDirectory . '/assets';
         $assets = file_exists($assetsDirectory) || is_link($assetsDirectory)
-            ? $this->fileInventory->files($assetsDirectory, 'site assets')
+            ? $this->fileInventory->files($assetsDirectory, 'site assets', $limits->catalogAssets, $limits->assetDepth)
             : [];
         $stylesheet = $siteDirectory . '/site.css';
         $script = $siteDirectory . '/site.js';

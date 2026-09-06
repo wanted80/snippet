@@ -209,11 +209,16 @@ final readonly class CatalogLoader
         CatalogBudget $budget,
         ?string $directoryDate = null,
     ): Article|Page {
-        $files = $this->fileInventory->files($path, "content item '{$slug}'");
         $sourceName = $expectedType->sourceFilename();
         $sourcePath = $path . '/' . $sourceName;
         $metadataPath = $path . '/meta.php';
         $sourceFiles = [$sourceName, 'meta.php'];
+        $files = $this->fileInventory->files(
+            $path,
+            "content item '{$slug}'",
+            maximumFiles: $this->limits->assetsPerItem + count($sourceFiles),
+            maximumDepth: $this->limits->assetDepth,
+        );
         foreach ($sourceFiles as $name) {
             if (!is_file($path . '/' . $name)) {
                 throw new ContentException(sprintf("Content item '%s' is missing %s.", $slug, $name));
@@ -249,18 +254,12 @@ final readonly class CatalogLoader
                     throw new ContentException(sprintf("Content item '%s' contains asset path '%s', whose first component is reserved.", $slug, $file));
                 }
 
-                if (mb_substr_count($file, "/") + 1 > $this->limits->assetDepth) {
-                    throw new ContentException(sprintf("Asset '%s' for '%s' exceeds directory depth %d.", $file, $slug, $this->limits->assetDepth));
-                }
                 $size = @filesize($path . "/" . $file);
                 if (!is_int($size) || $size > $this->limits->assetBytes) {
                     throw new ContentException(sprintf("Asset '%s' for '%s' exceeds the %d-byte limit.", $file, $slug, $this->limits->assetBytes));
                 }
                 $budget->addAsset($size);
                 $assets[] = new Asset($file);
-                if (count($assets) > $this->limits->assetsPerItem) {
-                    throw new ContentException(sprintf("Content item '%s' exceeds the %d-asset limit.", $slug, $this->limits->assetsPerItem));
-                }
             }
         }
 

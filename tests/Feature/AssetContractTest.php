@@ -10,11 +10,32 @@ use Snippet\Publishing\PublicationInputs;
 use Snippet\Publishing\PublicationInventory;
 use Snippet\Publishing\PublicationResources;
 use Snippet\Publishing\Publisher;
+use Snippet\Site\Config;
 use Snippet\Site\ConfigLoader;
 use Snippet\Site\Limits;
 use Snippet\Tests\PublisherFaults;
 
 mutates(PublicationAssets::class, PublicationInputs::class, PublicationInventory::class, Publisher::class);
+
+it('enforces traversal depth even when author asset directories contain no files', function (string $collection): void {
+    $root = $collection === 'content'
+        ? $this->item('post', ['title' => 'Post', 'description' => 'Description.'])
+        : $this->directory . '/site/assets';
+    $this->content();
+    mkdir($root . '/one/two', 0777, true);
+
+    expect(fn(): PublicationInputs => new PublicationInputLoader(limits: new Limits(assetDepth: 1))->load($this->directory))
+        ->toThrow(ContentException::class, 'directory depth 1');
+})->with(['content', 'site']);
+
+it('bounds site asset file counts while loading configuration', function (): void {
+    mkdir($this->directory . '/site/assets');
+    file_put_contents($this->directory . '/site/assets/one', 'asset');
+    file_put_contents($this->directory . '/site/assets/two', 'asset');
+
+    expect(fn(): Config => new ConfigLoader()->load($this->directory . '/site', new Limits(catalogAssets: 1)))
+        ->toThrow(ContentException::class, '1-file limit');
+});
 
 it('requires a filename extension at the fingerprinted asset boundary', function (): void {
     expect(fn(): PublicationAsset => new PublicationAsset('/assets/theme', 'contents'))

@@ -270,6 +270,8 @@ Use `light-dark(lightValue, darkValue)` for palette overrides so system preferen
 
 Snippet applies generous internal ceilings to catalog counts, text and file sizes, Markdown complexity, image dimensions, assets, templates, rendered pages, and total output. They protect the builder from pathological input and are tested as implementation boundaries; authors do not configure them, and no limit setup is required.
 
+Content and site asset inventories enforce file, depth, and directory-entry ceilings while traversing the source tree. Empty directories count toward the traversal budget, so unused subtrees cannot consume unlimited work or memory.
+
 Configuration and metadata files are declarative PHP rather than executed code. They may contain only `declare(strict_types=1);` and one returned literal array. Calls, expressions, variables, interpolation, includes, duplicate keys, and output are rejected.
 
 ## Output and architecture
