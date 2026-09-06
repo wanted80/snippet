@@ -7,6 +7,7 @@ namespace Snippet;
 use Closure;
 use InvalidArgumentException;
 use Snippet\Authoring\DraftCreator;
+use Snippet\Cli\Command;
 use Snippet\Cli\ErrorReporter;
 use Snippet\Content\ContentType;
 use Snippet\Exception\ContentException;
@@ -55,43 +56,37 @@ final readonly class Application
             return self::INVALID_USAGE;
         }
 
-        $command = $arguments[1];
-        if (!in_array($command, ['--version', 'validate', 'build', 'preview', 'new'], true)
-            || ($command === 'preview' && !$this->previewEnabled)) {
-            $this->usageError($stderr, "Unknown command '{$command}'.");
+        $command = Command::tryFrom($arguments[1]);
+        if ($command === null || ($command === Command::Preview && !$this->previewEnabled)) {
+            $this->usageError($stderr, "Unknown command '{$arguments[1]}'.");
             return self::INVALID_USAGE;
         }
 
-        if ($command === '--version') {
-            if (count($arguments) !== 2) {
-                $this->usageError($stderr, "Command '--version' does not accept arguments.");
-                return self::INVALID_USAGE;
-            }
+        if (!$command->acceptsArguments() && count($arguments) !== 2) {
+            $this->usageError($stderr, "Command '{$command->value}' does not accept arguments.");
+            return self::INVALID_USAGE;
+        }
 
+        if ($command === Command::Version) {
             $stdout->fwrite('Snippet ' . ApplicationVersion::CURRENT . "\n");
             return 0;
         }
 
-        if ($command === 'new') {
+        if ($command === Command::NewContent) {
             return $this->newDraft(array_slice($arguments, 2), $stdout, $stderr);
         }
 
-        if ($command !== 'preview' && count($arguments) !== 2) {
-            $this->usageError($stderr, "Command '{$command}' does not accept arguments.");
-            return self::INVALID_USAGE;
-        }
-
-        if ($command === 'preview') {
+        if ($command === Command::Preview) {
             $previewAddress = $this->previewAddress(array_slice($arguments, 2), $stderr);
             if ($previewAddress === null) {
                 return self::INVALID_USAGE;
             }
         }
 
-        $started = $command === 'build' ? $this->nanoseconds() : null;
+        $started = $command === Command::Build ? $this->nanoseconds() : null;
         $report = null;
         try {
-            if ($command === 'preview') {
+            if ($command === Command::Preview) {
                 $previewer = $this->previewer ?? new PreviewServer(errorReporter: $this->errorReporter);
                 return $previewer->run($this->root, $stdout, $stderr, ...$previewAddress);
             }
@@ -100,12 +95,11 @@ final readonly class Application
             $publicationInputLoader = $this->publicationInputLoader ?? new PublicationInputLoader(publisher: $publisher);
             $inputs = $publicationInputLoader->load($this->root);
             $catalog = $inputs->catalog;
-            if ($command === 'build') {
+            if ($command === Command::Build) {
                 $report = $publisher->publish($this->root, $inputs->config, $catalog, $inputs->limits, $inputs->templates, $inputs->assets);
             }
         } catch (ContentException $contentException) {
-            $operation = $command === 'validate' ? 'Validation' : ($command === 'build' ? 'Build' : 'Preview');
-            $this->errorReporter->failure($stderr, $operation, $contentException->getMessage(), $this->root);
+            $this->errorReporter->failure($stderr, $command->operation(), $contentException->getMessage(), $this->root);
             return self::FAILURE;
         }
 
@@ -137,19 +131,24 @@ final readonly class Application
             return self::INVALID_USAGE;
         }
 
-        [$type, $slug, $date] = $parsed;
+        [$typeName, $slug, $date] = $parsed;
         try {
+            $type = ContentType::tryFrom($typeName);
+            if ($type === null) {
+                throw new InvalidArgumentException("New content type '{$typeName}' is invalid; use 'page' or 'article'.");
+            }
+
             $draftCreator = $this->draftCreator ?? new DraftCreator();
             $destination = $draftCreator->create($this->root, $type, $slug, $date);
         } catch (InvalidArgumentException $invalidArgumentException) {
             $this->usageError($stderr, $invalidArgumentException->getMessage());
             return self::INVALID_USAGE;
         } catch (ContentException $contentException) {
-            $this->errorReporter->failure($stderr, 'Draft creation', $contentException->getMessage(), $this->root);
+            $this->errorReporter->failure($stderr, Command::NewContent->operation(), $contentException->getMessage(), $this->root);
             return self::FAILURE;
         }
 
-        $source = ContentType::from($type)->sourceFilename();
+        $source = $type->sourceFilename();
         $stdout->fwrite("Created incomplete draft: {$destination}\n");
         $stdout->fwrite("Complete {$destination}/{$source} and {$destination}/meta.php before validating or building.\n");
         return 0;

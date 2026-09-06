@@ -3,6 +3,16 @@
 declare(strict_types=1);
 
 use Snippet\Application;
+use Snippet\Cli\Command;
+use Snippet\Rendering\OpenGraphType;
+
+arch('models CLI commands and emitted Open Graph types as closed value sets')
+    ->expect([Command::class, OpenGraphType::class])
+    ->toBeEnums();
+
+arch('keeps Open Graph types inside the rendering layer')
+    ->expect(OpenGraphType::class)
+    ->toOnlyBeUsedIn('Snippet\\Rendering');
 
 arch('uses strict types throughout the source namespace')
     ->expect('Snippet')

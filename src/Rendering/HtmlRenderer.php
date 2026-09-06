@@ -147,7 +147,7 @@ final readonly class HtmlRenderer
             $body,
             $item instanceof Page ? $item->slug : null,
             $item->title,
-            $item instanceof Article ? 'article' : 'website',
+            $item instanceof Article ? OpenGraphType::Article : OpenGraphType::Website,
             $item instanceof Article ? $item->image : null,
         );
     }
@@ -286,7 +286,7 @@ final readonly class HtmlRenderer
         string $body,
         ?string $currentPage,
         ?string $socialTitle = null,
-        string $socialType = 'website',
+        OpenGraphType $socialType = OpenGraphType::Website,
         ?ArticleImage $socialImage = null,
         bool $noIndex = false,
     ): string {
@@ -350,12 +350,12 @@ final readonly class HtmlRenderer
         string $title,
         string $description,
         string $route,
-        string $type,
+        OpenGraphType $type,
         ?ArticleImage $image,
     ): string {
         $escapedTitle = $this->escape($title);
         $escapedDescription = $this->escape($description);
-        $metadata = '<meta property="og:type" content="' . $type . "\">\n"
+        $metadata = '<meta property="og:type" content="' . $type->value . "\">\n"
             . '<meta property="og:title" content="' . $escapedTitle . "\">\n"
             . '<meta property="og:description" content="' . $escapedDescription . "\">\n"
             . '<meta property="og:url" content="' . $this->escape($this->config->canonicalUrl($route)) . "\">\n"

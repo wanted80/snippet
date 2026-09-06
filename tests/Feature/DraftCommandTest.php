@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Snippet\Application;
 use Snippet\Authoring\DraftCreator;
+use Snippet\Content\ContentType;
 use Snippet\Tests\PublisherFaults;
 
 /**
@@ -27,6 +28,18 @@ function runDraftApplication(string $root, array $arguments, ?DateTimeImmutable 
 
     return [$status, $output, $error];
 }
+
+it('creates content from a validated content type without parsing a CLI string again', function (ContentType $type, string $path): void {
+    $this->content();
+    $creator = new DraftCreator(new DateTimeImmutable('2026-08-17T12:00:00Z'));
+
+    expect($creator->create($this->directory, $type, 'entry'))->toBe($path)
+        ->and($this->directory . '/' . $path . '/' . $type->sourceFilename())->toBeFile()
+        ->and($this->directory . '/public')->not->toBeDirectory();
+})->with([
+    'page' => [ContentType::Page, 'content/pages/entry'],
+    'article' => [ContentType::Article, 'content/articles/2026/08/17/entry'],
+]);
 
 it('creates the exact incomplete page skeleton without loading the catalog or changing public', function (): void {
     mkdir($this->directory . '/content/pages', 0777, true);
