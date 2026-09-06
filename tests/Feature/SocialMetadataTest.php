@@ -30,7 +30,7 @@ it('renders escaped core social metadata for every generated page kind', functio
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher()->publish($this->directory, $config, $this->catalog());
+    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
 
     $home = file_get_contents($this->directory . '/public/index.html');
     $articles = file_get_contents($this->directory . '/public/articles/index.html');
@@ -59,7 +59,7 @@ it('carries each validated cover format into social image metadata and omits emp
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher()->publish($this->directory, $config, $this->catalog());
+    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
     $article = file_get_contents($this->directory . '/public/articles/post/index.html');
 
     expect($article)->toContain(

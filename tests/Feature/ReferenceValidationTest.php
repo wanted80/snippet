@@ -8,6 +8,7 @@ use Snippet\Markdown\Document;
 use Snippet\Markdown\InlineBuilder;
 use Snippet\Publishing\PublicationInputLoader;
 use Snippet\Publishing\PublicationInventory;
+use Snippet\Publishing\Publisher;
 use Snippet\Publishing\ReferenceValidator;
 use Snippet\Rendering\AssetPaths;
 use Snippet\Site\Config;
@@ -128,7 +129,7 @@ it('exposes a sorted deterministic publication inventory', function (): void {
     file_put_contents($path . '/notes.txt', 'notes');
     $this->resources();
 
-    $inputs = new PublicationInputLoader()->load($this->directory);
+    $inputs = new PublicationInputLoader(publisher: new Publisher(engineRoot: $this->directory))->load($this->directory);
     $paths = new PublicationInventory($inputs->config, $inputs->catalog, $inputs->assets->paths)->paths();
     $sorted = $paths;
     sort($sorted, SORT_STRING);

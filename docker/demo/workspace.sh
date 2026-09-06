@@ -15,8 +15,7 @@ if [ -e "${destination}" ] || [ -L "${destination}" ]; then
     exit 1
 fi
 
-mkdir -p -- "${destination}/site" "${destination}/resources" "${destination}/content"
+mkdir -p -- "${destination}/site" "${destination}/content"
 cp -R -- "${repository}/site/." "${destination}/site/"
-cp -R -- "${repository}/resources/." "${destination}/resources/"
 cp -R -- "${repository}/demo/content/." "${destination}/content/"
 cp -- "${repository}/demo/site/config.php" "${destination}/site/config.php"

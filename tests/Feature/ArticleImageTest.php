@@ -254,7 +254,7 @@ it('renders the semantic article figure only in the canonical and featured artic
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher()->publish($this->directory, $config, $this->catalog());
+    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
     $article = file_get_contents($this->directory . '/public/articles/post/index.html');
     $home = file_get_contents($this->directory . '/public/index.html');
     $archive = file_get_contents($this->directory . '/public/articles/index.html');
@@ -281,7 +281,7 @@ it('renders empty alternative text when alt is omitted', function (): void {
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher()->publish($this->directory, $config, $this->catalog());
+    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
     $article = file_get_contents($this->directory . '/public/articles/post/index.html');
     assert(is_string($article));
 

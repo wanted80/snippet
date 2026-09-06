@@ -96,11 +96,11 @@ final readonly class Application
                 return $previewer->run($this->root, $stdout, $stderr, ...$previewAddress);
             }
 
-            $publicationInputLoader = $this->publicationInputLoader ?? new PublicationInputLoader();
+            $publisher = $this->publisher ?? new Publisher();
+            $publicationInputLoader = $this->publicationInputLoader ?? new PublicationInputLoader(publisher: $publisher);
             $inputs = $publicationInputLoader->load($this->root);
             $catalog = $inputs->catalog;
             if ($command === 'build') {
-                $publisher = $this->publisher ?? new Publisher(); // @pest-mutate-ignore: CoalesceRemoveLeft
                 $report = $publisher->publish($this->root, $inputs->config, $catalog, $inputs->limits, $inputs->templates, $inputs->assets);
             }
         } catch (ContentException $contentException) {

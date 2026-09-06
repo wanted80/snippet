@@ -67,7 +67,7 @@ it('renders deterministic pages navigation, directory order, CSP, and extended M
     $this->resources();
     $config = new ConfigLoader()->load($this->directory . '/site');
     $catalog = new CatalogLoader()->load($this->directory . '/content');
-    new Publisher()->publish($this->directory, $config, $catalog);
+    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $catalog);
 
     $page = file_get_contents($this->directory . '/public/zulu/index.html');
     $directory = file_get_contents($this->directory . '/public/pages/index.html');

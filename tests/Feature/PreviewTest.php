@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Snippet\Exception\ContentException;
 use Snippet\Preview\PreviewServer;
+use Snippet\Scaffolding\WorkspaceInitializer;
 use Snippet\Tests\PublisherFaults;
 
 mutates(PreviewServer::class);
@@ -47,6 +48,7 @@ it('serves published downloads as static bytes without executing them', function
         pollMicroseconds: 100_000,
         maximumPolls: 1,
         afterPoll: $afterPoll,
+        engineRoot: $this->directory,
     )->run($this->directory, new SplFileObject('php://memory', 'w+'), new SplFileObject('php://memory', 'w+')))->toBe(0);
 });
 
@@ -89,7 +91,7 @@ it('serves the initial build, watches changes, and injects live reload only in p
     };
     $stdout = new SplFileObject('php://memory', 'w+');
     $stderr = new SplFileObject('php://memory', 'w+');
-    $preview = new PreviewServer(port: $port, pollMicroseconds: 100_000, maximumPolls: 2, afterPoll: $afterPoll);
+    $preview = new PreviewServer(port: $port, pollMicroseconds: 100_000, maximumPolls: 2, afterPoll: $afterPoll, engineRoot: $this->directory);
 
     expect($preview->run($this->directory, $stdout, $stderr))->toBe(0);
     $stdout->rewind();
@@ -130,7 +132,7 @@ it('keeps serving the last valid build when a watched edit is invalid', function
     };
     $stdout = new SplFileObject('php://memory', 'w+');
     $stderr = new SplFileObject('php://memory', 'w+');
-    $preview = new PreviewServer(port: $port, pollMicroseconds: 50_000, maximumPolls: 1, afterPoll: $afterPoll);
+    $preview = new PreviewServer(port: $port, pollMicroseconds: 50_000, maximumPolls: 1, afterPoll: $afterPoll, engineRoot: $this->directory);
 
     expect($preview->run($this->directory, $stdout, $stderr))->toBe(0);
     $stderr->rewind();
@@ -159,6 +161,7 @@ it('requests a fresh preview process when runtime source changes', function (): 
         pollMicroseconds: 50_000,
         maximumPolls: 2,
         afterPoll: $afterPoll,
+        engineRoot: $this->directory,
     )->run($this->directory, $stdout, $stderr))->toBe(PreviewServer::RESTART_EXIT_CODE);
 
     $stdout->rewind();
@@ -184,6 +187,7 @@ it('requests a fresh preview process when the deployment path changes', function
         pollMicroseconds: 50_000,
         maximumPolls: 1,
         afterPoll: $afterPoll,
+        engineRoot: $this->directory,
     )->run($this->directory, $stdout, new SplFileObject('php://memory', 'w+')))->toBe(PreviewServer::RESTART_EXIT_CODE);
 
     $stdout->rewind();
@@ -207,6 +211,7 @@ it('reuses hashes for unchanged non-source assets while always checking editable
         pollMicroseconds: 50_000,
         maximumPolls: 1,
         afterPoll: $afterPoll,
+        engineRoot: $this->directory,
     )->run(
         $this->directory,
         new SplFileObject('php://memory', 'w+'),
@@ -233,6 +238,7 @@ it('recovers from a transient watch read failure and rebuilds the next complete 
         pollMicroseconds: 50_000,
         maximumPolls: 3,
         afterPoll: $afterPoll,
+        engineRoot: $this->directory,
     )->run($this->directory, $stdout, $stderr))->toBe(0);
 
     $stdout->rewind();
@@ -256,7 +262,7 @@ it('binds the PHP server to the host and port supplied by the CLI', function ():
         );
     };
 
-    expect(new PreviewServer(maximumPolls: 0, processStarter: $starter)->run(
+    expect(new PreviewServer(maximumPolls: 0, processStarter: $starter, engineRoot: $this->directory)->run(
         $this->directory,
         new SplFileObject('php://memory', 'w+'),
         new SplFileObject('php://memory', 'w+'),
@@ -295,6 +301,7 @@ it('uses an injected engine router for a content-only publication without watchi
         processStarter: $starter,
         routerPath: $router,
         watchRuntimeSource: false,
+        engineRoot: $this->directory,
     )->run(
         $this->directory,
         $stdout,
@@ -332,6 +339,7 @@ it('does not request a restart for runtime changes when runtime watching is disa
         maximumPolls: 1,
         afterPoll: $afterPoll,
         watchRuntimeSource: false,
+        engineRoot: $this->directory,
     )->run(
         $this->directory,
         new SplFileObject('php://memory', 'w+'),
@@ -351,7 +359,7 @@ it('rejects an injected preview router that is not a readable regular non-symlin
         default => throw new LogicException("Unexpected router fixture '{$kind}'."),
     };
 
-    expect(fn(): int => new PreviewServer(maximumPolls: 0, routerPath: $router)->run(
+    expect(fn(): int => new PreviewServer(maximumPolls: 0, routerPath: $router, engineRoot: $this->directory)->run(
         $this->directory,
         new SplFileObject('php://memory', 'w+'),
         new SplFileObject('php://memory', 'w+'),
@@ -365,7 +373,7 @@ it('connects the built-in server to the three standard streams', function (): vo
     $this->content();
     $this->resources();
 
-    expect(new PreviewServer(port: availablePreviewPort(), maximumPolls: 0)->run(
+    expect(new PreviewServer(port: availablePreviewPort(), maximumPolls: 0, engineRoot: $this->directory)->run(
         $this->directory,
         new SplFileObject('php://memory', 'w+'),
         new SplFileObject('php://memory', 'w+'),
@@ -390,6 +398,7 @@ it('stops its PHP server when terminated by signal', function (int $signal, int 
         port: $port,
         pollMicroseconds: 100_000,
         afterPoll: $interrupt,
+        engineRoot: $this->directory,
     )->run(
         $this->directory,
         new SplFileObject('php://memory', 'w+'),
@@ -421,7 +430,7 @@ it('reports when the local PHP server cannot stay running', function (): void {
     $stderr = new SplFileObject('php://memory', 'w+');
 
     try {
-        $status = new PreviewServer(port: $port, pollMicroseconds: 100_000, maximumPolls: 3)->run($this->directory, $stdout, $stderr);
+        $status = new PreviewServer(port: $port, pollMicroseconds: 100_000, maximumPolls: 3, engineRoot: $this->directory)->run($this->directory, $stdout, $stderr);
     } finally {
         fclose($socket);
     }
@@ -435,7 +444,7 @@ it('does not start a server when the initial build is invalid', function (): voi
     $this->resources();
     $stdout = new SplFileObject('php://memory', 'w+');
     $stderr = new SplFileObject('php://memory', 'w+');
-    new PreviewServer(port: availablePreviewPort(), maximumPolls: 0)->run($this->directory, $stdout, $stderr);
+    new PreviewServer(port: availablePreviewPort(), maximumPolls: 0, engineRoot: $this->directory)->run($this->directory, $stdout, $stderr);
 })->throws(ContentException::class, 'Content directory');
 
 it('preserves the current publication when the preview version cannot be written', function (): void {
@@ -445,7 +454,7 @@ it('preserves the current publication when the preview version cannot be written
     file_put_contents($this->directory . '/public/index.html', 'old publication');
     PublisherFaults::set('file_put_contents', ['pass', 'pass', 'pass', 'pass', 'pass', 'fail']);
 
-    expect(fn(): int => new PreviewServer(port: availablePreviewPort(), maximumPolls: 0)->run(
+    expect(fn(): int => new PreviewServer(port: availablePreviewPort(), maximumPolls: 0, engineRoot: $this->directory)->run(
         $this->directory,
         new SplFileObject('php://memory', 'w+'),
         new SplFileObject('php://memory', 'w+'),
@@ -462,6 +471,7 @@ it('reports when the PHP preview process cannot be started', function (): void {
         port: availablePreviewPort(),
         maximumPolls: 0,
         processStarter: $starter,
+        engineRoot: $this->directory,
     )->run(
         $this->directory,
         new SplFileObject('php://memory', 'w+'),
@@ -482,6 +492,7 @@ it('tracks missing watched directories and retains the last valid build', functi
         pollMicroseconds: 50_000,
         maximumPolls: 1,
         afterPoll: $afterPoll,
+        engineRoot: $this->directory,
     )->run($this->directory, new SplFileObject('php://memory', 'w+'), $stderr))->toBe(0);
 
     $stderr->rewind();
@@ -493,7 +504,7 @@ it('rejects watched directories that cannot be inventoried', function (): void {
     $this->resources();
     PublisherFaults::set('preview_scandir', ['fail']);
 
-    new PreviewServer(port: availablePreviewPort(), maximumPolls: 0)->run(
+    new PreviewServer(port: availablePreviewPort(), maximumPolls: 0, engineRoot: $this->directory)->run(
         $this->directory,
         new SplFileObject('php://memory', 'w+'),
         new SplFileObject('php://memory', 'w+'),
@@ -505,7 +516,7 @@ it('rejects watched files whose identity or contents cannot be read', function (
     $this->resources();
     PublisherFaults::set($operation, ['fail']);
 
-    expect(fn(): int => new PreviewServer(port: availablePreviewPort(), maximumPolls: 0)->run(
+    expect(fn(): int => new PreviewServer(port: availablePreviewPort(), maximumPolls: 0, engineRoot: $this->directory)->run(
         $this->directory,
         new SplFileObject('php://memory', 'w+'),
         new SplFileObject('php://memory', 'w+'),
@@ -575,6 +586,7 @@ it('serves only the configured mount path and scopes redirects and live reload b
         pollMicroseconds: 100_000,
         maximumPolls: 1,
         afterPoll: $afterPoll,
+        engineRoot: $this->directory,
     )->run($this->directory, $stdout, new SplFileObject('php://memory', 'w+')))->toBe(0);
 
     $stdout->rewind();
@@ -603,4 +615,43 @@ it('serves only the configured mount path and scopes redirects and live reload b
         )
         ->toMatch('~<link rel="stylesheet" href="/snippet/assets/theme\.[0-9a-f]{16}\.css">~')
         ->and($stdout->fread(8192))->toContain("Preview available at http://127.0.0.1:{$port}/snippet/");
+});
+
+it('watches the installed theme separately from the author workspace and preserves the last valid preview', function (): void {
+    $this->resources();
+    $workspace = $this->directory . '/publication';
+    mkdir($workspace);
+    $initialized = new WorkspaceInitializer($this->directory, $workspace)->initialize();
+    expect($initialized['created'])->not->toBeEmpty();
+    $layoutPath = $this->directory . '/resources/templates/layout.html';
+    $layout = file_get_contents($layoutPath);
+    assert(is_string($layout));
+    $stdout = new SplFileObject('php://memory', 'w+');
+    $stderr = new SplFileObject('php://memory', 'w+');
+    $afterPoll = static function (int $poll, string $root) use ($layoutPath, $layout): void {
+        if ($poll === 0) {
+            file_put_contents($root . '/site/site.css', '@layer overrides { :root { --measure-prose: 42rem; } }');
+        } elseif ($poll === 1) {
+            file_put_contents($layoutPath, str_replace('<body>', '<body class="updated-theme">', $layout));
+        } else {
+            file_put_contents($layoutPath, '{{invalid}}');
+        }
+    };
+
+    expect(new PreviewServer(
+        port: availablePreviewPort(),
+        pollMicroseconds: 1000,
+        maximumPolls: 3,
+        afterPoll: $afterPoll,
+        engineRoot: $this->directory,
+    )->run($workspace, $stdout, $stderr))->toBe(0);
+
+    $stdout->rewind();
+    $stderr->rewind();
+    $output = $stdout->fread(8192);
+    assert(is_string($output));
+    expect(mb_substr_count($output, 'Rebuilt site.'))->toBe(2)
+        ->and($stderr->fread(8192))->toContain('Keeping the last valid site.')
+        ->and(file_get_contents($workspace . '/public/index.html'))->toContain('<body class="updated-theme">')
+        ->and($workspace . '/resources')->not->toBeDirectory();
 });

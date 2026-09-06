@@ -19,11 +19,10 @@ function workspaceScaffold(string $root): string
 {
     $source = $root . '/engine';
     mkdir($source . '/site', 0777, true);
-    mkdir($source . '/resources/templates', 0777, true);
+    mkdir($source . '/site/assets', 0777, true);
     file_put_contents($source . '/site/config.php', "starter config\n");
-    file_put_contents($source . '/resources/templates/layout.html', "<main>{{body}}</main>\n");
-    file_put_contents($source . '/resources/templates/not-found.html', "<h1>Not found</h1>\n");
-    file_put_contents($source . '/resources/preview-router.php', "engine preview support\n");
+    file_put_contents($source . '/site/assets/example.txt', "example asset\n");
+    file_put_contents($source . '/site/site.css', "@layer overrides {}\n");
 
     return $source;
 }
@@ -43,17 +42,17 @@ it('synchronizes a deterministic scaffold into an empty workspace', function ():
     expect(new WorkspaceInitializer($source, $workspace)->initialize())
         ->toBe([
             'created' => [
+                'site/assets/example.txt',
                 'site/config.php',
-                'resources/templates/layout.html',
-                'resources/templates/not-found.html',
+                'site/site.css',
             ],
             'skipped' => [],
         ])
         ->and($workspace . '/content/articles')->toBeDirectory()
         ->and($workspace . '/content/pages')->toBeDirectory()
         ->and(file_get_contents($workspace . '/site/config.php'))->toBe("starter config\n")
-        ->and(file_get_contents($workspace . '/resources/templates/layout.html'))->toBe("<main>{{body}}</main>\n")
-        ->and(file_get_contents($workspace . '/resources/templates/not-found.html'))->toBe("<h1>Not found</h1>\n")
+        ->and(file_get_contents($workspace . '/site/assets/example.txt'))->toBe("example asset\n")
+        ->and(file_get_contents($workspace . '/site/site.css'))->toBe("@layer overrides {}\n")
         ->and($workspace . '/resources/preview-router.php')->not->toBeFile()
         ->and(PublisherFaults::calls('scaffolding_fclose'))->toBe(6)
         ->and($workspace . '/public')->not->toBeDirectory();
@@ -64,8 +63,8 @@ it('merges idempotently while existing files and public output win', function ()
     $workspace = emptyWorkspace($this->directory);
     mkdir($workspace . '/site');
     file_put_contents($workspace . '/site/config.php', "custom config\n");
-    mkdir($workspace . '/resources/templates', 0777, true);
-    file_put_contents($workspace . '/resources/templates/layout.html', "custom layout\n");
+    mkdir($workspace . '/site/assets', 0777, true);
+    file_put_contents($workspace . '/site/assets/example.txt', "custom asset\n");
     mkdir($workspace . '/public');
     file_put_contents($workspace . '/public/index.html', 'existing publication');
     $initializer = new WorkspaceInitializer($source, $workspace);
@@ -73,25 +72,25 @@ it('merges idempotently while existing files and public output win', function ()
     expect($initializer->initialize())
         ->toBe([
             'created' => [
-                'resources/templates/not-found.html',
+                'site/site.css',
             ],
             'skipped' => [
+                'site/assets/example.txt',
                 'site/config.php',
-                'resources/templates/layout.html',
             ],
         ])
         ->and($initializer->initialize())
         ->toBe([
             'created' => [],
             'skipped' => [
+                'site/assets/example.txt',
                 'site/config.php',
-                'resources/templates/layout.html',
-                'resources/templates/not-found.html',
+                'site/site.css',
             ],
         ])
         ->and(file_get_contents($workspace . '/site/config.php'))->toBe("custom config\n")
-        ->and(file_get_contents($workspace . '/resources/templates/layout.html'))->toBe("custom layout\n")
-        ->and(file_get_contents($workspace . '/resources/templates/not-found.html'))->toBe("<h1>Not found</h1>\n")
+        ->and(file_get_contents($workspace . '/site/assets/example.txt'))->toBe("custom asset\n")
+        ->and(file_get_contents($workspace . '/site/site.css'))->toBe("@layer overrides {}\n")
         ->and(file_get_contents($workspace . '/public/index.html'))->toBe('existing publication');
 });
 
@@ -217,7 +216,7 @@ it('reports canonical input file read failures', function (): void {
     PublisherFaults::set('scaffolding_fopen', ['fail']);
 
     expect(fn(): array => new WorkspaceInitializer($source, $workspace)->initialize())
-        ->toThrow(RuntimeException::class, "Cannot read canonical input file 'site/config.php'.");
+        ->toThrow(RuntimeException::class, "Cannot read canonical input file 'site/assets/example.txt'.");
 });
 
 it('reports canonical input file creation failures', function (): void {
@@ -226,7 +225,7 @@ it('reports canonical input file creation failures', function (): void {
     PublisherFaults::set('scaffolding_fopen', ['pass', 'fail']);
 
     expect(fn(): array => new WorkspaceInitializer($source, $workspace)->initialize())
-        ->toThrow(RuntimeException::class, "Cannot create file 'site/config.php'.")
+        ->toThrow(RuntimeException::class, "Cannot create file 'site/assets/example.txt'.")
         ->and(PublisherFaults::calls('scaffolding_fclose'))->toBe(1);
 });
 
@@ -236,7 +235,7 @@ it('removes a partial destination after a canonical input copy failure', functio
     PublisherFaults::set('scaffolding_stream_copy', ['fail']);
 
     expect(fn(): array => new WorkspaceInitializer($source, $workspace)->initialize())
-        ->toThrow(RuntimeException::class, "Cannot copy canonical input file 'site/config.php'.")
+        ->toThrow(RuntimeException::class, "Cannot copy canonical input file 'site/assets/example.txt'.")
         ->and(PublisherFaults::calls('scaffolding_fclose'))->toBe(2)
-        ->and($workspace . '/site/config.php')->not->toBeFile();
+        ->and($workspace . '/site/assets/example.txt')->not->toBeFile();
 });
