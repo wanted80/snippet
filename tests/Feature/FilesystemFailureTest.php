@@ -27,6 +27,26 @@ function withoutFilesystemErrorHandler(Closure $operation): mixed
     }
 }
 
+it('rejects unreadable content assets during validation without changing the publication', function (string $command): void {
+    $path = $this->item('post', ['title' => 'Post', 'description' => 'D'], '[Notes](notes.txt)');
+    file_put_contents($path . '/notes.txt', 'Notes.');
+    mkdir($this->directory . '/public');
+    file_put_contents($this->directory . '/public/index.html', 'Previous publication.');
+    chmod($path . '/notes.txt', 0000);
+
+    try {
+        [$status, $output, $error] = withoutFilesystemErrorHandler(fn(): array => validatePublication($this->directory, $command));
+
+        expect($status)->toBe(1)
+            ->and($output)->toBeEmpty()
+            ->and($error)->toContain("Asset 'notes.txt' for 'post' must be readable.")
+            ->and(file_get_contents($this->directory . '/public/index.html'))->toBe('Previous publication.')
+            ->and(glob($this->directory . '/.snippet-*'))->toBe([]);
+    } finally {
+        chmod($path . '/notes.txt', 0644);
+    }
+})->with(['validate', 'build']);
+
 it('reports unreadable files', function (string $file, string $message): void {
     $path = $this->item('post', ['title' => 'T', 'description' => 'D']);
     chmod($path . '/' . $file, 0000);

@@ -9,6 +9,147 @@ use Snippet\Tests\PublisherFaults;
 
 mutates(PreviewServer::class);
 
+it('redirects directory requests to canonical URLs while preserving the mount path and query', function (string $basePath): void {
+    $this->site(['url' => 'https://example.test' . $basePath]);
+    $path = $this->item('post', ['title' => 'Post', 'description' => 'D'], '[Notes](notes.txt)');
+    file_put_contents($path . '/notes.txt', 'Notes.');
+    mkdir($path . '/files');
+    file_put_contents($path . '/files/notes.txt', 'Nested notes.');
+    $this->article('article', ['title' => 'Article', 'description' => 'D', 'date' => '2026-01-01', 'tags' => ['Café']]);
+    $port = availablePreviewPort();
+    $afterPoll = static function () use ($port, $basePath): void {
+        $origin = "http://127.0.0.1:{$port}";
+        $context = stream_context_create(['http' => ['follow_location' => 0, 'ignore_errors' => true]]);
+        foreach (['/post', '/articles', '/articles/article', '/tags/caf%C3%A9'] as $path) {
+            $headers = get_headers($origin . $basePath . $path . '?view=all%20items', true, $context);
+            assert(is_array($headers));
+            expect($headers[0])->toContain('301')
+                ->and($headers['Location'] ?? null)->toBe($basePath . $path . '/?view=all%20items');
+        }
+
+        foreach (['/missing', '/post/files'] as $path) {
+            $headers = get_headers($origin . $basePath . $path, true, $context);
+            assert(is_array($headers));
+            expect($headers[0])->toContain('404')->and($headers)->not->toHaveKey('Location');
+        }
+        if ($basePath !== '') {
+            foreach ([$basePath => '301', '/' => '302'] as $path => $status) {
+                $headers = get_headers($origin . $path . '?view=all%20items', true, $context);
+                assert(is_array($headers));
+                expect($headers[0])->toContain($status)
+                    ->and($headers['Location'] ?? null)->toBe($basePath . '/?view=all%20items');
+            }
+        }
+        expect(file_get_contents($origin . $basePath . '/post'))->toContain('href="notes.txt"')
+            ->and(file_get_contents($origin . $basePath . '/post/notes.txt'))->toBe('Notes.');
+    };
+
+    expect(new PreviewServer(
+        port: $port,
+        pollMicroseconds: 100_000,
+        maximumPolls: 1,
+        afterPoll: $afterPoll,
+    )->run($this->directory, new SplFileObject('php://memory', 'w+'), new SplFileObject('php://memory', 'w+')))->toBe(0);
+})->with(['', '/snippet']);
+
+it('returns a bad request for malformed URI escapes and continues serving valid requests', function (): void {
+    $this->item('post', ['title' => 'Post', 'description' => 'D'], 'Published.');
+    $port = availablePreviewPort();
+    $afterPoll = static function () use ($port): void {
+        $origin = "http://127.0.0.1:{$port}";
+        $context = stream_context_create(['http' => ['follow_location' => 0, 'ignore_errors' => true]]);
+        foreach (['/post%', '/post?view=%'] as $path) {
+            $headers = get_headers($origin . $path, true, $context);
+            assert(is_array($headers));
+            expect($headers[0])->toContain('400')->and($headers)->not->toHaveKey('Location');
+        }
+        foreach (['?view=%25', '?', ''] as $query) {
+            $headers = get_headers($origin . '/post' . $query, true, $context);
+            assert(is_array($headers));
+            expect($headers[0])->toContain('301')
+                ->and($headers['Location'] ?? null)->toBe('/post/' . $query);
+        }
+        expect(file_get_contents($origin . '/post/'))->toContain('Published.');
+    };
+
+    expect(new PreviewServer(
+        port: $port,
+        pollMicroseconds: 100_000,
+        maximumPolls: 1,
+        afterPoll: $afterPoll,
+    )->run($this->directory, new SplFileObject('php://memory', 'w+'), new SplFileObject('php://memory', 'w+')))->toBe(0);
+});
+
+it('detects equal-size asset edits despite unchanged filesystem timestamps', function (string $extension, bool $immediate): void {
+    $path = $this->item('post', ['title' => 'Post', 'description' => 'D']);
+    $asset = $path . '/data.' . $extension;
+    $before = str_repeat('Before', 12_000);
+    $after = str_repeat('After!', 12_000);
+    file_put_contents($asset, $before);
+    PublisherFaults::record('preview_freeze_timestamps');
+    $afterPoll = static function (int $poll, string $root) use ($asset, $extension, $before, $after, $immediate): void {
+        if ($poll === 0) {
+            file_put_contents($asset, $after);
+        } elseif ($poll === 1) {
+            expect(hash_file('xxh3', $root . '/public/post/data.' . $extension))->toBe(hash('xxh3', $immediate ? $after : $before));
+        }
+    };
+    $stdout = new SplFileObject('php://memory', 'w+');
+    $stderr = new SplFileObject('php://memory', 'w+');
+
+    expect(new PreviewServer(
+        port: availablePreviewPort(),
+        pollMicroseconds: 1000,
+        maximumPolls: $immediate ? 2 : 22,
+        afterPoll: $afterPoll,
+    )->run($this->directory, $stdout, $stderr))->toBe(0);
+
+    $stdout->rewind();
+    $stderr->rewind();
+    $output = $stdout->fread(8192);
+    assert(is_string($output));
+    expect(hash_file('xxh3', $this->directory . '/public/post/data.' . $extension))->toBe(hash('xxh3', $after))
+        ->and(mb_substr_count($output, 'Rebuilt site.'))->toBe(1)
+        ->and($stderr->fread(8192))->toBe('')
+        ->and(PublisherFaults::calls('preview_hash:' . $asset))->toBe($immediate ? 3 : 2);
+})->with([
+    'text' => ['txt', true],
+    'vector' => ['svg', true],
+    'data' => ['json', true],
+    'XML' => ['xml', true],
+    'binary' => ['bin', false],
+]);
+
+it('keeps preview available and reports cleanup warnings after a successful publication', function (bool $duringRebuild): void {
+    $path = $this->item('post', ['title' => 'Post', 'description' => 'D'], 'Published.');
+    mkdir($this->directory . '/public');
+    file_put_contents($this->directory . '/public/index.html', 'Old publication.');
+    if (!$duringRebuild) {
+        PublisherFaults::set('unlink', ['fail']);
+    }
+    $afterPoll = static function () use ($path, $duringRebuild): void {
+        if ($duringRebuild) {
+            PublisherFaults::set('unlink', ['fail']);
+            file_put_contents($path . '/page.md', 'Rebuilt.');
+        }
+    };
+    $stdout = new SplFileObject('php://memory', 'w+');
+    $stderr = new SplFileObject('php://memory', 'w+');
+
+    expect(new PreviewServer(
+        port: availablePreviewPort(),
+        pollMicroseconds: 1000,
+        maximumPolls: 1,
+        afterPoll: $afterPoll,
+    )->run($this->directory, $stdout, $stderr))->toBe(0);
+
+    $stdout->rewind();
+    $stderr->rewind();
+    expect($stdout->fread(8192))->toContain($duringRebuild ? 'Rebuilt site.' : 'Preview available')
+        ->and($stderr->fread(8192))->toStartWith('Publication cleanup failed:')->toContain('The new site was published.')
+        ->and(file_get_contents($this->directory . '/public/post/index.html'))->toContain($duringRebuild ? 'Rebuilt.' : 'Published.');
+})->with([false, true]);
+
 it('serves published downloads as static bytes without executing them', function (): void {
     $path = $this->item('post', ['title' => 'Post', 'description' => 'D'], '[notes](notes.txt) [guide](guide.pdf)');
     $this->resources();

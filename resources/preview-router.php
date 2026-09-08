@@ -2,11 +2,22 @@
 
 declare(strict_types=1);
 
+use Uri\InvalidUriException;
+use Uri\Rfc3986\Uri;
+
 $documentRoot = realpath((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''));
-$requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
+try {
+    $requestUri = new Uri((string) ($_SERVER['REQUEST_URI'] ?? '/'));
+} catch (InvalidUriException) {
+    http_response_code(400);
+    return true;
+}
+$requestPath = $requestUri->getRawPath();
+$query = $requestUri->getRawQuery();
+$querySuffix = $query === null ? '' : '?' . $query;
 $configuredBasePath = getenv('SNIPPET_BASE_PATH');
 $basePath = is_string($configuredBasePath) ? $configuredBasePath : '';
-if ($documentRoot === false || !is_string($requestPath)) {
+if ($documentRoot === false) {
     return false;
 }
 
@@ -15,12 +26,12 @@ header('X-Content-Type-Options: nosniff');
 
 if ($basePath !== '') {
     if ($requestPath === '/') {
-        header('Location: ' . $basePath . '/', true, 302);
+        header('Location: ' . $basePath . '/' . $querySuffix, true, 302);
         return true;
     }
 
     if ($requestPath === $basePath) {
-        header('Location: ' . $basePath . '/', true, 301);
+        header('Location: ' . $basePath . '/' . $querySuffix, true, 301);
         return true;
     }
 
@@ -67,7 +78,8 @@ JS;
 }
 
 $candidate = $documentRoot . '/' . mb_ltrim(rawurldecode($publicRequestPath), '/', '8bit');
-if (is_dir($candidate)) {
+$directory = is_dir($candidate);
+if ($directory) {
     $candidate .= '/index.html';
 }
 $notFound = false;
@@ -79,6 +91,10 @@ if ($resolved === false || !str_starts_with($resolved, $documentRoot . '/') || !
         return true;
     }
     $notFound = true;
+}
+if (!$notFound && $directory && !str_ends_with($requestPath, '/')) {
+    header('Location: /' . mb_ltrim($requestPath, '/', '8bit') . '/' . $querySuffix, true, 301);
+    return true;
 }
 $extension = mb_strtolower(pathinfo($resolved, PATHINFO_EXTENSION), 'UTF-8');
 if ($extension !== 'html') {

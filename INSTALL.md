@@ -95,6 +95,8 @@ Visit `http://127.0.0.1:8080/`, followed by the deployment path from `site/confi
 
 Preview validates and builds before serving, watches `content/` and `site/`, live-reloads after successful changes, and keeps the last valid site available after an invalid edit until it is corrected. A deployment-path change restarts the image-owned local server automatically. Ctrl+C or `docker stop` terminates the watcher and child PHP server; `--init` provides normal container process reaping. Preview opens no browser and is for local development only, never production serving.
 
+Preview adds the trailing slash to directory URLs so relative links resolve from the content page. Editable text assets are checked on every poll. Other assets reuse their fingerprints while filesystem metadata is unchanged, with a fresh byte check every 20 polls (about five seconds at the default interval) to catch rapid edits that preserve size and timestamps.
+
 The example also limits the container to 64 processes and two CPUs. These bounds leave ample room for the watcher, server, and Docker init process while containing accidental process or CPU exhaustion. A memory limit is deliberately not prescribed because publication size varies; measure the largest real site before adding one locally.
 
 The router remains immutable engine code at `/app/resources/preview-router.php`. It is neither copied into the mounted publication by `init` nor required beneath `/workspace`. A later ordinary `build` transaction replaces preview output and cannot retain the injected reload helper or preview-only version endpoint.
@@ -158,7 +160,7 @@ cd snippet
 composer install
 ```
 
-Install PHP 8.5 or newer, Composer, and the production extensions declared in `composer.json`: Date, Filter, Hash, Mbstring, PCRE, Random, and Tokenizer. Contributors also need the development extensions in `require-dev`, including PCNTL, PCOV, and POSIX.
+Install PHP 8.5 or newer, Composer, and the production extensions declared in `composer.json`: Date, Filter, Hash, Mbstring, PCRE, Random, Tokenizer, and URI. Contributors also need the development extensions in `require-dev`, including PCNTL, PCOV, and POSIX.
 
 Run the canonical CLI from the publication workspace. The executable may live in the separate Snippet checkout:
 
@@ -249,9 +251,11 @@ The root production and development images, Compose services, and Caddy flow are
 
 ### Devcontainer
 
-The devcontainer uses `compose.yaml` plus `compose.dev.yaml`, the same development dependency volume and toolchain, and an isolated `snippet-dev` Compose project. Install Visual Studio Code and the Dev Containers extension, then choose **Dev Containers: Reopen in Container**.
+Install Visual Studio Code and the Dev Containers extension, then choose **Dev Containers: Reopen in Container** and select **Snippet**. Its configuration is `.devcontainer/default/devcontainer.json`; it uses `compose.yaml` plus `compose.dev.yaml`, the development toolchain and dependency volume, and an isolated `snippet-dev` Compose project. It requires no host Codex directory or FUSE device.
 
-The included Codex integration bind-mounts the host `~/.codex` and exposes it through an ownership-mapped FUSE view. Ensure that directory exists, is writable by Docker, and uses file-based authentication. Colima users may need to add it as a writable VM mount before opening the container:
+To share an existing host Codex setup, select **Snippet with host Codex** instead. This optional configuration lives in `.devcontainer/codex/devcontainer.json`, adds its adjacent Compose overlay, and uses a separate `snippet-dev-codex` project and dependency volume. Use **Dev Containers: Switch Container** to change configurations.
+
+Only the Codex configuration bind-mounts the host `~/.codex` and exposes it through an ownership-mapped FUSE view. It requires Docker access to `/dev/fuse` and the overlay's mount permissions. Ensure the host directory exists, is writable by Docker, and uses file-based authentication. Colima users may need to add it as a writable VM mount before opening this configuration:
 
 ```yaml
 mounts:

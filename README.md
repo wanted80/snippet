@@ -25,7 +25,7 @@ I mainly used GPT 5.6 Sol with medium and xhigh reasoning, and GPT 5.6 Luna with
 
 ## Quick start
 
-The primary workflow is a content-only repository powered by the official builder image. Start in an empty directory with the exact v2 release:
+The primary workflow is a content-only repository powered by the official builder image. Start in an empty directory with the pinned release:
 
 ```bash
 mkdir my-site
@@ -276,7 +276,11 @@ Configuration and metadata files are declarative PHP rather than executed code. 
 
 ## Output and architecture
 
-`bin/snippet build` loads one shared publication-input snapshot and validates its configuration, content catalog, article images, Markdown references, assets, and templates before rendering. `validate`, `build`, and every preview rebuild use this identical boundary. It writes a unique temporary sibling tree and replaces `public/` only after every page and asset succeeds. The generated routes are:
+`bin/snippet build` loads one shared publication-input snapshot and validates its configuration, content catalog, article images, Markdown references, assets, and templates before rendering. `validate`, `build`, and every preview rebuild use this identical boundary. Content assets must be readable during validation. The builder writes a unique temporary sibling tree and replaces `public/` only after every page and asset succeeds.
+
+Once the new site has replaced `public/`, an error removing the previous publication is a cleanup warning: the build remains successful and reports the remaining `.snippet-backup-*` path for manual removal. Preview also reports this warning and continues serving the new site.
+
+The generated routes are:
 
 - `/index.html`, containing the homepage;
 - `/404.html`, containing the shared-layout not-found document used by compatible static hosts;

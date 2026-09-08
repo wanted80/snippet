@@ -15,6 +15,23 @@ use Snippet\Site\Config;
 
 mutates(ReferenceValidator::class);
 
+it('keeps query-only and fragment-only references on the current content route', function (string $target): void {
+    $this->item('about', ['title' => 'About', 'description' => 'D'], "[this page]({$target})");
+
+    expect(validatePublication($this->directory)[0])->toBe(0);
+})->with(['?view=all', '?view=all#top', '#top']);
+
+it('resolves terminal dot segments to generated directories', function (string $target): void {
+    $this->article('post', [
+        'title' => 'Post', 'description' => 'D', 'date' => '2026-01-01', 'tags' => [],
+    ], "[directory]({$target})");
+
+    expect(validatePublication($this->directory)[0])->toBe(0);
+})->with([
+    '.', '..', './.', '../post/.', '../post/..', '%2e', '%2E%2e', '../post/%2E',
+    '/articles/.', '/articles/post/..', 'https://example.test/articles/post/..?view=all#top',
+]);
+
 it('encodes literal asset filenames without treating percent sequences as URLs', function (string $filename, string $encoded): void {
     $path = $this->item('post', ['title' => 'Post', 'description' => 'D'], "[content]({$encoded}) [site](/assets/site/{$encoded})");
     $this->resources();

@@ -444,6 +444,47 @@ it('builds an empty catalog through the CLI', function (): void {
         ->and($this->directory . '/public/tags')->toBeDirectory();
 });
 
+it('reports a successful build when only the previous publication cleanup fails', function (): void {
+    $this->item('post', ['title' => 'Post', 'description' => 'D'], 'New publication.');
+    mkdir($this->directory . '/public/locked', 0755, true);
+    file_put_contents($this->directory . '/public/locked/old.txt', 'Previous publication.');
+    chmod($this->directory . '/public/locked', 0500);
+
+    try {
+        [$status, $output, $error] = withoutFilesystemErrorHandler(fn(): array => validatePublication($this->directory, 'build'));
+        $backups = glob($this->directory . '/.snippet-backup-*');
+        expect($backups)->toBeArray()->toHaveCount(1);
+        assert(is_array($backups));
+
+        expect($status)->toBe(0)
+            ->and($output)->toStartWith('Built site:')
+            ->and($error)->toStartWith('Publication cleanup failed:')
+            ->toContain('The new site was published.', basename($backups[0]), 'manually')
+            ->and(file_get_contents($this->directory . '/public/post/index.html'))->toContain('New publication.')
+            ->and(file_get_contents($backups[0] . '/locked/old.txt'))->toBe('Previous publication.')
+            ->and(glob($this->directory . '/.snippet-build-*'))->toBe([]);
+    } finally {
+        $backups = glob($this->directory . '/.snippet-backup-*');
+        assert(is_array($backups));
+        foreach ($backups as $backup) {
+            chmod($backup . '/locked', 0700);
+        }
+    }
+});
+
+it('retains cleanup diagnostics in a successful publication report', function (bool $unexpected): void {
+    $this->content();
+    mkdir($this->directory . '/public');
+    file_put_contents($this->directory . '/public/index.html', 'Old publication.');
+    PublisherFaults::set('unlink', [$unexpected ? 'throw' : 'fail']);
+    $config = new ConfigLoader()->load($this->directory . '/site');
+
+    $report = new Publisher()->publish($this->directory, $config, $this->catalog());
+
+    expect($report->cleanupWarning)->toContain('The new site was published.', '.snippet-backup-', 'manually')
+        ->and(file_get_contents($this->directory . '/public/index.html'))->toContain('No articles have been published yet.');
+})->with([false, true]);
+
 it('preserves an existing publication when a pre-promotion copy fails', function (): void {
     $this->content();
     $path = $this->item('post', ['title' => 'Post', 'description' => 'D']);
