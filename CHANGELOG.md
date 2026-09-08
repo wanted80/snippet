@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.2](https://github.com/wanted80/snippet/compare/v3.0.1...v3.0.2) (2026-09-08)
+
+
+### Bug Fixes
+
+* correct publication status, asset validation, and previews ([#42](https://github.com/wanted80/snippet/issues/42)) ([09d34e1](https://github.com/wanted80/snippet/commit/09d34e14d380625dacd087f56aaff94096de109d))
+
 ## [3.0.1](https://github.com/wanted80/snippet/compare/v3.0.0...v3.0.1) (2026-09-08)
 
 
