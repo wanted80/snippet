@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.1](https://github.com/wanted80/snippet/compare/v3.0.0...v3.0.1) (2026-09-08)
+
+
+### Miscellaneous Chores
+
+* **deps:** update laravel/pint to v1.31.0 and pestphp/pest to v5.1.4 ([#40](https://github.com/wanted80/snippet/issues/40)) ([dedfd91](https://github.com/wanted80/snippet/commit/dedfd91dbb4e4146015e019ab882ade9367c0100))
+
 ## [3.0.0](https://github.com/wanted80/snippet/compare/v2.2.0...v3.0.0) (2026-09-06)
 
 
