@@ -33,6 +33,7 @@ COPY src/Authoring src/Authoring
 COPY src/Cli src/Cli
 COPY src/Content src/Content
 COPY src/Exception src/Exception
+COPY src/Inspection src/Inspection
 COPY src/Markdown src/Markdown
 COPY src/Publishing src/Publishing
 COPY src/Preview src/Preview

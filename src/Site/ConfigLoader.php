@@ -26,7 +26,13 @@ use function rawurldecode;
 /** Loads the stable, trusted site customization boundary. */
 final readonly class ConfigLoader
 {
-    private const array FIELDS = ['title', 'sitename', 'author', 'description', 'url', 'language', 'home', 'build'];
+    public const array FIELDS = ['title', 'sitename', 'author', 'description', 'url', 'language', 'home', 'build'];
+
+    public const array HOME_FIELDS = ['articles', 'tags'];
+
+    public const array BUILD_FIELDS = ['minify'];
+
+    public const string LANGUAGE_PATTERN = '/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/D';
 
     public function __construct(
         private TrustedPhpLoader $phpLoader = new TrustedPhpLoader(),
@@ -116,7 +122,7 @@ final readonly class ConfigLoader
     /** @return array{positive-int, positive-int} */
     private function home(mixed $value): array
     {
-        if (!is_array($value) || !$this->hasExactFields($value, ['articles', 'tags'])) {
+        if (!is_array($value) || !$this->hasExactFields($value, self::HOME_FIELDS)) {
             throw new ContentException("Site configuration field 'home' must contain exact articles and tags fields.");
         }
 
@@ -129,7 +135,7 @@ final readonly class ConfigLoader
 
     private function build(mixed $value): bool
     {
-        if (!is_array($value) || !$this->hasExactFields($value, ['minify'])) {
+        if (!is_array($value) || !$this->hasExactFields($value, self::BUILD_FIELDS)) {
             throw new ContentException("Site configuration field 'build' must contain the exact minify field.");
         }
 
@@ -142,7 +148,7 @@ final readonly class ConfigLoader
 
     private function language(mixed $value): string
     {
-        if (!is_string($value) || preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/D', $value) !== 1) {
+        if (!is_string($value) || preg_match(self::LANGUAGE_PATTERN, $value) !== 1) {
             throw new ContentException("Site configuration field 'language' must be a valid language tag.");
         }
 

@@ -305,7 +305,7 @@ it('refuses draft creation when the required content structure is missing', func
 it('rejects commands outside the builder image contract', function (array $arguments, string $message): void {
     /** @var list<string> $arguments */
     expect(runBuilderEntrypoint($this->directory, ...$arguments))
-        ->toBe([2, '', "Error: {$message}\n\nUsage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet preview [--host=<host>] [--port=<port>]\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n"]);
+        ->toBe([2, '', "Error: {$message}\n\nUsage:\n  snippet --version [--json]\n  snippet inspect <capabilities|theme|config|content> --json\n  snippet init [--json]\n  snippet validate [--json]\n  snippet build [--json]\n  snippet preview [--host=<host>] [--port=<port>]\n  snippet new page <slug> [--json]\n  snippet new article <slug> [--date=YYYY-MM-DD] [--json]\n"]);
 })->with([
     'no command' => [[], 'A command is required.'],
     'preview option' => [['preview', '--remote'], "Unknown preview option '--remote'."],
@@ -317,7 +317,7 @@ it('reports new-command usage through the builder interface', function (): void 
         ->toBe([
             2,
             '',
-            "Error: New command requires a content type and slug.\n\nUsage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet preview [--host=<host>] [--port=<port>]\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n",
+            "Error: New command requires a content type and slug.\n\nUsage:\n  snippet --version [--json]\n  snippet inspect <capabilities|theme|config|content> --json\n  snippet init [--json]\n  snippet validate [--json]\n  snippet build [--json]\n  snippet preview [--host=<host>] [--port=<port>]\n  snippet new page <slug> [--json]\n  snippet new article <slug> [--date=YYYY-MM-DD] [--json]\n",
         ]);
 });
 
@@ -379,4 +379,32 @@ it('defines a dedicated minimal builder image and runtime configuration', functi
             . "zend.assertions=-1\n",
         )
         ->and($developmentDockerfile)->not->toContain(' AS builder');
+});
+
+it('completes the JSON agent workflow through the Docker entrypoint', function (): void {
+    foreach (['capabilities', 'theme', 'config', 'content'] as $subject) {
+        [$status, $bytes, $stderr] = runBuilderEntrypoint($this->directory, 'inspect', $subject, '--json');
+        expect($status)->toBe(0)->and($stderr)->toBeEmpty()
+            ->and(json_decode($bytes, true, flags: JSON_THROW_ON_ERROR))->toHaveKey('subject', $subject);
+    }
+    expect(runBuilderEntrypoint($this->directory, 'init', '--json')[0])->toBe(0)
+        ->and(runBuilderEntrypoint($this->directory, 'new', 'page', 'about', '--json')[0])->toBe(0)
+        ->and(runBuilderEntrypoint($this->directory, 'new', 'article', 'first-post', '--date=2026-08-17', '--json')[0])->toBe(0)
+        ->and(runBuilderEntrypoint($this->directory, 'validate', '--json')[0])->toBe(1);
+    foreach ([
+        'content/pages/about' => ['page.md', ['title' => 'About', 'description' => 'About this site.', 'menu_order' => 1]],
+        'content/articles/2026/08/17/first-post' => ['article.md', ['title' => 'First post', 'description' => 'Our first post.', 'date' => '2026-08-17', 'tags' => ['Café', '日本語']]],
+    ] as $directory => [$source, $metadata]) {
+        file_put_contents($this->directory . '/' . $directory . '/' . $source, "# Welcome\n\n[About](/about/) and **hello**.\n");
+        file_put_contents($this->directory . '/' . $directory . '/meta.php', "<?php\ndeclare(strict_types=1);\nreturn " . var_export($metadata, true) . ";\n");
+    }
+    file_put_contents($this->directory . '/site/site.css', "@layer overrides { :root { --color-accent: light-dark(#763524, #b9d5ff); --measure-prose: 42rem; } }\n", FILE_APPEND);
+    [$status, $bytes, $stderr] = runBuilderEntrypoint($this->directory, 'validate', '--json');
+    expect($status)->toBe(0)->and($stderr)->toBeEmpty()
+        ->and(json_decode($bytes, true, flags: JSON_THROW_ON_ERROR))->toHaveKey('valid', true);
+    [$status, $bytes, $stderr] = runBuilderEntrypoint($this->directory, 'build', '--json');
+    expect($status)->toBe(0)->and($stderr)->toBeEmpty()
+        ->and(json_decode($bytes, true, flags: JSON_THROW_ON_ERROR))->toHaveKey('output', 'public/')
+        ->and(file_get_contents($this->directory . '/public/index.html'))->toContain('First post', 'caf%C3%A9', '<strong>hello</strong>')
+        ->and(file_get_contents($this->publishedAsset('site.css')))->toContain('light-dark(#763524, #b9d5ff)', '--measure-prose: 42rem');
 });

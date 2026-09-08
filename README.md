@@ -70,6 +70,63 @@ This builds the release image, assembles the demo in a temporary workspace, vali
 
 For contributor preview, run `make docker-preview` and open `https://localhost:8443/`. Docker exposes `demo/content/` as the CLI content collection and uses the canonical root `site/` and `resources/`, with live updates as those files change.
 
+## Agent CLI
+
+Agents can query the installed engine before a workspace exists:
+
+```text
+bin/snippet inspect capabilities --json
+bin/snippet inspect theme --json
+bin/snippet inspect config --json
+bin/snippet inspect content --json
+```
+
+Inspection requires `--json`. The four subjects describe available commands and
+customization paths, the stable theme API and `engine_defaults`, required site
+configuration and `starter_values`, and the page/article authoring contract.
+Inspection reads installed engine resources, independently of workspace files.
+Theme results contain the 20 public tokens grouped into colors, fonts, and sizing,
+11 class hooks, layer order, and an override example. Values preserve CSS
+expressions; they exclude author CSS and print overrides. Configuration starter
+values are required values copied by initialization, not defaults for omissions.
+
+| Command | JSON result |
+| --- | --- |
+| `--version --json` | Schema and installed version |
+| `inspect <capabilities\|theme\|config\|content> --json` | Installed contract |
+| `init --json` | Created and skipped files; Docker entrypoint only |
+| `new page <slug> --json` | Created files and `incomplete: true` |
+| `new article <slug> [--date=YYYY-MM-DD] --json` | Created files and `incomplete: true`; omitted date uses UTC |
+| `validate --json` | `valid: true` and article, page, tag, asset counts |
+| `build --json` | `output: "public/"`, article, page, tag, asset, file counts, and any cleanup warning |
+
+Every JSON response is one compact object followed by a newline on stdout, with
+`schema: "snippet.agent/v1"` and the release-managed `snippet_version`. Normal
+human output remains available without `--json`. Pass the option once after the
+command's required arguments, before or after other supported tail options.
+Duplicate, misplaced, and unsupported options fail before an operation starts.
+`preview --json` returns a usage error; normal preview remains interactive.
+
+Exit statuses are `0` for success, `1` for an operation failure, and `2` for invalid
+usage. Handled JSON failures contain `error: {code, message}` with
+`cli.invalid_arguments`, `init.failed`, `new.failed`, `inspect.failed`,
+`validate.failed`, or `build.failed`. Messages retain source context; their text
+is not a structured field contract. JSON contains no human diagnostics or ANSI
+decoration. Invalid UTF-8 in diagnostics is replaced with the Unicode replacement
+character so the response remains valid JSON.
+
+Successful inspection and validation are deterministic. JSON build results omit
+duration; `warnings` appears only when warnings exist. A successful publication
+with a backup-cleanup warning still exits `0`. `created` and `skipped` paths are
+workspace-relative files; new-content success means that incomplete source files
+were created, not that the publication is valid.
+
+The complete workflow is **inspect → initialize → create → edit → validate →
+build**. Read and edit author files directly, complete generated Markdown and
+metadata, and customize `site/site.css` through the documented API. Validate and
+build with Snippet, then review the appearance in light and dark modes. See
+[the agent workflow in INSTALL.md](INSTALL.md#agent-workflow) for Docker commands.
+
 ## Content
 
 Pages and articles occupy separate source collections. Each leaf directory is one content item, and its directory name is its URL slug:

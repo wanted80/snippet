@@ -226,3 +226,13 @@ it('ships its configured interface and wordmark fonts locally', function (): voi
         )
         ->and($license)->toContain('Copyright 2020-2024 The Atkinson Hyperlegible Next Project Authors', 'SIL OPEN FONT LICENSE Version 1.1');
 });
+
+arch('keeps inspection independent from workspace mutation and publication orchestration')
+    ->expect('Snippet\\Inspection')
+    ->not->toUse([
+        Application::class,
+        'Snippet\\Authoring',
+        'Snippet\\Scaffolding',
+        'Snippet\\Publishing',
+        'Snippet\\Preview',
+    ]);

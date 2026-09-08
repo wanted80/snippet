@@ -15,6 +15,8 @@ it('keeps command argument policies and operation labels with the recognized com
         ->and($command->acceptsArguments())->toBe($arguments)
         ->and($command->operation())->toBe($operation);
 })->with([
+    'initialization' => ['init', false, 'Workspace initialization'],
+    'inspection' => ['inspect', true, 'Inspection'],
     'version' => ['--version', false, 'Version reporting'],
     'validation' => ['validate', false, 'Validation'],
     'build' => ['build', false, 'Build'],
@@ -24,4 +26,4 @@ it('keeps command argument policies and operation labels with the recognized com
 
 it('does not normalize unknown command names into valid commands', function (string $name): void {
     expect(Command::tryFrom($name))->toBeNull();
-})->with(['', 'Build', ' build', 'build ', 'version', '--help', 'init']);
+})->with(['', 'Build', ' build', 'build ', 'version', '--help']);

@@ -28,6 +28,37 @@ run_builder() {
         "${image}" "$@"
 }
 
+check_json() {
+    docker run --rm --network none --read-only --cap-drop ALL \
+        --security-opt no-new-privileges --user "$(id -u):$(id -g)" \
+        --entrypoint php "${image}" -r '
+        require "/app/vendor/autoload.php";
+        try {
+            $result = json_decode($argv[1], true, flags: JSON_THROW_ON_ERROR);
+            $expected = json_decode($argv[2], true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($result) || !is_array($expected)) {
+                throw new RuntimeException("Expected a JSON object.");
+            }
+            $expected += ["schema" => "snippet.agent/v1", "snippet_version" => Snippet\Support\ApplicationVersion::CURRENT];
+            foreach ($expected as $key => $value) {
+                if (!array_key_exists($key, $result) || $result[$key] !== $value) {
+                    throw new RuntimeException("Unexpected JSON field: {$key}.");
+                }
+            }
+            if (array_key_exists("error", $result) && !array_key_exists("error", $expected)) {
+                throw new RuntimeException("Expected a successful JSON response.");
+            }
+            if (($result["command"] ?? null) === "init"
+                && (!is_array($result["created"] ?? null) || !is_array($result["skipped"] ?? null))) {
+                throw new RuntimeException("Expected initialization file lists.");
+            }
+        } catch (Throwable $error) {
+            fwrite(STDERR, "Builder JSON smoke check failed: {$error->getMessage()}\n");
+            exit(1);
+        }
+    ' "$1" "$2"
+}
+
 preview_request() {
     docker exec "${preview_container}" php -r '
         $socket = @stream_socket_client("tcp://127.0.0.1:8080", $errorCode, $errorMessage, 1);
@@ -134,6 +165,7 @@ docker run --rm --entrypoint sh "${image}" -c '
     test ! -e /app/tests
     test ! -e /app/docs
     test ! -e /app/vendor/bin/pest
+    test -e /app/src/Inspection/Inspector.php
     test -e /app/src/Authoring/DraftCreator.php
     test -e /app/src/Preview/Previewer.php
     test -e /app/src/Preview/PreviewServer.php
@@ -144,6 +176,26 @@ docker run --rm --entrypoint sh "${image}" -c '
 '
 
 run_builder --version
+# Standalone assignments preserve the producer status under POSIX sh set -e.
+response=$(run_builder --version --json)
+check_json "${response}" '{}'
+
+# Inspection must work with no workspace inputs, network, or writable mounts.
+for subject in capabilities theme config content; do
+    response=$(docker run --rm --network none --read-only --cap-drop ALL \
+        --security-opt no-new-privileges --user "$(id -u):$(id -g)" \
+        --mount "type=bind,source=${workspace},destination=/workspace,readonly" \
+        "${image}" inspect "${subject}" --json)
+    check_json "${response}" "{\"command\":\"inspect\",\"subject\":\"${subject}\"}"
+done
+
+if response=$(run_builder preview --json); then
+    echo 'Builder started preview with JSON output.' >&2
+    exit 1
+else
+    test "$?" -eq 2
+fi
+check_json "${response}" '{"error":{"code":"cli.invalid_arguments","message":"Preview does not support --json; use interactive preview without it."}}'
 
 if run_builder new article before-init --date=2026-08-17 >/dev/null 2>&1; then
     echo 'Builder created a draft before workspace initialization.' >&2
@@ -152,13 +204,18 @@ fi
 
 test ! -e "${workspace}/content"
 
-run_builder init
+response=$(run_builder init --json)
+check_json "${response}" '{"command":"init"}'
+response=$(run_builder init --json)
+check_json "${response}" '{"command":"init","created":[]}'
 test "$(find "${workspace}/content/articles" -name article.md -type f | wc -l | tr -d ' ')" = 0
 test "$(find "${workspace}/content/pages" -name page.md -type f | wc -l | tr -d ' ')" = 0
 test -f "${workspace}/site/site.css"
 test -f "${workspace}/site/assets/fonts/snippet-logo/snippet-logo.woff2"
-run_builder validate
-run_builder build
+response=$(run_builder validate --json)
+check_json "${response}" '{"command":"validate","valid":true}'
+response=$(run_builder build --json)
+check_json "${response}" '{"command":"build","output":"public/"}'
 
 test -f "${workspace}/public/index.html"
 test ! -e "${workspace}/public/assets/theme.css"

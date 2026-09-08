@@ -34,9 +34,79 @@ docker run --rm \
   ghcr.io/wanted80/snippet:v3.0.2 new article first-post # x-release-please-version
 ```
 
-The image exposes `--version`, `init`, `new page`, `new article`, `validate`, `build`, and the local-development `preview` command. Draft creation requires the relevant collection created by `init`, refuses symlinked or existing destinations, and leaves `public/` unchanged. The image omits Composer, development tools, and source outside those commands' runtime paths. `validate` reports the catalog and prospective asset count. `build` measures validation plus transactional publication and reports the actual promoted asset and file counts. Failures retain the existing `public/` directory.
+The image exposes `--version`, `inspect`, `init`, `new page`, `new article`, `validate`, `build`, and the local-development `preview` command. Draft creation requires the relevant collection created by `init`, refuses symlinked or existing destinations, and leaves `public/` unchanged. The image omits Composer, development tools, and source outside those commands' runtime paths. `validate` reports the catalog and prospective asset count. `build` measures validation plus transactional publication and reports the actual promoted asset and file counts. Failures retain the existing `public/` directory.
 
 Moving release aliases and `latest` are convenient for evaluation but unsuitable for reproducible publication. Pin a full release such as `v3.0.2` or an immutable image digest. <!-- x-release-please-version -->
+
+## Agent workflow
+
+Use the builder image selected for your workspace so inspection describes that
+installed version. To test the current checkout, first run `make builder-image`.
+From your author workspace, use this shell helper:
+
+```sh
+snippet() {
+    docker run --rm --network none \
+        --user "$(id -u):$(id -g)" \
+        --mount "type=bind,source=$(pwd),destination=/workspace" \
+        snippet-builder:smoke "$@"
+}
+
+snippet --version --json
+snippet inspect capabilities --json
+snippet inspect theme --json
+snippet inspect config --json
+snippet inspect content --json
+snippet init --json
+snippet new page about --json
+snippet new article first-post --date=2026-08-17 --json
+```
+
+For a released installation, replace `snippet-builder:smoke` with an exact
+release tag or digest that includes the agent CLI.
+Initialization reports created and skipped files without overwriting author
+files. Content creation reports the actual two files and `incomplete: true`.
+Without `--date`, an article uses the current UTC date.
+
+Complete `content/pages/about/page.md` and its `meta.php`, and
+`content/articles/2026/08/17/first-post/article.md` and its `meta.php`. Set non-empty
+titles and descriptions, keep the article date aligned with its directories,
+and supply its ordered `tags` list. Edit `site/config.php` with all required
+fields from `inspect config`; use the declarative PHP syntax it describes.
+Read existing `site/site.css` before editing it. For example, add:
+
+```css
+@layer overrides {
+    :root {
+        --color-accent: light-dark(#763524, #b9d5ff);
+        --measure-prose: 42rem;
+    }
+}
+```
+
+Then run:
+
+```sh
+snippet validate --json
+snippet build --json
+```
+
+Check exit status and parse the single JSON object on stdout. Every result has
+`schema: "snippet.agent/v1"` and `snippet_version`. Success exits `0`, operation
+failure exits `1`, and invalid usage exits `2`; failures contain
+`error: {code, message}`. Build reports `public/`, counts, and any `warnings`;
+backup cleanup warnings after successful publication retain status `0`.
+No duration or progress messages are mixed into JSON. All four inspection
+subjects work offline without initialized or valid workspace files. They also
+work with a read-only `/workspace` mount. Theme `engine_defaults` exclude author
+CSS, and config `starter_values` do not make any field optional.
+
+Run normal preview using the workflow below and review light and dark modes,
+including a narrow viewport. Preview is interactive: `preview --json` exits `2`
+without starting a server. Publish only the generated `public/` directory.
+For direct PHP usage, use `/path/to/snippet/bin/snippet` from the author workspace
+for inspection, creation, validation, and building; `init` belongs to the Docker
+entrypoint. See [the JSON contract](README.md#agent-cli) for all supported forms.
 
 ## Building a separate repository
 
