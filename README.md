@@ -39,7 +39,7 @@ docker run --rm \
 
 `--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path. Edit the generated `site/config.php` and content, then rerun the command with `init` replaced by `validate` or `build`. Create later drafts through the same image, for example by replacing `init` with `new article first-post`.
 
-The repository needs only `content/` and `site/`; `public/` is disposable output. The builder image supports `--version`, `init`, `new page`, `new article`, `validate`, `build`, and `preview`. Run the local development preview from a content-only repository with an explicitly published loopback port:
+The publication inputs are `content/` and `site/`; `public/` is disposable output. Initialization also adds author-owned `AGENTS.md` and `.agents/skills/snippet-authoring/SKILL.md` for coding agents. The builder image supports `--version`, `inspect`, `init`, `new page`, `new article`, `validate`, `build`, and `preview`. Run the local development preview from a content-only repository with an explicitly published loopback port:
 
 ```bash
 docker run --rm --init \
@@ -126,6 +126,31 @@ build**. Read and edit author files directly, complete generated Markdown and
 metadata, and customize `site/site.css` through the documented API. Validate and
 build with Snippet, then review the appearance in light and dark modes. See
 [the agent workflow in INSTALL.md](INSTALL.md#agent-workflow) for Docker commands.
+
+### Agent instructions and skill
+
+`init` adds a short `AGENTS.md` that points to the bundled `snippet-authoring`
+skill in `.agents/skills/snippet-authoring/SKILL.md`. The skill discovers the
+installed contracts and guides content, configuration, styling, validation, and
+building. Record the workspace's actual command or pinned image in its project
+instructions so the agent can reuse it. For example:
+
+> Use the snippet-authoring skill to add an About page in my existing writing
+> style, then validate and build the site using the configured Snippet command.
+
+Both files belong to the author after initialization. Rerunning `init --json`
+on an older workspace adds missing files and reports existing ones as `skipped`.
+It does not append to or replace an existing `AGENTS.md`, customized Snippet
+skill, or other skills. Existing instructions can opt in with this reference:
+
+```markdown
+For Snippet publication work, read `.agents/skills/snippet-authoring/SKILL.md`.
+```
+
+Keep these instructions in the publication repository; they are not included in
+`public/`. See [upgrading agent guidance](INSTALL.md#agent-guidance-in-existing-workspaces)
+for discovery and upgrade details. The generator repository's own `AGENTS.md`
+continues to describe engine development.
 
 ## Content
 
@@ -241,13 +266,13 @@ Validation checks every internal Markdown link against the complete generated ro
 
 ## Site customization
 
-`snippet init` creates empty content collections and copies the generic `site/` defaults: configuration, custom CSS, favicon, and assets. These files belong to the author and are never replaced by initialization or builds. HTML templates, base CSS, theme JavaScript, and the preview router stay inside the installed builder. Each build uses that builder version’s theme, so updating the image and rebuilding delivers theme fixes without copying files into the site.
+`snippet init` creates empty content collections, copies the generic `site/` defaults (configuration, custom CSS, favicon, and assets), and adds the agent instructions and skill. These files belong to the author and are never replaced by initialization or builds. HTML templates, base CSS, theme JavaScript, and the preview router stay inside the installed builder. Each build uses that builder version's theme, so updating the image and rebuilding delivers theme fixes without copying files into the site.
 
 Customize appearance in `site/site.css` using the [stable CSS API](#stable-css-api). Optional `site/site.js` adds local behavior and remains author-owned. Template overrides are not supported; a separate workspace’s `resources/` directory is not a publication input. Structural changes to the theme belong in the builder itself.
 
 ## Repository and demo separation
 
-The root is the generator and reference implementation. `site/` supplies author-owned defaults and `resources/` supplies the installed theme, while `demo/content/` preserves the project website's articles and pages. `snippet init` creates empty `content/articles/` and `content/pages/` collections and copies only the generic `site/` defaults—never demo configuration or content. CI composes the demo into a temporary normal workspace, validates it, builds it, and deploys only the generated output.
+The root is the generator and reference implementation. `site/` supplies author-owned defaults and `resources/` supplies the installed theme and workspace instruction templates, while `demo/content/` preserves the project website's articles and pages. `snippet init` creates empty `content/articles/` and `content/pages/` collections, copies the generic `site/` defaults, and copies the author instructions from `resources/workspace/` into the workspace root. Demo configuration and content are never initialized. CI composes the demo into a temporary normal workspace, validates it, builds it, and deploys only the generated output.
 
 Container support is grouped by responsibility under `docker/`: `development/` owns the contributor image, `builder/` the published minimal image, `demo/` temporary demo composition, `preview/` local Caddy support, and `quality/` container-specific quality tooling. Shell sources retain their `.sh` extension in the repository even when an image installs them as an extensionless command.
 

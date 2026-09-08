@@ -183,11 +183,15 @@ it('initializes an empty workspace from canonical shared inputs without demo con
         ->and($stdout)->toStartWith("Initializing Snippet workspace.\n\n")
         ->and($stdout)->not->toContain('demo/', 'article.md', 'page.md')
         ->and($stdout)->toContain("Created: site/site.css\n")
+        ->and($stdout)->toContain("Created: AGENTS.md\n", "Created: .agents/skills/snippet-authoring/SKILL.md\n")
         ->and($stdout)->toEndWith("\nWorkspace initialized.\nExisting files were not overwritten.\n")
         ->and($stderr)->toBeEmpty()
         ->and($this->directory . '/public')->not->toBeDirectory();
 
     $root = dirname(__DIR__, 2);
+    foreach (builderScaffoldFiles($root . '/resources/workspace') as $file) {
+        expect(file_get_contents($this->directory . '/' . $file))->toBe(file_get_contents($root . '/resources/workspace/' . $file));
+    }
     foreach (['site'] as $input) {
         foreach (builderScaffoldFiles($root . '/' . $input) as $file) {
             expect(file_get_contents($this->directory . '/' . $input . '/' . $file))
@@ -355,6 +359,7 @@ it('defines a dedicated minimal builder image and runtime configuration', functi
             'COPY resources/theme.js resources/theme.js',
             'COPY resources/preview-router.php resources/preview-router.php',
             'COPY resources/templates resources/templates',
+            'COPY resources/workspace resources/workspace',
             'COPY docker/builder/entrypoint.sh /usr/local/bin/snippet',
             'USER snippet',
             'WORKDIR /workspace',

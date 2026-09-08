@@ -46,6 +46,7 @@ COPY resources/theme.css resources/theme.css
 COPY resources/theme.js resources/theme.js
 COPY resources/preview-router.php resources/preview-router.php
 COPY resources/templates resources/templates
+COPY resources/workspace resources/workspace
 COPY LICENSE LICENSE
 COPY docker/builder/entrypoint.sh /usr/local/bin/snippet
 

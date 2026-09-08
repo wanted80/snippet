@@ -18,7 +18,7 @@ docker run --rm \
   ghcr.io/wanted80/snippet:v3.0.2 init # x-release-please-version
 ```
 
-`init` creates empty `content/articles/` and `content/pages/` collections and copies the generic `site/` defaults. Existing files win, nothing is deleted, and `public/` is untouched. Templates, base CSS, theme JavaScript, and preview support stay in the image; no `resources/` directory is created in the workspace. Demo configuration and content are never included. Repeating `init` adds missing site defaults without replacing existing files. To receive theme updates, update the pinned image and rebuild.
+`init` creates empty `content/articles/` and `content/pages/` collections and copies the generic `site/` defaults. It also adds `AGENTS.md` and `.agents/skills/snippet-authoring/SKILL.md` for authoring with coding agents. Existing files win, nothing is deleted, and `public/` is untouched. Templates, base CSS, theme JavaScript, and preview support stay in the image; no `resources/` directory is created in the workspace. Demo configuration and content are never included. Repeating `init` adds missing defaults and agent guidance without replacing existing files. To receive theme updates, update the pinned image and rebuild.
 
 Set the complete public HTTPS URL in `site/config.php`, then create the first page or article. Rerun the command with `init` replaced by `validate` to check the site without changing `public/`, or by `build` to create the static publication. The same image creates drafts:
 
@@ -108,6 +108,45 @@ For direct PHP usage, use `/path/to/snippet/bin/snippet` from the author workspa
 for inspection, creation, validation, and building; `init` belongs to the Docker
 entrypoint. See [the JSON contract](README.md#agent-cli) for all supported forms.
 
+### Agent guidance in existing workspaces
+
+Use an image built from this checkout or a release that includes agent
+scaffolding. Run `snippet init --json` through the same configured helper to add
+the missing instruction files to an older workspace. The result reports each
+file under `created` or `skipped`; initialization does not require a valid site.
+
+| Existing files | Initialization result |
+| --- | --- |
+| Neither agent file exists | Creates `AGENTS.md` and `.agents/skills/snippet-authoring/SKILL.md` |
+| A custom `AGENTS.md` exists | Preserves it exactly; creates the skill if missing |
+| A customized Snippet skill exists | Preserves it exactly; creates `AGENTS.md` if missing |
+| Both files exist | Skips both; other missing site defaults can still be added |
+
+Initialization never merges text into these files. Other skills are untouched.
+To use Snippet guidance with an existing `AGENTS.md`, add this reference yourself
+where it fits your instructions:
+
+```markdown
+For Snippet publication work, read `.agents/skills/snippet-authoring/SKILL.md`.
+```
+
+Record the workspace's Snippet invocation or pinned image there too. The skill
+uses that command for inspection, authoring, validation, and building. It asks
+for the selected engine if the workspace does not identify one; it does not
+guess a release from the site contents.
+
+Codex discovers repository skills in `.agents/skills` and can select this skill
+from its description or an explicit `$snippet-authoring` prompt. Other agents
+can read the same file through the `AGENTS.md` reference; automatic discovery
+depends on the client. See the [official skill documentation](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills).
+
+These are author-owned copies. A later `init` preserves them even when the
+bundled guidance changes; compare the new templates with your files and merge
+any desired updates yourself. The templates are under `resources/workspace/`
+in the source checkout, or `/app/resources/workspace/` inside the builder image.
+Commit the agent files with the site's source. They are not publication assets
+and are never copied into `public/`.
+
 ## Building a separate repository
 
 The builder can operate on any publication repository without copying the Snippet engine into it. Mount the absolute repository path at `/workspace`:
@@ -121,7 +160,7 @@ docker run --rm \
   ghcr.io/wanted80/snippet:v3.0.2 build # x-release-please-version
 ```
 
-The mounted repository owns only publication inputs and disposable output. Commit `content/` and `site/`; ignore `public/`. Do not upload the source repository or container to the web host.
+The mounted repository owns publication inputs, agent instructions, and disposable output. Commit `content/`, `site/`, `AGENTS.md`, and `.agents/skills/snippet-authoring/`; ignore `public/`. Do not upload the source repository or container to the web host.
 
 If the repository is private, the builder does not need Git credentials or network access because it reads only the mounted checkout.
 

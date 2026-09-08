@@ -206,8 +206,17 @@ test ! -e "${workspace}/content"
 
 response=$(run_builder init --json)
 check_json "${response}" '{"command":"init"}'
+cmp "${repository}/resources/workspace/AGENTS.md" "${workspace}/AGENTS.md"
+cmp "${repository}/resources/workspace/.agents/skills/snippet-authoring/SKILL.md" "${workspace}/.agents/skills/snippet-authoring/SKILL.md"
+printf '\nPreserve the author instructions.\n' >>"${workspace}/AGENTS.md"
+printf '\nPreserve the customized skill.\n' >>"${workspace}/.agents/skills/snippet-authoring/SKILL.md"
+cp "${workspace}/AGENTS.md" "${workspace}/expected-agents.md"
+cp "${workspace}/.agents/skills/snippet-authoring/SKILL.md" "${workspace}/expected-skill.md"
 response=$(run_builder init --json)
 check_json "${response}" '{"command":"init","created":[]}'
+cmp "${workspace}/expected-agents.md" "${workspace}/AGENTS.md"
+cmp "${workspace}/expected-skill.md" "${workspace}/.agents/skills/snippet-authoring/SKILL.md"
+rm "${workspace}/expected-agents.md" "${workspace}/expected-skill.md"
 test "$(find "${workspace}/content/articles" -name article.md -type f | wc -l | tr -d ' ')" = 0
 test "$(find "${workspace}/content/pages" -name page.md -type f | wc -l | tr -d ' ')" = 0
 test -f "${workspace}/site/site.css"
@@ -218,6 +227,8 @@ response=$(run_builder build --json)
 check_json "${response}" '{"command":"build","output":"public/"}'
 
 test -f "${workspace}/public/index.html"
+test ! -e "${workspace}/public/AGENTS.md"
+test ! -e "${workspace}/public/.agents"
 test ! -e "${workspace}/public/assets/theme.css"
 test ! -e "${workspace}/public/assets/theme.js"
 set -- "${workspace}"/public/assets/theme.*.css

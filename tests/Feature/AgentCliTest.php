@@ -138,11 +138,11 @@ it('reports deterministic validation and finite publication counts', function ()
 
 it('reports created and skipped initialization files', function (): void {
     [$status, $value] = runAgentCli($this->directory, ['init', '--json'], true);
-    expect($status)->toBe(0)->and($value['created'])->toContain('site/site.css')
+    expect($status)->toBe(0)->and($value['created'])->toContain('site/site.css', 'AGENTS.md', '.agents/skills/snippet-authoring/SKILL.md')
         ->and($value['skipped'])->toContain('site/config.php', 'site/favicon.svg');
     [$status, $repeated] = runAgentCli($this->directory, ['init', '--json'], true);
     expect($status)->toBe(0)->and($repeated['created'])->toBe([])
-        ->and($repeated['skipped'])->toContain('site/site.css', 'site/config.php');
+        ->and($repeated['skipped'])->toContain('site/site.css', 'site/config.php', 'AGENTS.md', '.agents/skills/snippet-authoring/SKILL.md');
 });
 
 it('keeps a published build successful when backup cleanup warns', function (): void {

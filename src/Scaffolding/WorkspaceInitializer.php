@@ -7,7 +7,7 @@ namespace Snippet\Scaffolding;
 use NoDiscard;
 use RuntimeException;
 
-/** Creates author-owned configuration, assets, and empty content collections. */
+/** Adds missing author-owned configuration, assets, agent guidance, and content collections. */
 final readonly class WorkspaceInitializer
 {
     /** @var list<'content'|'content/articles'|'content/pages'> */
@@ -34,7 +34,7 @@ final readonly class WorkspaceInitializer
 
         [$inputDirectories, $files] = $this->inventory();
         $directories = [...self::CONTENT_DIRECTORIES, ...$inputDirectories];
-        $this->preflight($directories, $files);
+        $this->preflight($directories, array_keys($files));
 
         foreach ($directories as $directory) {
             $destination = $this->workspace . '/' . $directory;
@@ -45,7 +45,7 @@ final readonly class WorkspaceInitializer
 
         $created = [];
         $skipped = [];
-        foreach ($files as $file) {
+        foreach ($files as $file => $source) {
             $destination = $this->workspace . '/' . $file;
             if (file_exists($destination)) {
                 $skipped[] = $file;
@@ -53,36 +53,37 @@ final readonly class WorkspaceInitializer
                 continue;
             }
 
-            $this->copy($this->engineRoot . '/' . $file, $destination, $file);
+            $this->copy($this->engineRoot . '/' . $source, $destination, $file);
             $created[] = $file;
         }
 
         return ['created' => $created, 'skipped' => $skipped];
     }
 
-    /** @return array{list<string>, list<string>} */
+    /** @return array{list<string>, array<string, string>} Directories and destination-to-source paths, relative to their roots. */
     private function inventory(): array
     {
         $directories = [];
         $files = [];
 
-        $this->inventoryDirectory('site', $directories, $files);
+        $this->inventoryDirectory('site', 'site', $directories, $files);
+        $this->assertInputDirectory('resources');
+        $this->inventoryDirectory('resources/workspace', '', $directories, $files);
 
         return [$directories, $files];
     }
 
     /**
      * @param list<string> $directories
-     * @param list<string> $files
+     * @param array<string, string> $files
      */
-    private function inventoryDirectory(string $relative, array &$directories, array &$files): void
+    private function inventoryDirectory(string $relative, string $destination, array &$directories, array &$files): void
     {
+        $this->assertInputDirectory($relative);
         $source = $this->engineRoot . '/' . $relative;
-        if (!is_dir($source) || is_link($source)) {
-            throw new RuntimeException("Canonical input directory '{$relative}' must be a non-symlink directory.");
+        if ($destination !== '') {
+            $directories[] = $destination;
         }
-
-        $directories[] = $relative;
         $entries = @scandir($source);
         if ($entries === false) {
             throw new RuntimeException("Cannot read canonical input directory '{$relative}'.");
@@ -90,12 +91,13 @@ final readonly class WorkspaceInitializer
 
         foreach (array_diff($entries, ['.', '..']) as $entry) {
             $child = $relative . '/' . $entry;
+            $childDestination = $destination === '' ? $entry : $destination . '/' . $entry;
             $childSource = $this->engineRoot . '/' . $child;
             if (is_link($childSource)) {
                 throw new RuntimeException("Canonical input entry '{$child}' must not be a symbolic link.");
             }
             if (is_dir($childSource)) {
-                $this->inventoryDirectory($child, $directories, $files);
+                $this->inventoryDirectory($child, $childDestination, $directories, $files);
 
                 continue;
             }
@@ -103,7 +105,15 @@ final readonly class WorkspaceInitializer
                 throw new RuntimeException("Canonical input entry '{$child}' must be a regular file.");
             }
 
-            $files[] = $child;
+            $files[$childDestination] = $child;
+        }
+    }
+
+    private function assertInputDirectory(string $relative): void
+    {
+        $source = $this->engineRoot . '/' . $relative;
+        if (!is_dir($source) || is_link($source)) {
+            throw new RuntimeException("Canonical input directory '{$relative}' must be a non-symlink directory.");
         }
     }
 
