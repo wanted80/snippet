@@ -138,13 +138,17 @@ it('isolates the devcontainer from the host Docker Compose project', function ()
     $root = dirname(__DIR__, 2);
     $compose = file_get_contents($root . '/compose.yaml');
     $developmentCompose = file_get_contents($root . '/compose.dev.yaml');
-    $devcontainer = file_get_contents($root . '/.devcontainer/devcontainer.json');
+    $devcontainer = file_get_contents($root . '/.devcontainer/default/devcontainer.json');
+    $codexContainer = file_get_contents($root . '/.devcontainer/codex/devcontainer.json');
+    $codexCompose = file_get_contents($root . '/.devcontainer/codex/compose.yaml');
     $dockerfile = file_get_contents($root . '/docker/development/Dockerfile');
     $entrypoint = file_get_contents($root . '/docker/development/entrypoint.sh');
     $postCreate = file_get_contents($root . '/.devcontainer/post-create.sh');
     assert(is_string($compose));
     assert(is_string($developmentCompose));
     assert(is_string($devcontainer));
+    assert(is_string($codexContainer));
+    assert(is_string($codexCompose));
     assert(is_string($dockerfile));
     assert(is_string($entrypoint));
     assert(is_string($postCreate));
@@ -155,12 +159,18 @@ it('isolates the devcontainer from the host Docker Compose project', function ()
             "      GIT_CONFIG_COUNT: \"1\"\n      GIT_CONFIG_KEY_0: safe.directory\n      GIT_CONFIG_VALUE_0: /app\n",
             '      - ./demo/content:/app/content',
         )
-        ->and($developmentCompose)->toContain(
+        ->and($developmentCompose)->not->toContain('SYS_ADMIN', '/dev/fuse', 'apparmor', 'entrypoint:')
+        ->and($devcontainer)->toContain('"../../compose.yaml"', '"../../compose.dev.yaml"', '"remoteUser": "snippet"')
+        ->not->toContain('"mounts"', 'snippet-host-codex')
+        ->and($codexCompose)->toContain(
             "entrypoint: /usr/local/bin/snippet-devcontainer-entrypoint\n",
             "- SYS_ADMIN\n",
             "- /dev/fuse:/dev/fuse\n",
         )
-        ->and($devcontainer)->toContain(
+        ->and($codexContainer)->toContain(
+            '"../../compose.yaml"',
+            '"../../compose.dev.yaml"',
+            '"compose.yaml"',
             'source=${localEnv:HOME}${localEnv:USERPROFILE}/.codex',
             'target=/mnt/snippet-host-codex',
             'type=bind',
@@ -181,7 +191,8 @@ it('isolates the devcontainer from the host Docker Compose project', function ()
         )
         ->and($postCreate)->toContain(
             'git config --global --add safe.directory "${workspace}"',
-        );
+            'composer install --no-interaction',
+        )->not->toContain('codex', 'trust_level');
 });
 
 it('ships its configured interface and wordmark fonts locally', function (): void {

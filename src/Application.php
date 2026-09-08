@@ -111,6 +111,9 @@ final readonly class Application
                 . $this->plural($report->tags, 'tag') . ', '
                 . $this->plural($report->assets, 'asset') . ', '
                 . $this->plural($report->files, 'file') . " in {$milliseconds} ms.\n");
+            if ($report->cleanupWarning !== null) {
+                $this->errorReporter->warning($stderr, 'Publication cleanup', $report->cleanupWarning, $this->root);
+            }
         } else {
             $stdout->fwrite('Valid site: '
                 . $this->plural(count($catalog->articles), 'article') . ', '

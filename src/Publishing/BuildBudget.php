@@ -57,7 +57,7 @@ final class BuildBudget
         ++$this->assets;
     }
 
-    public function report(Catalog $catalog): BuildReport
+    public function report(Catalog $catalog, ?string $cleanupWarning = null): BuildReport
     {
         return new BuildReport(
             count($catalog->articles),
@@ -65,6 +65,7 @@ final class BuildBudget
             count($catalog->tags()),
             $this->assets,
             count($this->documents),
+            $cleanupWarning,
         );
     }
 

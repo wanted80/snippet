@@ -10,6 +10,7 @@ use Snippet\Markdown\Parser;
 use Snippet\Site\Limits;
 use Snippet\Support\RegularFileInventory;
 use Snippet\Support\Slug;
+use Snippet\Support\Utf8FileValidator;
 
 use function array_diff;
 use function array_filter;
@@ -47,6 +48,7 @@ final readonly class CatalogLoader
         private MetadataLoader $metadataLoader = new MetadataLoader(),
         private RegularFileInventory $fileInventory = new RegularFileInventory(),
         private Limits $limits = new Limits(),
+        private Utf8FileValidator $utf8FileValidator = new Utf8FileValidator(),
     ) {}
 
     /**
@@ -62,7 +64,7 @@ final readonly class CatalogLoader
     public function load(string $contentDirectory, ?Limits $limits = null): Catalog
     {
         if ($limits instanceof Limits) {
-            return new self($this->parser, $this->metadataLoader, $this->fileInventory, $limits)->load($contentDirectory);
+            return new self($this->parser, $this->metadataLoader, $this->fileInventory, $limits, $this->utf8FileValidator)->load($contentDirectory);
         }
 
         if (!is_dir($contentDirectory)) {
@@ -259,6 +261,9 @@ final readonly class CatalogLoader
                     throw new ContentException(sprintf("Asset '%s' for '%s' exceeds the %d-byte limit.", $file, $slug, $this->limits->assetBytes));
                 }
                 $budget->addAsset($size);
+                if (!$this->utf8FileValidator->isValid($path . '/' . $file, false)) {
+                    throw new ContentException("Asset '{$file}' for '{$slug}' must be readable.");
+                }
                 $assets[] = new Asset($file);
             }
         }

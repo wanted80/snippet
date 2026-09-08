@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Snippet\Publishing;
 
-/** Immutable counts for one successfully promoted publication. */
+/** Immutable counts and optional backup-cleanup diagnostics for a successfully promoted publication. */
 final class BuildReport
 {
     public int $files {
@@ -17,5 +17,6 @@ final class BuildReport
         public readonly int $tags,
         public readonly int $assets,
         public readonly int $documents,
+        public readonly ?string $cleanupWarning = null,
     ) {}
 }

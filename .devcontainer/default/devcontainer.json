@@ -1,0 +1,24 @@
+{
+    "name": "Snippet",
+    "dockerComposeFile": [
+        "../../compose.yaml",
+        "../../compose.dev.yaml"
+    ],
+    "service": "app",
+    "runServices": [
+        "app"
+    ],
+    "remoteUser": "snippet",
+    "updateRemoteUserUID": true,
+    "workspaceFolder": "/app",
+    "shutdownAction": "stopCompose",
+    "postCreateCommand": ".devcontainer/post-create.sh",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "bmewburn.vscode-intelephense-client",
+                "eamodio.gitlens"
+            ]
+        }
+    }
+}

@@ -24,6 +24,7 @@ function readlink(string $path): string|false
 
 function hash_file(string $algorithm, string $filename): string|false
 {
+    PublisherFaults::record('preview_hash:' . $filename);
     $size = filesize($filename);
     if (is_int($size) && $size > 65_536 && PublisherFaults::fails('preview_large_hash_file')) {
         return false;
@@ -35,7 +36,13 @@ function hash_file(string $algorithm, string $filename): string|false
 /** @return array<string|int, int>|false */
 function stat(string $filename): array|false
 {
-    return PublisherFaults::fails('preview_stat') ? false : \stat($filename);
+    $metadata = PublisherFaults::fails('preview_stat') ? false : \stat($filename);
+    if ($metadata !== false && PublisherFaults::calls('preview_freeze_timestamps') > 0) {
+        $metadata['mtime'] = 0;
+        $metadata['ctime'] = 0;
+    }
+
+    return $metadata;
 }
 
 /**

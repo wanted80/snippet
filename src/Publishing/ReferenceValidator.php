@@ -85,11 +85,8 @@ final readonly class ReferenceValidator
         }
 
         $segments = $absolute ? [] : explode('/', mb_trim($currentRoute, '/', '8bit'));
-        if ($path === '') {
-            return $currentRoute;
-        }
-
-        foreach (explode('/', $path) as $component) {
+        $components = explode('/', $path);
+        foreach ($components as $component) {
             $component = rawurldecode($component);
             if ($component === '' || $component === '.') {
                 continue;
@@ -108,7 +105,7 @@ final readonly class ReferenceValidator
         // PublicationInventory canonicalizes every complete path before lookup as the matching trust boundary.
         // @pest-mutate-ignore: UnwrapArrayMap
         $resolved = '/' . implode('/', array_map(rawurlencode(...), $segments));
-        if ($resolved !== '/' && str_ends_with($path, '/')) {
+        if ($resolved !== '/' && in_array(rawurldecode(array_last($components)), ['', '.', '..'], true)) {
             $resolved .= '/';
         }
 

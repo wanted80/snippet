@@ -61,7 +61,11 @@ final readonly class Publisher
         );
     }
 
-    /** @throws ContentException when rendering, copying, or publication fails */
+    /**
+     * Publish a complete site; backup-cleanup failures are reported after a successful promotion.
+     *
+     * @throws ContentException when rendering, copying, or publication fails
+     */
     public function publish(
         string $root,
         Config $config,
@@ -90,7 +94,7 @@ final readonly class Publisher
         try {
             $this->directory($temporary);
             $this->buildTree($root, $temporary, $config, $catalog, $templates, $assets, $budget, $previewVersion);
-            $this->promote($temporary, $public, $backup);
+            $cleanupWarning = $this->promote($temporary, $public, $backup);
         } catch (ContentException $contentException) {
             $this->removeIfPresent($temporary);
             throw $contentException;
@@ -99,7 +103,7 @@ final readonly class Publisher
             throw new ContentException('Unable to publish site: ' . $throwable->getMessage(), 0, $throwable);
         }
 
-        return $budget->report($catalog);
+        return $budget->report($catalog, $cleanupWarning);
     }
 
     private function buildTree(
@@ -172,7 +176,7 @@ final readonly class Publisher
         }
     }
 
-    private function promote(string $temporary, string $public, string $backup): void
+    private function promote(string $temporary, string $public, string $backup): ?string
     {
         $hadPublic = is_dir($public);
         if ($hadPublic && !@rename($public, $backup)) {
@@ -181,10 +185,14 @@ final readonly class Publisher
 
         if (@rename($temporary, $public)) {
             if ($hadPublic) {
-                $this->remove($backup);
+                try {
+                    $this->remove($backup);
+                } catch (Throwable $throwable) {
+                    return "The new site was published. Remove the remaining backup '{$backup}' manually. " . $throwable->getMessage();
+                }
             }
 
-            return;
+            return null;
         }
 
         if ($hadPublic && !@rename($backup, $public)) {

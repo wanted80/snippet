@@ -20,11 +20,14 @@ final class PreviewServer implements Previewer
 
     private const string FINGERPRINT_ALGORITHM = 'xxh3';
 
+    /** Recheck cached asset bytes within about five seconds at the default polling interval. */
+    private const int ASSET_RECHECK_POLLS = 20;
+
     private const array PUBLICATION_WATCH_PATHS = ['content', 'site'];
 
     private const array RUNTIME_WATCH_PATHS = ['bin', 'src'];
 
-    /** @var array<string, array{signature: string, hash: string}> */
+    /** @var array<string, array{signature: string, hash: string, polls: int}> */
     private array $watchedFiles = [];
 
     private readonly Publisher $publisher;
@@ -59,7 +62,7 @@ final class PreviewServer implements Previewer
     ): int {
         $host = $this->host ?? $host;
         $port = $this->port ?? $port;
-        $config = $this->rebuild($root);
+        $config = $this->rebuild($root, $stderr);
         $routerPath = $this->resolveRouterPath();
         $fingerprints = $this->fingerprints($root);
         $terminationSignal = null;
@@ -140,7 +143,7 @@ final class PreviewServer implements Previewer
                 }
 
                 try {
-                    $rebuiltConfig = $this->rebuild($root);
+                    $rebuiltConfig = $this->rebuild($root, $stderr);
                     if ($rebuiltConfig->basePath !== $config->basePath) {
                         $stdout->fwrite("Site deployment path changed.\n");
                         return self::RESTART_EXIT_CODE;
@@ -175,10 +178,10 @@ final class PreviewServer implements Previewer
         }
     }
 
-    private function rebuild(string $root): Config
+    private function rebuild(string $root, SplFileObject $stderr): Config
     {
         $inputs = $this->publicationInputLoader->load($root);
-        $this->publisher->publish(
+        $report = $this->publisher->publish(
             $root,
             $inputs->config,
             $inputs->catalog,
@@ -187,6 +190,9 @@ final class PreviewServer implements Previewer
             $inputs->assets,
             previewVersion: bin2hex(random_bytes(8)),
         );
+        if ($report->cleanupWarning !== null) {
+            $this->errorReporter->warning($stderr, 'Publication cleanup', $report->cleanupWarning, $root);
+        }
 
         return $inputs->config;
     }
@@ -249,7 +255,7 @@ final class PreviewServer implements Previewer
 
     /**
      * @param list<string> $names
-     * @param array<string, array{signature: string, hash: string}> $watchedFiles
+     * @param array<string, array{signature: string, hash: string, polls: int}> $watchedFiles
      */
     private function fingerprint(string $root, array $names, array &$watchedFiles): string
     {
@@ -269,7 +275,7 @@ final class PreviewServer implements Previewer
 
     /**
      * @param list<string> $names
-     * @param array<string, array{signature: string, hash: string}> $watchedFiles
+     * @param array<string, array{signature: string, hash: string, polls: int}> $watchedFiles
      * @return Generator<int, string>
      */
     private function inventoryPaths(string $root, array $names, array &$watchedFiles): Generator
@@ -288,7 +294,7 @@ final class PreviewServer implements Previewer
     }
 
     /**
-     * @param array<string, array{signature: string, hash: string}> $watchedFiles
+     * @param array<string, array{signature: string, hash: string, polls: int}> $watchedFiles
      * @return Generator<int, string>
      */
     private function inventory(string $path, string $relative, array &$watchedFiles): Generator
@@ -329,9 +335,11 @@ final class PreviewServer implements Previewer
                     (string) $metadata['ctime'],
                 ]);
                 $cached = $this->watchedFiles[$child] ?? null;
-                $editableText = preg_match('/\.(?:css|html|js|md|php)$/Di', $child) === 1;
-                if (!$editableText && $cached !== null && $cached['signature'] === $signature) {
+                $editableText = preg_match('/\.(?:css|html|js|json|md|php|svg|txt|xml)$/Di', $child) === 1;
+                $polls = 0;
+                if (!$editableText && $cached !== null && $cached['signature'] === $signature && $cached['polls'] < self::ASSET_RECHECK_POLLS - 1) {
                     $hash = $cached['hash'];
+                    $polls = $cached['polls'] + 1;
                 } else {
                     $hash = @hash_file(self::FINGERPRINT_ALGORITHM, $child);
                     if ($hash === false) {
@@ -339,7 +347,7 @@ final class PreviewServer implements Previewer
                     }
                 }
 
-                $watchedFiles[$child] = ['signature' => $signature, 'hash' => $hash];
+                $watchedFiles[$child] = ['signature' => $signature, 'hash' => $hash, 'polls' => $polls];
                 yield $childRelative . ':file:' . $hash;
             } else {
                 yield $childRelative . ':other';
