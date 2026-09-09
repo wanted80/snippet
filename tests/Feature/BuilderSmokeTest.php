@@ -6,6 +6,10 @@ use Snippet\Support\ApplicationVersion;
 
 it('checks the producer status and JSON envelope before continuing the Docker smoke test', function (string $fault): void {
     $root = dirname(__DIR__, 2);
+    // The smoke script creates its workspace inside the repository, which may be read-only in CI.
+    $smoke = $this->directory . '/repository/docker/builder/smoke.sh';
+    mkdir(dirname($smoke), 0777, true);
+    copy($root . '/docker/builder/smoke.sh', $smoke);
     $stub = $this->directory . '/docker.php';
     file_put_contents($stub, <<<'PHP_WRAP'
     <?php
@@ -31,6 +35,7 @@ it('checks the producer status and JSON envelope before continuing the Docker sm
         exit(97);
     }
     if (in_array('--json', $argv, true)) {
+        file_put_contents(__DIR__ . '/produced', 'yes');
         echo getenv('SNIPPET_TEST_JSON') . "\n";
         exit((int) getenv('SNIPPET_TEST_STATUS'));
     }
@@ -50,7 +55,7 @@ it('checks the producer status and JSON envelope before continuing the Docker sm
     $json = json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     $environment = getenv();
     $process = proc_open(
-        ['sh', $root . '/docker/builder/smoke.sh', 'snippet-builder:test'],
+        ['sh', $smoke, 'snippet-builder:test'],
         [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
         $pipes,
         $root,
@@ -65,6 +70,7 @@ it('checks the producer status and JSON envelope before continuing the Docker sm
     stream_get_contents($pipes[2]);
     fclose($pipes[1]);
     fclose($pipes[2]);
-    expect(proc_close($process))->not->toBe(0)
+    expect(proc_close($process))->toBe($fault === 'valid' ? 97 : 1)
+        ->and($this->directory . '/produced')->toBeFile()
         ->and(is_file($this->directory . '/continued'))->toBe($fault === 'valid');
 })->with(['exit-status', 'error', 'version', 'schema', 'malformed', 'valid']);
