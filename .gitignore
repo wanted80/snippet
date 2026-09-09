@@ -16,3 +16,6 @@
 /.snippet-backup-*/
 /.snippet-demo.*/
 .DS_Store
+
+node_modules/
+tests/Browser/Screenshots/

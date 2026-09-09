@@ -12,3 +12,4 @@ services:
       - infinity
     volumes:
       - vendor-development:/app/vendor
+      - node-development:/app/node_modules

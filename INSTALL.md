@@ -340,6 +340,22 @@ make builder-smoke
 make demo-check
 ```
 
+`make docker-test-browser` (or `composer app:test:browser` inside development) runs
+serial headless Chromium computed-style tests through Pest. The normal suite and
+`app:check` include them. Build the development image and run `docker-install`
+first: Composer dependencies and locked npm modules are synchronized into isolated
+volumes, and Chromium with its system libraries is installed only in the
+development image. Tests use temporary publications and container-local HTTP,
+need no external network, and record no screenshots, videos, or traces. Production
+and release-builder images contain no browser tooling. Rebuild the development
+image after changing the Playwright lock so its browser cache stays aligned.
+
+Docker image builds, `docker-install`, and devcontainer setup share the same npm
+synchronization check. They reuse installed modules when `package.json` and
+`package-lock.json` match the last successful installation and Playwright is
+present. Unchanged preview, build, and validation runs need no npm registry
+access. Missing dependencies or changed manifests trigger `npm ci` again.
+
 `docker-check` runs exact source line and type coverage, Pint, Rector, PHPStan, composed-demo validation, ShellCheck, JavaScript syntax validation, and dependency-free JavaScript behavior tests. Run the latter directly with `composer app:test:assets` when Node.js 20+ is available. `docker-audit` remains separate because advisory data needs the network. `builder-smoke` checks the release image, its empty-workspace initialization lifecycle, and hardened content-only preview behavior; `demo-check` composes root shared files with `demo/`, validates the complete existing site, and proves its production build succeeds.
 
 The optional `.env` controls local orchestration only. Its principal settings are:
