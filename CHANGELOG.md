@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0](https://github.com/wanted80/snippet/compare/v3.0.2...v3.1.0) (2026-09-09)
+
+
+### Features
+
+* add JSON CLI inspection, command results, and author agent guidance ([#44](https://github.com/wanted80/snippet/issues/44)) ([de47241](https://github.com/wanted80/snippet/commit/de47241860d2f2d58ceaeb09fd9ed2987d60d2a6))
+
 ## [3.0.2](https://github.com/wanted80/snippet/compare/v3.0.1...v3.0.2) (2026-09-08)
 
 
