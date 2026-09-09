@@ -23,6 +23,9 @@ function workspaceScaffold(string $root): string
     file_put_contents($source . '/site/config.php', "starter config\n");
     file_put_contents($source . '/site/assets/example.txt', "example asset\n");
     file_put_contents($source . '/site/site.css', "@layer overrides {}\n");
+    mkdir($source . '/resources/workspace/.agents/skills/snippet-authoring', 0777, true);
+    file_put_contents($source . '/resources/workspace/AGENTS.md', "starter agent instructions\n");
+    file_put_contents($source . '/resources/workspace/.agents/skills/snippet-authoring/SKILL.md', "starter authoring skill\n");
 
     return $source;
 }
@@ -45,6 +48,8 @@ it('synchronizes a deterministic scaffold into an empty workspace', function ():
                 'site/assets/example.txt',
                 'site/config.php',
                 'site/site.css',
+                '.agents/skills/snippet-authoring/SKILL.md',
+                'AGENTS.md',
             ],
             'skipped' => [],
         ])
@@ -53,8 +58,10 @@ it('synchronizes a deterministic scaffold into an empty workspace', function ():
         ->and(file_get_contents($workspace . '/site/config.php'))->toBe("starter config\n")
         ->and(file_get_contents($workspace . '/site/assets/example.txt'))->toBe("example asset\n")
         ->and(file_get_contents($workspace . '/site/site.css'))->toBe("@layer overrides {}\n")
+        ->and(file_get_contents($workspace . '/AGENTS.md'))->toBe("starter agent instructions\n")
+        ->and(file_get_contents($workspace . '/.agents/skills/snippet-authoring/SKILL.md'))->toBe("starter authoring skill\n")
         ->and($workspace . '/resources/preview-router.php')->not->toBeFile()
-        ->and(PublisherFaults::calls('scaffolding_fclose'))->toBe(6)
+        ->and(PublisherFaults::calls('scaffolding_fclose'))->toBe(10)
         ->and($workspace . '/public')->not->toBeDirectory();
 });
 
@@ -73,6 +80,8 @@ it('merges idempotently while existing files and public output win', function ()
         ->toBe([
             'created' => [
                 'site/site.css',
+                '.agents/skills/snippet-authoring/SKILL.md',
+                'AGENTS.md',
             ],
             'skipped' => [
                 'site/assets/example.txt',
@@ -86,6 +95,8 @@ it('merges idempotently while existing files and public output win', function ()
                 'site/assets/example.txt',
                 'site/config.php',
                 'site/site.css',
+                '.agents/skills/snippet-authoring/SKILL.md',
+                'AGENTS.md',
             ],
         ])
         ->and(file_get_contents($workspace . '/site/config.php'))->toBe("custom config\n")
@@ -93,6 +104,69 @@ it('merges idempotently while existing files and public output win', function ()
         ->and(file_get_contents($workspace . '/site/site.css'))->toBe("@layer overrides {}\n")
         ->and(file_get_contents($workspace . '/public/index.html'))->toBe('existing publication');
 });
+
+it('adds agent guidance to previously initialized workspaces without changing author instructions', function (bool $existingSkill): void {
+    $source = workspaceScaffold($this->directory);
+    $workspace = emptyWorkspace($this->directory);
+    mkdir($workspace . '/site/assets', 0777, true);
+    foreach (['config.php', 'site.css', 'assets/example.txt'] as $file) {
+        copy($source . '/site/' . $file, $workspace . '/site/' . $file);
+    }
+    mkdir($workspace . '/content/pages', 0777, true);
+    mkdir($workspace . '/content/articles', 0777, true);
+    file_put_contents($workspace . '/AGENTS.md', "# My instructions\r\nPreserve my writing style.\r\n");
+    mkdir($workspace . '/.agents/skills/custom', 0777, true);
+    file_put_contents($workspace . '/.agents/skills/custom/SKILL.md', 'Another skill.');
+    $skill = '.agents/skills/snippet-authoring/SKILL.md';
+    if ($existingSkill) {
+        mkdir(dirname($workspace . '/' . $skill));
+        file_put_contents($workspace . '/' . $skill, 'My customized Snippet skill.');
+    }
+    $initializer = new WorkspaceInitializer($source, $workspace);
+    $result = $initializer->initialize();
+
+    expect($result['created'])->toBe($existingSkill ? [] : [$skill])
+        ->and($result['skipped'])->toContain('AGENTS.md', 'site/config.php')
+        ->and($initializer->initialize()['created'])->toBeEmpty()
+        ->and(file_get_contents($workspace . '/AGENTS.md'))->toBe("# My instructions\r\nPreserve my writing style.\r\n")
+        ->and(file_get_contents($workspace . '/.agents/skills/custom/SKILL.md'))->toBe('Another skill.')
+        ->and(file_get_contents($workspace . '/' . $skill))->toBe($existingSkill ? 'My customized Snippet skill.' : "starter authoring skill\n");
+})->with([false, true]);
+
+it('rejects symlinks in every bundled instruction ancestor and file before writing', function (string $relative): void {
+    $source = workspaceScaffold($this->directory);
+    $workspace = emptyWorkspace($this->directory);
+    rename($source . '/' . $relative, $source . '/original');
+    symlink($source . '/original', $source . '/' . $relative);
+
+    expect(fn(): array => new WorkspaceInitializer($source, $workspace)->initialize())->toThrow(RuntimeException::class)
+        ->and($workspace . '/content')->not->toBeDirectory()
+        ->and($workspace . '/AGENTS.md')->not->toBeFile();
+})->with([
+    'resources', 'resources/workspace', 'resources/workspace/.agents',
+    'resources/workspace/.agents/skills', 'resources/workspace/.agents/skills/snippet-authoring',
+    'resources/workspace/.agents/skills/snippet-authoring/SKILL.md', 'resources/workspace/AGENTS.md',
+]);
+
+it('rejects instruction destination conflicts before creating any files', function (string $relative, bool $symlink): void {
+    $source = workspaceScaffold($this->directory);
+    $workspace = emptyWorkspace($this->directory);
+    $destination = $workspace . '/' . $relative;
+    if (!is_dir(dirname($destination))) {
+        mkdir(dirname($destination), 0777, true);
+    }
+    if ($symlink) {
+        symlink($source, $destination);
+    } elseif (str_ends_with($relative, '.md')) {
+        mkdir($destination);
+    } else {
+        file_put_contents($destination, 'Existing author file.');
+    }
+
+    expect(fn(): array => new WorkspaceInitializer($source, $workspace)->initialize())->toThrow(RuntimeException::class, "Cannot initialize '{$relative}':")
+        ->and($workspace . '/site')->not->toBeDirectory()
+        ->and($workspace . '/content')->not->toBeDirectory();
+})->with(['AGENTS.md', '.agents', '.agents/skills', '.agents/skills/snippet-authoring', '.agents/skills/snippet-authoring/SKILL.md'])->with([false, true]);
 
 it('requires a writable non-symlink workspace', function (string $fault): void {
     $source = workspaceScaffold($this->directory);

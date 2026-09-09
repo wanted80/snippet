@@ -26,6 +26,15 @@ enum ContentType: string
         };
     }
 
+    /** @return list<string> */
+    public function optionalMetadataFields(): array
+    {
+        return match ($this) {
+            self::Article => ['cover', 'alt'],
+            self::Page => ['menu_order'],
+        };
+    }
+
     public function sourceFilename(): string
     {
         return $this->value . '.md';

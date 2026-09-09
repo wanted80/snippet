@@ -9,6 +9,7 @@
         "ext-date": "*",
         "ext-filter": "*",
         "ext-hash": "*",
+        "ext-json": "*",
         "ext-mbstring": "*",
         "ext-pcre": "*",
         "ext-random": "*",
@@ -16,7 +17,6 @@
         "ext-uri": "*"
     },
     "require-dev": {
-        "ext-json": "*",
         "ext-pcntl": "*",
         "ext-pcov": "*",
         "ext-posix": "*",

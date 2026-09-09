@@ -39,7 +39,7 @@ docker run --rm \
 
 `--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path. Edit the generated `site/config.php` and content, then rerun the command with `init` replaced by `validate` or `build`. Create later drafts through the same image, for example by replacing `init` with `new article first-post`.
 
-The repository needs only `content/` and `site/`; `public/` is disposable output. The builder image supports `--version`, `init`, `new page`, `new article`, `validate`, `build`, and `preview`. Run the local development preview from a content-only repository with an explicitly published loopback port:
+The publication inputs are `content/` and `site/`; `public/` is disposable output. Initialization also adds author-owned `AGENTS.md` and `.agents/skills/snippet-authoring/SKILL.md` for coding agents. The builder image supports `--version`, `inspect`, `init`, `new page`, `new article`, `validate`, `build`, and `preview`. Run the local development preview from a content-only repository with an explicitly published loopback port:
 
 ```bash
 docker run --rm --init \
@@ -69,6 +69,88 @@ make demo-check
 This builds the release image, assembles the demo in a temporary workspace, validates it, and proves the production build. [INSTALL.md](INSTALL.md) documents both official-image preview for content-only publications and direct preview from a full checkout.
 
 For contributor preview, run `make docker-preview` and open `https://localhost:8443/`. Docker exposes `demo/content/` as the CLI content collection and uses the canonical root `site/` and `resources/`, with live updates as those files change.
+
+## Agent CLI
+
+Agents can query the installed engine before a workspace exists:
+
+```text
+bin/snippet inspect capabilities --json
+bin/snippet inspect theme --json
+bin/snippet inspect config --json
+bin/snippet inspect content --json
+```
+
+Inspection requires `--json`. The four subjects describe available commands and
+customization paths, the stable theme API and `engine_defaults`, required site
+configuration and `starter_values`, and the page/article authoring contract.
+Inspection reads installed engine resources, independently of workspace files.
+Theme results contain the 20 public tokens grouped into colors, fonts, and sizing,
+11 class hooks, layer order, and an override example. Values preserve CSS
+expressions; they exclude author CSS and print overrides. Configuration starter
+values are required values copied by initialization, not defaults for omissions.
+
+| Command | JSON result |
+| --- | --- |
+| `--version --json` | Schema and installed version |
+| `inspect <capabilities\|theme\|config\|content> --json` | Installed contract |
+| `init --json` | Created and skipped files; Docker entrypoint only |
+| `new page <slug> --json` | Created files and `incomplete: true` |
+| `new article <slug> [--date=YYYY-MM-DD] --json` | Created files and `incomplete: true`; omitted date uses UTC |
+| `validate --json` | `valid: true` and article, page, tag, asset counts |
+| `build --json` | `output: "public/"`, article, page, tag, asset, file counts, and any cleanup warning |
+
+Every JSON response is one compact object followed by a newline on stdout, with
+`schema: "snippet.agent/v1"` and the release-managed `snippet_version`. Normal
+human output remains available without `--json`. Pass the option once after the
+command's required arguments, before or after other supported tail options.
+Duplicate, misplaced, and unsupported options fail before an operation starts.
+`preview --json` returns a usage error; normal preview remains interactive.
+
+Exit statuses are `0` for success, `1` for an operation failure, and `2` for invalid
+usage. Handled JSON failures contain `error: {code, message}` with
+`cli.invalid_arguments`, `init.failed`, `new.failed`, `inspect.failed`,
+`validate.failed`, or `build.failed`. Messages retain source context; their text
+is not a structured field contract. JSON contains no human diagnostics or ANSI
+decoration. Invalid UTF-8 in diagnostics is replaced with the Unicode replacement
+character so the response remains valid JSON.
+
+Successful inspection and validation are deterministic. JSON build results omit
+duration; `warnings` appears only when warnings exist. A successful publication
+with a backup-cleanup warning still exits `0`. `created` and `skipped` paths are
+workspace-relative files; new-content success means that incomplete source files
+were created, not that the publication is valid.
+
+The complete workflow is **inspect → initialize → create → edit → validate →
+build**. Read and edit author files directly, complete generated Markdown and
+metadata, and customize `site/site.css` through the documented API. Validate and
+build with Snippet, then review the appearance in light and dark modes. See
+[the agent workflow in INSTALL.md](INSTALL.md#agent-workflow) for Docker commands.
+
+### Agent instructions and skill
+
+`init` adds a short `AGENTS.md` that points to the bundled `snippet-authoring`
+skill in `.agents/skills/snippet-authoring/SKILL.md`. The skill discovers the
+installed contracts and guides content, configuration, styling, validation, and
+building. Record the workspace's actual command or pinned image in its project
+instructions so the agent can reuse it. For example:
+
+> Use the snippet-authoring skill to add an About page in my existing writing
+> style, then validate and build the site using the configured Snippet command.
+
+Both files belong to the author after initialization. Rerunning `init --json`
+on an older workspace adds missing files and reports existing ones as `skipped`.
+It does not append to or replace an existing `AGENTS.md`, customized Snippet
+skill, or other skills. Existing instructions can opt in with this reference:
+
+```markdown
+For Snippet publication work, read `.agents/skills/snippet-authoring/SKILL.md`.
+```
+
+Keep these instructions in the publication repository; they are not included in
+`public/`. See [upgrading agent guidance](INSTALL.md#agent-guidance-in-existing-workspaces)
+for discovery and upgrade details. The generator repository's own `AGENTS.md`
+continues to describe engine development.
 
 ## Content
 
@@ -184,13 +266,13 @@ Validation checks every internal Markdown link against the complete generated ro
 
 ## Site customization
 
-`snippet init` creates empty content collections and copies the generic `site/` defaults: configuration, custom CSS, favicon, and assets. These files belong to the author and are never replaced by initialization or builds. HTML templates, base CSS, theme JavaScript, and the preview router stay inside the installed builder. Each build uses that builder version’s theme, so updating the image and rebuilding delivers theme fixes without copying files into the site.
+`snippet init` creates empty content collections, copies the generic `site/` defaults (configuration, custom CSS, favicon, and assets), and adds the agent instructions and skill. These files belong to the author and are never replaced by initialization or builds. HTML templates, base CSS, theme JavaScript, and the preview router stay inside the installed builder. Each build uses that builder version's theme, so updating the image and rebuilding delivers theme fixes without copying files into the site.
 
 Customize appearance in `site/site.css` using the [stable CSS API](#stable-css-api). Optional `site/site.js` adds local behavior and remains author-owned. Template overrides are not supported; a separate workspace’s `resources/` directory is not a publication input. Structural changes to the theme belong in the builder itself.
 
 ## Repository and demo separation
 
-The root is the generator and reference implementation. `site/` supplies author-owned defaults and `resources/` supplies the installed theme, while `demo/content/` preserves the project website's articles and pages. `snippet init` creates empty `content/articles/` and `content/pages/` collections and copies only the generic `site/` defaults—never demo configuration or content. CI composes the demo into a temporary normal workspace, validates it, builds it, and deploys only the generated output.
+The root is the generator and reference implementation. `site/` supplies author-owned defaults and `resources/` supplies the installed theme and workspace instruction templates, while `demo/content/` preserves the project website's articles and pages. `snippet init` creates empty `content/articles/` and `content/pages/` collections, copies the generic `site/` defaults, and copies the author instructions from `resources/workspace/` into the workspace root. Demo configuration and content are never initialized. CI composes the demo into a temporary normal workspace, validates it, builds it, and deploys only the generated output.
 
 Container support is grouped by responsibility under `docker/`: `development/` owns the contributor image, `builder/` the published minimal image, `demo/` temporary demo composition, `preview/` local Caddy support, and `quality/` container-specific quality tooling. Shell sources retain their `.sh` extension in the repository even when an image installs them as an extensionless command.
 

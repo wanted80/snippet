@@ -9,10 +9,6 @@ use Snippet\Preview\PreviewServer;
 
 $engineRoot = dirname(__DIR__);
 $workspace = getcwd();
-if ($workspace === false) {
-    fwrite(STDERR, "Unable to resolve the current workspace.\n");
-    exit(1);
-}
 
 require $engineRoot . '/vendor/autoload.php';
 
@@ -26,7 +22,7 @@ $errorReporter = new ErrorReporter(
         && stream_isatty(STDERR),
 );
 
-$status = new Application($workspace, errorReporter: $errorReporter)->run(
+$status = new Application($workspace === false ? null : $workspace, errorReporter: $errorReporter)->run(
     $arguments,
     $stdout,
     $stderr,

@@ -138,6 +138,10 @@ abstract class TestCase extends BaseTestCase
         foreach (array_diff($templates, ['.', '..']) as $template) {
             copy($source . '/templates/' . $template, $this->directory . '/resources/templates/' . $template);
         }
+        mkdir($this->directory . '/resources/workspace/.agents/skills/snippet-authoring', 0777, true);
+        foreach (['AGENTS.md', '.agents/skills/snippet-authoring/SKILL.md'] as $guide) {
+            copy($source . '/workspace/' . $guide, $this->directory . '/resources/workspace/' . $guide);
+        }
     }
 
     /** Resolve the sole fingerprinted publication asset for one logical entry-asset name. */

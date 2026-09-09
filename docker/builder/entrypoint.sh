@@ -9,7 +9,7 @@ use Snippet\Preview\PreviewServer;
 use Snippet\Publishing\Publisher;
 use Snippet\Scaffolding\WorkspaceInitializer;
 
-const USAGE = "Usage:\n  snippet --version\n  snippet init\n  snippet validate\n  snippet build\n  snippet preview [--host=<host>] [--port=<port>]\n  snippet new page <slug>\n  snippet new article <slug> [--date=YYYY-MM-DD]\n";
+const USAGE = "Usage:\n  snippet --version [--json]\n  snippet inspect <capabilities|theme|config|content> --json\n  snippet init [--json]\n  snippet validate [--json]\n  snippet build [--json]\n  snippet preview [--host=<host>] [--port=<port>]\n  snippet new page <slug> [--json]\n  snippet new article <slug> [--date=YYYY-MM-DD] [--json]\n";
 
 /** @var list<string> $arguments */
 $arguments = $_SERVER['argv'];
@@ -27,39 +27,6 @@ $errorReporter = new ErrorReporter(
         && getenv('TERM') !== 'dumb'
         && stream_isatty(STDERR),
 );
-if (($arguments[1] ?? null) === 'init') {
-    if (count($arguments) !== 2) {
-        $errorReporter->usageError($stderr, "Command 'init' does not accept arguments.", USAGE);
-        exit(2);
-    }
-
-    try {
-        $result = new WorkspaceInitializer($engineRoot, $workspace)->initialize();
-    } catch (RuntimeException $runtimeException) {
-        $errorReporter->failure(
-            $stderr,
-            'Workspace initialization',
-            $runtimeException->getMessage(),
-            $workspace,
-        );
-        exit(1);
-    }
-
-    if ($result['created'] === []) {
-        fwrite(STDOUT, "Snippet workspace is already initialized.\nNo files were changed.\n");
-        exit(0);
-    }
-
-    fwrite(STDOUT, "Initializing Snippet workspace.\n\n");
-    foreach ($result['created'] as $file) {
-        fwrite(STDOUT, "Created: {$file}\n");
-    }
-    foreach ($result['skipped'] as $file) {
-        fwrite(STDOUT, "Skipped: {$file}\n");
-    }
-    fwrite(STDOUT, "\nWorkspace initialized.\nExisting files were not overwritten.\n");
-    exit(0);
-}
 
 do {
     $status = new Application(
@@ -73,6 +40,8 @@ do {
         usage: USAGE,
         errorReporter: $errorReporter,
         previewEnabled: true,
+        initializer: new WorkspaceInitializer($engineRoot, $workspace),
+        engineRoot: $engineRoot,
     )->run(
         $arguments,
         $stdout,

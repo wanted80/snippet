@@ -259,7 +259,7 @@ it('validates the required favicon asset', function (string $fault, string $mess
 it('writes actionable usage errors only to stderr', function (array $arguments, string $message): void {
     /** @var list<string> $arguments */
     expect(runApplication($this->directory, $arguments))
-        ->toBe([2, '', "Error: {$message}\n\nUsage:\n  bin/snippet --version\n  bin/snippet validate\n  bin/snippet build\n  bin/snippet preview [--host=<host>] [--port=<port>]\n  bin/snippet new page <slug>\n  bin/snippet new article <slug> [--date=YYYY-MM-DD]\n"]);
+        ->toBe([2, '', "Error: {$message}\n\nUsage:\n  bin/snippet --version [--json]\n  bin/snippet inspect <capabilities|theme|config|content> --json\n  bin/snippet validate [--json]\n  bin/snippet build [--json]\n  bin/snippet preview [--host=<host>] [--port=<port>]\n  bin/snippet new page <slug> [--json]\n  bin/snippet new article <slug> [--date=YYYY-MM-DD] [--json]\n"]);
 })->with([
     'missing executable and command' => [[], 'A command is required.'],
     'missing command' => [['bin/snippet'], 'A command is required.'],
@@ -446,13 +446,13 @@ it('declares direct PHP extension requirements in their matching dependency scop
         'ext-date' => '*',
         'ext-filter' => '*',
         'ext-hash' => '*',
+        'ext-json' => '*',
         'ext-mbstring' => '*',
         'ext-pcre' => '*',
         'ext-random' => '*',
         'ext-tokenizer' => '*',
         'ext-uri' => '*',
     ])->and($development)->toBe([
-        'ext-json' => '*',
         'ext-pcntl' => '*',
         'ext-pcov' => '*',
         'ext-posix' => '*',

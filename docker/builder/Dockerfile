@@ -33,6 +33,7 @@ COPY src/Authoring src/Authoring
 COPY src/Cli src/Cli
 COPY src/Content src/Content
 COPY src/Exception src/Exception
+COPY src/Inspection src/Inspection
 COPY src/Markdown src/Markdown
 COPY src/Publishing src/Publishing
 COPY src/Preview src/Preview
@@ -45,6 +46,7 @@ COPY resources/theme.css resources/theme.css
 COPY resources/theme.js resources/theme.js
 COPY resources/preview-router.php resources/preview-router.php
 COPY resources/templates resources/templates
+COPY resources/workspace resources/workspace
 COPY LICENSE LICENSE
 COPY docker/builder/entrypoint.sh /usr/local/bin/snippet
 

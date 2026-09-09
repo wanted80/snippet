@@ -271,15 +271,10 @@ final readonly class CatalogLoader
         $title = $this->requiredText($metadata, 'title', $slug);
         $description = $this->requiredText($metadata, 'description', $slug);
         $fields = $expectedType->metadataFields();
-        if ($expectedType === ContentType::Article) {
-            foreach (['cover', 'alt'] as $optionalField) {
-                if (array_key_exists($optionalField, $metadata)) {
-                    $fields[] = $optionalField;
-                }
+        foreach ($expectedType->optionalMetadataFields() as $optionalField) {
+            if (array_key_exists($optionalField, $metadata)) {
+                $fields[] = $optionalField;
             }
-        }
-        if ($expectedType === ContentType::Page && array_key_exists("menu_order", $metadata)) {
-            $fields[] = "menu_order";
         }
         $this->assertFields($metadata, $fields, $slug);
 

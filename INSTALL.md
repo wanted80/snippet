@@ -18,7 +18,7 @@ docker run --rm \
   ghcr.io/wanted80/snippet:v3.0.2 init # x-release-please-version
 ```
 
-`init` creates empty `content/articles/` and `content/pages/` collections and copies the generic `site/` defaults. Existing files win, nothing is deleted, and `public/` is untouched. Templates, base CSS, theme JavaScript, and preview support stay in the image; no `resources/` directory is created in the workspace. Demo configuration and content are never included. Repeating `init` adds missing site defaults without replacing existing files. To receive theme updates, update the pinned image and rebuild.
+`init` creates empty `content/articles/` and `content/pages/` collections and copies the generic `site/` defaults. It also adds `AGENTS.md` and `.agents/skills/snippet-authoring/SKILL.md` for authoring with coding agents. Existing files win, nothing is deleted, and `public/` is untouched. Templates, base CSS, theme JavaScript, and preview support stay in the image; no `resources/` directory is created in the workspace. Demo configuration and content are never included. Repeating `init` adds missing defaults and agent guidance without replacing existing files. To receive theme updates, update the pinned image and rebuild.
 
 Set the complete public HTTPS URL in `site/config.php`, then create the first page or article. Rerun the command with `init` replaced by `validate` to check the site without changing `public/`, or by `build` to create the static publication. The same image creates drafts:
 
@@ -34,9 +34,118 @@ docker run --rm \
   ghcr.io/wanted80/snippet:v3.0.2 new article first-post # x-release-please-version
 ```
 
-The image exposes `--version`, `init`, `new page`, `new article`, `validate`, `build`, and the local-development `preview` command. Draft creation requires the relevant collection created by `init`, refuses symlinked or existing destinations, and leaves `public/` unchanged. The image omits Composer, development tools, and source outside those commands' runtime paths. `validate` reports the catalog and prospective asset count. `build` measures validation plus transactional publication and reports the actual promoted asset and file counts. Failures retain the existing `public/` directory.
+The image exposes `--version`, `inspect`, `init`, `new page`, `new article`, `validate`, `build`, and the local-development `preview` command. Draft creation requires the relevant collection created by `init`, refuses symlinked or existing destinations, and leaves `public/` unchanged. The image omits Composer, development tools, and source outside those commands' runtime paths. `validate` reports the catalog and prospective asset count. `build` measures validation plus transactional publication and reports the actual promoted asset and file counts. Failures retain the existing `public/` directory.
 
 Moving release aliases and `latest` are convenient for evaluation but unsuitable for reproducible publication. Pin a full release such as `v3.0.2` or an immutable image digest. <!-- x-release-please-version -->
+
+## Agent workflow
+
+Use the builder image selected for your workspace so inspection describes that
+installed version. To test the current checkout, first run `make builder-image`.
+From your author workspace, use this shell helper:
+
+```sh
+snippet() {
+    docker run --rm --network none \
+        --user "$(id -u):$(id -g)" \
+        --mount "type=bind,source=$(pwd),destination=/workspace" \
+        snippet-builder:smoke "$@"
+}
+
+snippet --version --json
+snippet inspect capabilities --json
+snippet inspect theme --json
+snippet inspect config --json
+snippet inspect content --json
+snippet init --json
+snippet new page about --json
+snippet new article first-post --date=2026-08-17 --json
+```
+
+For a released installation, replace `snippet-builder:smoke` with an exact
+release tag or digest that includes the agent CLI.
+Initialization reports created and skipped files without overwriting author
+files. Content creation reports the actual two files and `incomplete: true`.
+Without `--date`, an article uses the current UTC date.
+
+Complete `content/pages/about/page.md` and its `meta.php`, and
+`content/articles/2026/08/17/first-post/article.md` and its `meta.php`. Set non-empty
+titles and descriptions, keep the article date aligned with its directories,
+and supply its ordered `tags` list. Edit `site/config.php` with all required
+fields from `inspect config`; use the declarative PHP syntax it describes.
+Read existing `site/site.css` before editing it. For example, add:
+
+```css
+@layer overrides {
+    :root {
+        --color-accent: light-dark(#763524, #b9d5ff);
+        --measure-prose: 42rem;
+    }
+}
+```
+
+Then run:
+
+```sh
+snippet validate --json
+snippet build --json
+```
+
+Check exit status and parse the single JSON object on stdout. Every result has
+`schema: "snippet.agent/v1"` and `snippet_version`. Success exits `0`, operation
+failure exits `1`, and invalid usage exits `2`; failures contain
+`error: {code, message}`. Build reports `public/`, counts, and any `warnings`;
+backup cleanup warnings after successful publication retain status `0`.
+No duration or progress messages are mixed into JSON. All four inspection
+subjects work offline without initialized or valid workspace files. They also
+work with a read-only `/workspace` mount. Theme `engine_defaults` exclude author
+CSS, and config `starter_values` do not make any field optional.
+
+Run normal preview using the workflow below and review light and dark modes,
+including a narrow viewport. Preview is interactive: `preview --json` exits `2`
+without starting a server. Publish only the generated `public/` directory.
+For direct PHP usage, use `/path/to/snippet/bin/snippet` from the author workspace
+for inspection, creation, validation, and building; `init` belongs to the Docker
+entrypoint. See [the JSON contract](README.md#agent-cli) for all supported forms.
+
+### Agent guidance in existing workspaces
+
+Use an image built from this checkout or a release that includes agent
+scaffolding. Run `snippet init --json` through the same configured helper to add
+the missing instruction files to an older workspace. The result reports each
+file under `created` or `skipped`; initialization does not require a valid site.
+
+| Existing files | Initialization result |
+| --- | --- |
+| Neither agent file exists | Creates `AGENTS.md` and `.agents/skills/snippet-authoring/SKILL.md` |
+| A custom `AGENTS.md` exists | Preserves it exactly; creates the skill if missing |
+| A customized Snippet skill exists | Preserves it exactly; creates `AGENTS.md` if missing |
+| Both files exist | Skips both; other missing site defaults can still be added |
+
+Initialization never merges text into these files. Other skills are untouched.
+To use Snippet guidance with an existing `AGENTS.md`, add this reference yourself
+where it fits your instructions:
+
+```markdown
+For Snippet publication work, read `.agents/skills/snippet-authoring/SKILL.md`.
+```
+
+Record the workspace's Snippet invocation or pinned image there too. The skill
+uses that command for inspection, authoring, validation, and building. It asks
+for the selected engine if the workspace does not identify one; it does not
+guess a release from the site contents.
+
+Codex discovers repository skills in `.agents/skills` and can select this skill
+from its description or an explicit `$snippet-authoring` prompt. Other agents
+can read the same file through the `AGENTS.md` reference; automatic discovery
+depends on the client. See the [official skill documentation](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills).
+
+These are author-owned copies. A later `init` preserves them even when the
+bundled guidance changes; compare the new templates with your files and merge
+any desired updates yourself. The templates are under `resources/workspace/`
+in the source checkout, or `/app/resources/workspace/` inside the builder image.
+Commit the agent files with the site's source. They are not publication assets
+and are never copied into `public/`.
 
 ## Building a separate repository
 
@@ -51,7 +160,7 @@ docker run --rm \
   ghcr.io/wanted80/snippet:v3.0.2 build # x-release-please-version
 ```
 
-The mounted repository owns only publication inputs and disposable output. Commit `content/` and `site/`; ignore `public/`. Do not upload the source repository or container to the web host.
+The mounted repository owns publication inputs, agent instructions, and disposable output. Commit `content/`, `site/`, `AGENTS.md`, and `.agents/skills/snippet-authoring/`; ignore `public/`. Do not upload the source repository or container to the web host.
 
 If the repository is private, the builder does not need Git credentials or network access because it reads only the mounted checkout.
 

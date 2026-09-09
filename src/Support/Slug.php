@@ -8,7 +8,9 @@ namespace Snippet\Support;
 final readonly class Slug
 {
     /** @var list<string> */
-    private const array RESERVED_CONTENT = ['articles', 'assets', 'pages', 'tags'];
+    public const array RESERVED_CONTENT = ['articles', 'assets', 'pages', 'tags'];
+
+    public const string CONTENT_PATTERN = '/^[a-z0-9]+(?:-[a-z0-9]+)*$/D';
 
     public static function from(string $value): string
     {
@@ -25,7 +27,7 @@ final readonly class Slug
 
     public static function isCanonicalAscii(string $value): bool
     {
-        return preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/D', $value) === 1;
+        return preg_match(self::CONTENT_PATTERN, $value) === 1;
     }
 
     public static function isReservedContent(string $value): bool
