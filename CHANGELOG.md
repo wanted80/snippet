@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.0](https://github.com/wanted80/snippet/compare/v3.1.0...v3.2.0) (2026-09-09)
+
+
+### Features
+
+* enhance Compose trust handling and improve UI theme customization ([#46](https://github.com/wanted80/snippet/issues/46)) ([2ad86c6](https://github.com/wanted80/snippet/commit/2ad86c6274e5b276ce8d0e1b65b99357a6e06c50))
+
 ## [3.1.0](https://github.com/wanted80/snippet/compare/v3.0.2...v3.1.0) (2026-09-09)
 
 
