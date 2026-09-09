@@ -20,7 +20,7 @@
         "ext-pcntl": "*",
         "ext-pcov": "*",
         "ext-posix": "*",
-        "laravel/pint": "^1.31.0",
+        "laravel/pint": "^1.32.0",
         "pestphp/pest": "^5.1.4",
         "pestphp/pest-plugin-agent": "^5.0",
         "pestphp/pest-plugin-browser": "^5.0",
