@@ -74,7 +74,7 @@ docker-preview: docker-install
 docker-preview-trust: docker-install
 	$(if $(call truthy,$(PULL)),$(COMPOSE) --profile preview pull caddy)
 	$(COMPOSE) --profile preview up -d $(ORPHAN_OPTION)
-	sh docker/preview/trust-caddy-ca.sh
+	sh docker/preview/trust-caddy-ca.sh $(COMPOSE)
 	$(COMPOSE) --profile preview up $(ORPHAN_OPTION)
 
 docker-preview-down:
@@ -114,6 +114,7 @@ docker-fix:
 docker-check:
 	$(MAKE) ENVIRONMENT=development docker-install
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app composer app:check
-	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app shellcheck .devcontainer/post-create.sh docker/builder/smoke.sh docker/demo/check.sh docker/demo/validate.sh docker/demo/workspace.sh docker/development/entrypoint.sh docker/preview/trust-caddy-ca.sh docker/quality/mutations.sh
+	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app shellcheck .devcontainer/post-create.sh docker/builder/smoke.sh docker/demo/check.sh docker/demo/validate.sh docker/demo/workspace.sh docker/development/entrypoint.sh docker/preview/trust-caddy-ca.sh docker/quality/mutations.sh tests/Shell/preview-trust.sh
+	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app sh tests/Shell/preview-trust.sh
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app node --check resources/theme.js
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app composer app:test:assets

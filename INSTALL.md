@@ -309,6 +309,11 @@ cp .env.example .env
 make docker-preview-trust
 ```
 
+`make docker-preview-trust` uses the same Compose command as Make (`docker compose`,
+standalone `docker-compose`, or your `COMPOSE` override). Run it on the host: macOS
+uses the System keychain, Linux uses its available certificate trust tools, and
+Windows uses WSL with Windows `certutil.exe` integration.
+
 `make docker-preview-trust` may request the host password to install Caddy's local root certificate. Close all browser windows afterward, reopen the browser, and visit `https://localhost:8443` at the configured deployment path. Later previews use:
 
 ```bash
