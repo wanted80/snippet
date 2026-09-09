@@ -1,0 +1,9 @@
+{
+  "$schema": "https://www.schemastore.org/package.json",
+  "name": "snippet-browser-tests",
+  "private": true,
+  "description": "Development-only Playwright transport for Pest browser tests",
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

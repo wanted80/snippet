@@ -85,7 +85,7 @@ Inspection requires `--json`. The four subjects describe available commands and
 customization paths, the stable theme API and `engine_defaults`, required site
 configuration and `starter_values`, and the page/article authoring contract.
 Inspection reads installed engine resources, independently of workspace files.
-Theme results contain the 20 public tokens grouped into colors, fonts, and sizing,
+Theme results contain the 32 public tokens grouped into colors, fonts, sizing, and effects,
 11 class hooks, layer order, and an override example. Values preserve CSS
 expressions; they exclude author CSS and print overrides. Configuration starter
 values are required values copied by initialization, not defaults for omissions.
@@ -344,6 +344,65 @@ Custom scripts should use the documented class hooks and browser APIs, guard opt
 
 Stable color tokens are `--color-background`, `--color-surface`, `--color-interactive`, `--color-text`, `--color-muted`, `--color-accent`, and `--color-border`. Stable font tokens are `--font-reading`, `--font-interface`, `--font-wordmark`, and `--font-code`. Stable sizing tokens are `--measure-prose`, `--measure-shell`, `--space-1` through `--space-6`, and `--space-section`.
 
+Additional stable color tokens are `--color-header-background` and
+`--color-navigation-background` (both default to `var(--color-surface)`),
+`--color-header-button-background` and `--color-navigation-item-background`
+(both default to `var(--color-interactive)`), and `--color-on-accent`
+(defaulting to `var(--color-background)`). Header button backgrounds apply on
+hover, touch-active, and while the menu is open. Navigation item backgrounds
+apply to ordinary items; selected and hovered/active items use the accent fill.
+`--color-on-accent` supplies the foreground on accent fills: selection, skip
+links, selected menu items, tag-count badges, and hovered/active controls.
+Ordinary links and focus outlines retain `--color-accent`. Choose an on-accent
+color that contrasts with your accent in both themes.
+
+The sizing group also exposes `--radius-control` and `--radius-panel`, both
+`0.75rem`. Controls include buttons, tags, and menu items. Panels include the
+header's lower corners, navigation, main surface, and fenced code. The main
+surface intentionally has square corners at viewport widths up to `40rem`.
+
+The appended effects group exposes `--opacity-header-background` and
+`--opacity-navigation-background` (both `82%`), plus `--shadow-header`,
+`--shadow-menu`, and `--shadow-content`. Shadows use neutral black with the
+existing geometry: header `0 0.25rem 0.9rem` (10% light / 22% dark), navigation
+`0 1rem 2.5rem` (18% / 38%), and symmetric content side shadows
+`±1rem 0 2rem -1.35rem` (24% / 42%). Each shadow accepts `none`.
+`snippet inspect theme --json` reports their complete canonical expressions,
+with existing keys first and additions appended deterministically.
+
+Use opaque component base colors and opacity percentages from `0%` to `100%`.
+Glass is mixed at each component from its base color and opacity, and requires
+both color mixing and backdrop filtering. At `100%` the fill is opaque.
+Unsupported browsers and reduced-transparency preferences use the opaque base
+without filtering. The unscrolled header always uses `--color-background`.
+Screen rules, including responsive and interaction variants, belong to the
+published layers, so root variables and class rules in `@layer overrides` work
+without `!important`. Theme selection and print are unlayered exceptions:
+system/manual theme selection is preserved, motion effects respect reduced
+motion, and print forces high-contrast light colors with white on-accent text.
+
+For example, a Wanted80-style customization can separate header controls from
+menu items, make navigation opaque, and optionally remove the shadows:
+
+```css
+@layer overrides {
+    :root {
+        --color-header-background: light-dark(#eef2f7, #17202c);
+        --color-navigation-background: light-dark(#ffffff, #111827);
+        --color-header-button-background: light-dark(#dce6f3, #26374c);
+        --color-navigation-item-background: light-dark(#edf2fa, #1b293e);
+        --opacity-navigation-background: 100%;
+        --color-accent: light-dark(#174b91, #b8d5ff);
+        --color-on-accent: light-dark(#ffffff, #111827);
+        --radius-control: 0.5rem;
+        --radius-panel: 0.75rem;
+        --shadow-header: none;
+        --shadow-menu: none;
+        --shadow-content: none;
+    }
+}
+```
+
 Stable hooks are `.site-header`, `.site-brand`, `.site-wordmark`, `.site-navigation`, `.site-main`, `.article-list`, `.article-figure`, `.content-header`, `.prose`, `.tag-list`, and `.site-footer`. CSS layers are ordered `reset`, `tokens`, `base`, `layout`, `components`, `overrides`. Patch and minor releases preserve these tokens, class hooks, and layer order; removing or changing their meaning requires a major release. Target these classes directly rather than relying on tag names, child positions, or undocumented selectors. Other DOM details and default visual values may evolve.
 
 Use `light-dark(lightValue, darkValue)` for palette overrides so system preference and the theme control work together. CSS supports colors, typography, spacing, and responsive layout; it cannot change interface wording or document structure. Pin the builder image version when you need repeatable output, then update the image and rebuild to adopt a newer theme.
@@ -414,6 +473,27 @@ make docker-audit
 ```
 
 `docker-check` is deterministic and includes exact line and type coverage, Pint, Rector, PHPStan, content validation, ShellCheck, JavaScript syntax validation, and JavaScript behavior tests using Node’s built-in test runner. The resource-intensive `docker-mutations` target separately runs the complete Pest suite against every covered source class and requires a 100% mutation score. `docker-audit` is separate because the Composer advisory lookup requires network access.
+
+The architectural decision for browser regression testing approves
+`pestphp/pest-plugin-browser` (Pest 5), its Composer development dependency
+closure, and the npm development dependency `playwright` (including
+`playwright-core`). Computed CSS, native popovers, media preferences, and cascade
+precedence require a real browser. Pest remains the runner; Chromium runs
+headlessly and serially against temporary publications over container-local
+HTTP. Tests require no external network and record no screenshots, videos, or
+traces.
+
+Composer and npm lock files pin development tooling. Only the Docker development
+stage installs Node dependencies, Chromium, and browser system libraries. npm
+modules live in an isolated `/app/node_modules` volume, and the browser cache is
+readable by the development user. Production and release-builder stages remain
+browser-free. No runtime dependency or publishing-engine capability is added.
+
+The test harness uses direct Pest `Webpage` assertions to avoid the plugin's
+automatic failure screenshots. It adapts the pinned browser plugin's process
+command to `exec` Node so normal Pest shutdown also reaps the transport server.
+A small Chromium protocol adapter supplies media emulation absent from Pest's
+PHP page API. Review these test-only adapters when upgrading the plugin.
 
 Snippet follows Semantic Versioning. Pull requests are squash-merged with conventional titles, and Release Please maintains `CHANGELOG.md`, `vX.Y.Z` tags, and GitHub releases. Each stable release also publishes the official multi-platform builder image to GitHub Container Registry with maximum BuildKit provenance, an SPDX SBOM, and GitHub build provenance; the release workflow records its immutable digest. See [CONTRIBUTING.md](CONTRIBUTING.md) for title conventions and the full contributor workflow. Report vulnerabilities privately and verify builder releases as described in [SECURITY.md](SECURITY.md).
 

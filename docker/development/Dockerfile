@@ -64,19 +64,30 @@ RUN apt-get update \
         tree \
         zsh \
         ${PHPIZE_DEPS} \
+    && docker-php-ext-install -j"$(nproc)" sockets \
     && pecl install pcov \
     && docker-php-ext-enable pcov \
     && printf '%s\n' 'pcov.enabled=0' > /usr/local/etc/php/conf.d/zz-pcov.ini \
     && npm install --global @openai/codex \
     && usermod --shell /usr/bin/zsh snippet \
-    && printf '%s\n' 'snippet ALL=(root) NOPASSWD: /usr/bin/chown -R snippet\:snippet /app/vendor, /usr/bin/npm install --global @openai/codex, /usr/local/bin/snippet-devcontainer-entrypoint' > /etc/sudoers.d/snippet \
+    && printf '%s\n' 'snippet ALL=(root) NOPASSWD: /usr/bin/chown -R snippet\:snippet /app/vendor, /usr/bin/chown -R snippet\:snippet /app/node_modules, /usr/bin/npm install --global @openai/codex, /usr/local/bin/snippet-devcontainer-entrypoint' > /etc/sudoers.d/snippet \
     && chmod 0440 /etc/sudoers.d/snippet \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false ${PHPIZE_DEPS} \
     && apt-get install -y --no-install-recommends file \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/pear
 
-ENV SHELL=/usr/bin/zsh
+# Browser tooling is isolated from /app mounts and never enters production.
+ENV SHELL=/usr/bin/zsh \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/snippet-browser/browsers
+
+COPY package.json package-lock.json ./
+COPY docker/development/install-node-dependencies.sh docker/development/install-node-dependencies.sh
+RUN sh docker/development/install-node-dependencies.sh \
+    && npx --no-install playwright install --with-deps chromium \
+    && chmod -R a+rX /opt/snippet-browser /app/node_modules \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY docker/development/entrypoint.sh /usr/local/bin/snippet-devcontainer-entrypoint
 RUN chmod 0755 /usr/local/bin/snippet-devcontainer-entrypoint

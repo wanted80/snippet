@@ -11,3 +11,6 @@ public
 /content
 .snippet-build-*
 .snippet-backup-*
+
+node_modules/
+tests/Browser/Screenshots/

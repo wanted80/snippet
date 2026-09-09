@@ -30,6 +30,9 @@ services:
       - type: volume
         source: vendor-${ENVIRONMENT:-development}
         target: /app/vendor
+      - type: volume
+        source: node-${ENVIRONMENT:-development}
+        target: /app/node_modules
 
   caddy:
     image: caddy:2-alpine
@@ -47,5 +50,7 @@ services:
 volumes:
   vendor-development:
   vendor-production:
+  node-development:
+  node-production:
   caddy-data:
   caddy-config:

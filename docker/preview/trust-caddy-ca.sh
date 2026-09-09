@@ -2,6 +2,19 @@
 
 set -eu
 
+# Make passes its selected Compose command as separate arguments. Standalone
+# use follows the same preference without evaluating a command string.
+if [ "$#" -eq 0 ]; then
+	if docker compose version >/dev/null 2>&1; then
+		set -- docker compose
+	elif command -v docker-compose >/dev/null 2>&1; then
+		set -- docker-compose
+	else
+		printf '%s\n' 'Docker Compose is unavailable. Install docker compose or docker-compose.' >&2
+		exit 1
+	fi
+fi
+
 ca_in_container=/data/caddy/pki/authorities/local/root.crt
 ca_copy=$(mktemp "${TMPDIR:-/tmp}/snippet-caddy-root.XXXXXX")
 ca_filename=snippet-caddy-local.crt
@@ -39,12 +52,12 @@ install_and_refresh() {
 }
 
 attempt=0
-until docker compose --profile preview cp "caddy:${ca_in_container}" "$ca_copy" >/dev/null 2>&1; do
+until "$@" --profile preview cp "caddy:${ca_in_container}" "$ca_copy" >/dev/null 2>&1; do
 	attempt=$((attempt + 1))
 
 	if [ "$attempt" -ge 30 ]; then
 		printf '%s\n' 'Caddy did not create its local certificate authority in time.' >&2
-		printf '%s\n' 'Inspect it with: docker compose --profile preview logs caddy' >&2
+		printf 'Inspect it with: %s --profile preview logs caddy\n' "$*" >&2
 		exit 1
 	fi
 

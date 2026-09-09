@@ -20,9 +20,10 @@
         "ext-pcntl": "*",
         "ext-pcov": "*",
         "ext-posix": "*",
-        "laravel/pint": "^1.31.0",
+        "laravel/pint": "^1.32.0",
         "pestphp/pest": "^5.1.4",
         "pestphp/pest-plugin-agent": "^5.0",
+        "pestphp/pest-plugin-browser": "^5.0",
         "pestphp/pest-plugin-evals": "^5.0.3",
         "pestphp/pest-plugin-phpstan": "^5.2.1",
         "pestphp/pest-plugin-rector": "^5.0.4",
@@ -70,7 +71,8 @@
             "@app:lint",
             "@app:analyse",
             "@app:content:validate"
-        ]
+        ],
+        "app:test:browser": "php vendor/bin/pest tests/Browser --no-tia"
     },
     "scripts-descriptions": {
         "app:content:validate": "Compose and validate the demo site",
@@ -83,7 +85,8 @@
         "app:audit": "Audit locked dependencies against Composer security advisories",
         "app:lint": "Check formatting and automated refactoring",
         "app:fix": "Apply automated refactoring and formatting",
-        "app:check": "Run the complete application quality gate"
+        "app:check": "Run the complete application quality gate",
+        "app:test:browser": "Run serial headless Chromium theme regression tests"
     },
     "config": {
         "bump-after-update": true,

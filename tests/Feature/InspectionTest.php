@@ -28,9 +28,19 @@ it('exposes exactly the documented theme tokens hooks and layers with canonical 
     $fonts = $defaults['fonts'];
     $sizing = $defaults['sizing'];
     assert(is_array($colors) && is_array($fonts) && is_array($sizing));
-    expect(array_keys($colors))->toBe(['--color-background', '--color-surface', '--color-interactive', '--color-text', '--color-muted', '--color-accent', '--color-border'])
+    expect(array_keys($colors))->toBe(['--color-background', '--color-surface', '--color-interactive', '--color-text', '--color-muted', '--color-accent', '--color-border', '--color-header-background', '--color-navigation-background', '--color-header-button-background', '--color-navigation-item-background', '--color-on-accent'])
         ->and(array_keys($fonts))->toBe(['--font-reading', '--font-interface', '--font-wordmark', '--font-code'])
-        ->and(array_keys($sizing))->toBe(['--measure-prose', '--measure-shell', '--space-1', '--space-2', '--space-3', '--space-4', '--space-5', '--space-6', '--space-section'])
+        ->and(array_keys($sizing))->toBe(['--measure-prose', '--measure-shell', '--space-1', '--space-2', '--space-3', '--space-4', '--space-5', '--space-6', '--space-section', '--radius-control', '--radius-panel'])
+        ->and(array_keys($defaults))->toBe(['colors', 'fonts', 'sizing', 'effects'])
+        ->and($defaults['effects'])->toBe([
+            '--opacity-header-background' => '82%',
+            '--opacity-navigation-background' => '82%',
+            '--shadow-header' => '0 0.25rem 0.9rem light-dark(rgb(0 0 0 / 10%), rgb(0 0 0 / 22%))',
+            '--shadow-menu' => '0 1rem 2.5rem light-dark(rgb(0 0 0 / 18%), rgb(0 0 0 / 38%))',
+            '--shadow-content' => '-1rem 0 2rem -1.35rem light-dark(rgb(0 0 0 / 24%), rgb(0 0 0 / 42%)), 1rem 0 2rem -1.35rem light-dark(rgb(0 0 0 / 24%), rgb(0 0 0 / 42%))',
+        ])
+        ->and($colors['--color-header-background'])->toBe('var(--color-surface)')
+        ->and($colors['--color-on-accent'])->toBe('var(--color-background)')
         ->and($colors['--color-accent'])->toBe('light-dark(#8a3f2d, #9fc5ff)')
         ->and($fonts['--font-reading'])->toBe('ui-serif, Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif')
         ->and($sizing['--space-section'])->toBe('clamp(5rem, 12vw, 7rem)')

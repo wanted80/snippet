@@ -11,7 +11,7 @@ falsy = $(filter 0 false no off,$(strip $(1)))
 BUILD_OPTIONS = $(if $(call truthy,$(PULL)),--pull) $(if $(call truthy,$(NO_CACHE)),--no-cache)
 ORPHAN_OPTION = $(if $(call falsy,$(REMOVE_ORPHANS)),,--remove-orphans)
 
-.PHONY: help builder-image builder-smoke demo-check docker-image docker-install docker-validate docker-build docker-preview docker-preview-trust docker-preview-down docker-shell docker-config docker-test docker-mutations docker-analyse docker-audit docker-lint docker-fix docker-check
+.PHONY: help builder-image builder-smoke demo-check docker-image docker-install docker-validate docker-build docker-preview docker-preview-trust docker-preview-down docker-shell docker-config docker-test docker-test-browser docker-mutations docker-analyse docker-audit docker-lint docker-fix docker-check
 
 help:
 	@echo 'Snippet Docker commands'
@@ -20,7 +20,7 @@ help:
 	@echo '  make builder-smoke         Smoke-test the release builder image'
 	@echo '  make demo-check            Validate and build the composed demo site'
 	@echo '  make docker-image          Build the selected application image'
-	@echo '  make docker-install        Synchronize its isolated vendor volume'
+	@echo '  make docker-install        Synchronize its isolated dependency volumes'
 	@echo '  make docker-validate       Validate site configuration and content'
 	@echo '  make docker-build          Build host public/'
 	@echo '  make docker-preview        Preview at https://localhost:$${PREVIEW_PORT:-8443}'
@@ -29,6 +29,7 @@ help:
 	@echo '  make docker-shell          Open the development environment shell'
 	@echo '  make docker-config         Render and validate the Compose configuration'
 	@echo '  make docker-test           Run tests in development'
+	@echo '  make docker-test-browser   Run Chromium theme regression tests'
 	@echo '  make docker-mutations      Require a 100% full-project mutation score'
 	@echo '  make docker-analyse        Run PHPStan in development'
 	@echo '  make docker-audit          Audit locked Composer dependencies'
@@ -59,7 +60,7 @@ docker-image:
 	$(COMPOSE) build $(BUILD_OPTIONS) app
 
 docker-install: docker-image
-	$(COMPOSE) run --rm --no-deps app sh -c 'if [ "$$ENVIRONMENT" = production ]; then composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader; else composer install --no-interaction --prefer-dist --optimize-autoloader; fi'
+	$(COMPOSE) run --rm --no-deps app sh -c 'if [ "$$ENVIRONMENT" = production ]; then composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader; else composer install --no-interaction --prefer-dist --optimize-autoloader && sh docker/development/install-node-dependencies.sh; fi'
 
 docker-validate: docker-install
 	$(COMPOSE) run --rm --no-deps app bin/snippet validate
@@ -74,7 +75,7 @@ docker-preview: docker-install
 docker-preview-trust: docker-install
 	$(if $(call truthy,$(PULL)),$(COMPOSE) --profile preview pull caddy)
 	$(COMPOSE) --profile preview up -d $(ORPHAN_OPTION)
-	sh docker/preview/trust-caddy-ca.sh
+	sh docker/preview/trust-caddy-ca.sh $(COMPOSE)
 	$(COMPOSE) --profile preview up $(ORPHAN_OPTION)
 
 docker-preview-down:
@@ -90,6 +91,10 @@ docker-config:
 docker-test:
 	$(MAKE) ENVIRONMENT=development docker-install
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app composer app:test
+
+docker-test-browser:
+	$(MAKE) ENVIRONMENT=development docker-install
+	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app composer app:test:browser
 
 docker-mutations:
 	$(MAKE) ENVIRONMENT=development docker-install
@@ -114,6 +119,8 @@ docker-fix:
 docker-check:
 	$(MAKE) ENVIRONMENT=development docker-install
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app composer app:check
-	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app shellcheck .devcontainer/post-create.sh docker/builder/smoke.sh docker/demo/check.sh docker/demo/validate.sh docker/demo/workspace.sh docker/development/entrypoint.sh docker/preview/trust-caddy-ca.sh docker/quality/mutations.sh
+	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app shellcheck .devcontainer/post-create.sh docker/builder/smoke.sh docker/demo/check.sh docker/demo/validate.sh docker/demo/workspace.sh docker/development/entrypoint.sh docker/preview/trust-caddy-ca.sh docker/quality/mutations.sh docker/development/install-node-dependencies.sh tests/Shell/preview-trust.sh tests/Shell/node-dependencies.sh
+	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app sh tests/Shell/preview-trust.sh
+	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app sh tests/Shell/node-dependencies.sh
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app node --check resources/theme.js
 	ENVIRONMENT=development $(COMPOSE) run --rm --no-deps app composer app:test:assets
