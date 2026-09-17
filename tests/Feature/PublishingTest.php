@@ -18,6 +18,7 @@ use Snippet\Markdown\Parser;
 use Snippet\Publishing\BuildReport;
 use Snippet\Publishing\CssMinifier;
 use Snippet\Publishing\HtmlMinifier;
+use Snippet\Publishing\JsMinifier;
 use Snippet\Publishing\LlmsTxtRenderer;
 use Snippet\Publishing\Publisher;
 use Snippet\Publishing\ReferenceValidator;
@@ -481,9 +482,125 @@ it('retains cleanup diagnostics in a successful publication report', function (b
 
     $report = new Publisher()->publish($this->directory, $config, $this->catalog());
 
-    expect($report->cleanupWarning)->toContain('The new site was published.', '.snippet-backup-', 'manually')
-        ->and(file_get_contents($this->directory . '/public/index.html'))->toContain('No articles have been published yet.');
+    $backups = glob($this->directory . '/.snippet-backup-*');
+    expect($backups)->toBeArray()->toHaveCount(1);
+    assert(is_array($backups));
+    $backup = $backups[0];
+    $cause = $unexpected ? 'Injected unlink failure.' : "Unable to remove temporary path '{$backup}/index.html'.";
+
+    expect($report->cleanupWarning)->toBe("The new site was published. Remove the remaining backup '{$backup}' manually. {$cause}")
+        ->and(file_get_contents($this->directory . '/public/index.html'))->toContain('No articles have been published yet.')
+        ->and(file_get_contents($backup . '/index.html'))->toBe('Old publication.');
 })->with([false, true]);
+
+it('publishes readable files and traversable directories independently of the process umask', function (int $mask): void {
+    $item = $this->item('post', ['title' => 'Post', 'description' => 'Description.']);
+    $this->resources();
+    $binary = "\x00\xFF\x80asset";
+    mkdir($item . '/downloads/nested', 0777, true);
+    mkdir($this->directory . '/site/assets/fonts/nested', 0777, true);
+    file_put_contents($item . '/downloads/nested/document.bin', $binary);
+    file_put_contents($this->directory . '/site/assets/fonts/nested/font.bin', $binary);
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    $catalog = $this->catalog();
+
+    $previousMask = umask($mask);
+    try {
+        new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $catalog);
+    } finally {
+        umask($previousMask);
+    }
+
+    $public = $this->directory . '/public';
+    expect(file_get_contents($public . '/post/downloads/nested/document.bin'))->toBe($binary)
+        ->and(file_get_contents($public . '/assets/site/fonts/nested/font.bin'))->toBe($binary);
+    $entries = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($public, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST,
+    );
+    expect(fileperms($public) & 0777)->toBe(0755);
+    foreach ($entries as $entry) {
+        assert($entry instanceof SplFileInfo);
+        expect($entry->getPerms() & 0777)->toBe($entry->isDir() ? 0755 : 0644, $entry->getPathname());
+    }
+})->with(['restrictive' => 0077, 'permissive' => 0000]);
+
+it('keeps abandoned build and backup trees separate across successive publications', function (bool $failBuild): void {
+    $this->content();
+    $this->resources();
+    mkdir($this->directory . '/public');
+    file_put_contents($this->directory . '/public/index.html', 'old publication');
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    $catalog = $this->catalog();
+    $publisher = new Publisher(engineRoot: $this->directory);
+    $pattern = $this->directory . ($failBuild ? '/.snippet-build-*' : '/.snippet-backup-*');
+    $previous = [];
+
+    foreach ([1, 2] as $count) {
+        PublisherFaults::set('unlink', ['fail']);
+        if ($failBuild) {
+            PublisherFaults::set('copy', ['fail']);
+            expect(fn(): BuildReport => $publisher->publish($this->directory, $config, $catalog))
+                ->toThrow(ContentException::class, 'Temporary publication cleanup failed')
+                ->and(publicationBytes($this->directory))->toBe(['index.html' => 'old publication']);
+        } else {
+            expect($publisher->publish($this->directory, $config, $catalog)->cleanupWarning)->toContain('The new site was published.');
+        }
+
+        $remaining = glob($pattern);
+        expect($remaining)->toBeArray()->toHaveCount($count);
+        assert(is_array($remaining));
+        foreach ($previous as $path => $contents) {
+            expect(file_get_contents($path . '/index.html'))->toBe($contents);
+        }
+        foreach ($remaining as $path) {
+            $previous[$path] = file_get_contents($path . '/index.html');
+        }
+    }
+})->with(['failed builds' => true, 'successful builds with backups' => false]);
+
+it('closes the llms stream after writing every byte even when a write is partial', function (): void {
+    $this->content();
+    $this->resources();
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    PublisherFaults::set('publishing_fwrite', ['partial']);
+
+    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+
+    expect(file_get_contents($this->directory . '/public/llms.txt'))->toBe("# Test Site\n\n> A test site.\n\nAuthor: Test Author\n")
+        ->and(PublisherFaults::calls('publishing_fclose'))->toBe(1);
+});
+
+it('aborts a stalled llms write immediately and closes its stream', function (string $outcome): void {
+    /** @var 'fail'|'zero' $outcome */
+    $this->content();
+    $this->resources();
+    mkdir($this->directory . '/public');
+    file_put_contents($this->directory . '/public/index.html', 'old publication');
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    PublisherFaults::set('publishing_fwrite', [$outcome, 'throw']);
+
+    expect(fn(): BuildReport => new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog()))
+        ->toThrow(ContentException::class, 'Unable to write generated file')
+        ->and(PublisherFaults::calls('publishing_fwrite'))->toBe(1)
+        ->and(PublisherFaults::calls('publishing_fclose'))->toBe(1)
+        ->and(publicationBytes($this->directory))->toBe(['index.html' => 'old publication'])
+        ->and(glob($this->directory . '/.snippet-*'))->toBe([]);
+})->with(['failed write' => 'fail', 'zero progress' => 'zero']);
+
+it('preserves the current publication when a copied asset cannot be made readable', function (): void {
+    $this->content();
+    $this->resources();
+    mkdir($this->directory . '/public');
+    file_put_contents($this->directory . '/public/index.html', 'old publication');
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    PublisherFaults::set('chmod:favicon.svg', ['fail']);
+
+    expect(fn(): BuildReport => new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog()))
+        ->toThrow(ContentException::class, "Unable to copy '{$this->directory}/site/favicon.svg'")
+        ->and(publicationBytes($this->directory))->toBe(['index.html' => 'old publication'])
+        ->and(glob($this->directory . '/.snippet-*'))->toBe([]);
+});
 
 it('preserves an existing publication when a pre-promotion copy fails', function (): void {
     $this->content();
@@ -588,7 +705,7 @@ it('reports transactional publication and cleanup failures deterministically', f
         'publishing_fwrite' => ['fail'],
     ], false, 'Unable to write generated file'],
     'llms chmod' => [[
-        'chmod' => ['pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'pass', 'fail'],
+        'chmod:llms.txt' => ['fail'],
     ], false, 'Unable to write generated file'],
     'directory creation' => [[
         'mkdir' => ['fail'],
@@ -620,6 +737,53 @@ it('reports transactional publication and cleanup failures deterministically', f
         'copy' => ['fail'],
         'rmdir' => ['fail'],
     ], false, 'Unable to remove temporary directory'],
+]);
+
+it('retains the original failure when temporary publication cleanup also fails', function (bool $unexpectedFailure, bool $unexpectedCleanup): void {
+    $this->content();
+    $this->resources();
+    mkdir($this->directory . '/public');
+    file_put_contents($this->directory . '/public/index.html', 'old publication');
+    PublisherFaults::set('copy', [$unexpectedFailure ? 'throw' : 'fail']);
+    PublisherFaults::set('unlink', [$unexpectedCleanup ? 'throw' : 'fail']);
+    $config = new ConfigLoader()->load($this->directory . '/site');
+
+    try {
+        new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+        throw new LogicException('Expected publication to fail.');
+    } catch (ContentException $contentException) {
+        $original = $contentException->getPrevious();
+        expect($original)->toBeInstanceOf(ContentException::class);
+        assert($original instanceof ContentException);
+        $originalMessage = $original->getMessage();
+        assert($originalMessage !== '');
+        expect($originalMessage)->toStartWith($unexpectedFailure
+            ? 'Unable to publish site: Injected copy failure.'
+            : "Unable to copy '{$this->directory}/site/favicon.svg'")
+            ->not->toContain('Temporary publication cleanup')
+            ->and($contentException->getMessage())->toStartWith($originalMessage)
+            ->toContain("Temporary publication cleanup failed for '{$this->directory}/.snippet-build-")
+            ->toContain($unexpectedCleanup ? 'Injected unlink failure.' : 'Unable to remove temporary path')
+            ->and($contentException->getCode())->toBe(0);
+
+        if ($unexpectedFailure) {
+            $cause = $original->getPrevious();
+            expect($cause)->toBeInstanceOf(RuntimeException::class);
+            assert($cause instanceof RuntimeException);
+            expect($cause->getMessage())->toBe('Injected copy failure.');
+        } else {
+            expect($original->getPrevious())->toBeNull();
+        }
+    }
+
+    expect(publicationBytes($this->directory))->toBe(['index.html' => 'old publication'])
+        ->and(glob($this->directory . '/.snippet-build-*'))->toHaveCount(1);
+})->with([
+    'expected publication failure' => false,
+    'unexpected publication failure' => true,
+])->with([
+    'expected cleanup failure' => false,
+    'unexpected cleanup failure' => true,
 ]);
 
 it('wraps unexpected publication failures exactly and removes the temporary tree', function (): void {
@@ -866,7 +1030,7 @@ it('preloads each bundled upright font only when the theme and matching asset ar
     'fonts without site stylesheet' => [false, true, true, []],
 ]);
 
-it('minifies generated HTML and first-party CSS while preserving copied assets', function (): void {
+it('minifies generated HTML and first-party CSS and JavaScript while preserving copied assets', function (): void {
     $this->item('page', ['title' => 'Page', 'description' => 'D'], "Text  with *inline* spacing.\n\n```js\nconst  value = '<tag>';\n```");
     $siteStylesheet = "@layer overrides {\n    :root { --custom:  one; }\n}\n";
     $arbitraryCss = "custom { bytes:  unchanged; }\n";
@@ -909,7 +1073,7 @@ it('minifies generated HTML and first-party CSS while preserving copied assets',
         ->and(mb_strlen($compactCss, '8bit'))->toBeLessThan(mb_strlen($css, '8bit'))
         ->and($compactTheme)->toBe('@layer overrides{:root{--custom: one;}}')
         ->and(file_get_contents($this->directory . '/public/assets/site/copied.css'))->toBe($arbitraryCss)
-        ->and(file_get_contents($this->publishedAsset('theme.js')))->toBe($javascript);
+        ->and(file_get_contents($this->publishedAsset('theme.js')))->toBe(new JsMinifier()->minify($javascript))->not->toBe($javascript);
 });
 
 it('escapes every browser-facing URL beneath an encoded deployment path without moving output files', function (): void {

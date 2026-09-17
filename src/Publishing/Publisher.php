@@ -20,11 +20,16 @@ use Throwable;
 /** Builds a complete temporary tree and transactionally promotes it to public/. */
 final readonly class Publisher
 {
+    private const int FILE_PERMISSIONS = 0644;
+
+    private const int DIRECTORY_PERMISSIONS = 0755;
+
     /** @param string $engineRoot Trusted installation directory, independent of the author workspace. */
     public function __construct(
         private TemplateLoader $templateLoader = new TemplateLoader(),
         private HtmlMinifier $htmlMinifier = new HtmlMinifier(),
         private CssMinifier $cssMinifier = new CssMinifier(),
+        private JsMinifier $jsMinifier = new JsMinifier(),
         private Utf8FileValidator $utf8FileValidator = new Utf8FileValidator(),
         private string $engineRoot = __DIR__ . '/../..',
     ) {}
@@ -41,14 +46,14 @@ final readonly class Publisher
         $retainedAssetBytes = 0;
         $templates = $this->templateLoader->load($this->engineRoot . '/resources/templates', $limits);
         $themeStylesheet = $this->stylesheet($this->engineRoot . '/resources/theme.css', '/assets/theme.css', $config->minify, $limits, $retainedAssetBytes);
-        $themeScript = $this->asset($this->engineRoot . '/resources/theme.js', '/assets/theme.js', $limits, $retainedAssetBytes);
+        $themeScript = $this->script($this->engineRoot . '/resources/theme.js', '/assets/theme.js', $config->minify, $limits, $retainedAssetBytes);
         $this->validateAsset($root . '/site/favicon.svg', $limits, true);
 
         $siteStylesheet = $config->hasSiteStylesheet
             ? $this->stylesheet($root . '/site/site.css', '/assets/site.css', $config->minify, $limits, $retainedAssetBytes)
             : null;
         $siteScript = $config->hasSiteScript
-            ? $this->asset($root . '/site/site.js', '/assets/site.js', $limits, $retainedAssetBytes)
+            ? $this->script($root . '/site/site.js', '/assets/site.js', $config->minify, $limits, $retainedAssetBytes)
             : null;
 
         foreach ($config->assets as $asset) {
@@ -63,6 +68,7 @@ final readonly class Publisher
 
     /**
      * Publish a complete site; backup-cleanup failures are reported after a successful promotion.
+     * Failed-build cleanup diagnostics retain the original publication failure as their cause.
      *
      * @throws ContentException when rendering, copying, or publication fails
      */
@@ -87,20 +93,29 @@ final readonly class Publisher
             $assets ??= $resources->assets;
         }
         $budget = new BuildBudget($limits);
-        $suffix = bin2hex(random_bytes(8));
+        // Neighbouring random-byte lengths preserve the unique sibling-path contract.
+        $suffix = bin2hex(random_bytes(8)); // @pest-mutate-ignore: DecrementInteger,IncrementInteger
         $temporary = $root . '/.snippet-build-' . $suffix;
         $backup = $root . '/.snippet-backup-' . $suffix;
 
         try {
-            $this->directory($temporary);
             $this->buildTree($root, $temporary, $config, $catalog, $templates, $assets, $budget, $previewVersion);
             $cleanupWarning = $this->promote($temporary, $public, $backup);
-        } catch (ContentException $contentException) {
-            $this->removeIfPresent($temporary);
-            throw $contentException;
         } catch (Throwable $throwable) {
-            $this->removeIfPresent($temporary);
-            throw new ContentException('Unable to publish site: ' . $throwable->getMessage(), 0, $throwable);
+            $failure = $throwable instanceof ContentException
+                ? $throwable
+                : new ContentException('Unable to publish site: ' . $throwable->getMessage(), 0, $throwable);
+            try {
+                $this->removeIfPresent($temporary);
+            } catch (Throwable $cleanupFailure) {
+                throw new ContentException(
+                    $failure->getMessage() . " Temporary publication cleanup failed for '{$temporary}': " . $cleanupFailure->getMessage(),
+                    0,
+                    $failure,
+                );
+            }
+
+            throw $failure;
         }
 
         return $budget->report($catalog, $cleanupWarning);
@@ -213,7 +228,7 @@ final readonly class Publisher
     {
         $this->directory(dirname($path));
         $written = @file_put_contents($path, $contents);
-        if ($written !== mb_strlen($contents, '8bit') || !@chmod($path, 0644)) {
+        if ($written !== mb_strlen($contents, '8bit') || !@chmod($path, self::FILE_PERMISSIONS)) {
             throw new ContentException("Unable to write generated file '{$path}'.");
         }
     }
@@ -226,7 +241,6 @@ final readonly class Publisher
 
     private function writeLlms(string $path, LlmsTxtRenderer $renderer, BuildBudget $budget): void
     {
-        $this->directory(dirname($path));
         $stream = @fopen($path, 'wb');
         if (!is_resource($stream)) {
             throw new ContentException("Unable to write generated file '{$path}'.");
@@ -241,7 +255,7 @@ final readonly class Publisher
             fclose($stream);
         }
 
-        if (!@chmod($path, 0644)) {
+        if (!@chmod($path, self::FILE_PERMISSIONS)) {
             throw new ContentException("Unable to write generated file '{$path}'.");
         }
     }
@@ -250,7 +264,7 @@ final readonly class Publisher
     {
         $sourceBytes = $this->validateAsset($source, $limits, true);
         if (!$minify) {
-            return $this->readAsset($source, $logicalPath, $sourceBytes, $limits, $retainedAssetBytes);
+            return new PublicationAsset($logicalPath, $this->readAsset($source, $sourceBytes, $limits, $retainedAssetBytes));
         }
 
         $input = @fopen($source, 'rb');
@@ -282,14 +296,15 @@ final readonly class Publisher
         return new PublicationAsset($logicalPath, $contents);
     }
 
-    private function asset(string $source, string $logicalPath, Limits $limits, int &$retainedAssetBytes): PublicationAsset
+    private function script(string $source, string $logicalPath, bool $minify, Limits $limits, int &$retainedAssetBytes): PublicationAsset
     {
         $sourceBytes = $this->validateAsset($source, $limits, true);
+        $contents = $this->readAsset($source, $sourceBytes, $limits, $retainedAssetBytes);
 
-        return $this->readAsset($source, $logicalPath, $sourceBytes, $limits, $retainedAssetBytes);
+        return new PublicationAsset($logicalPath, $minify ? $this->jsMinifier->minify($contents) : $contents);
     }
 
-    private function readAsset(string $source, string $logicalPath, int $bytes, Limits $limits, int &$retainedAssetBytes): PublicationAsset
+    private function readAsset(string $source, int $bytes, Limits $limits, int &$retainedAssetBytes): string
     {
         $this->retainEntryAsset($bytes, $source, $limits, $retainedAssetBytes);
 
@@ -298,7 +313,7 @@ final readonly class Publisher
             throw new ContentException("Unable to read publication asset '{$source}'.");
         }
 
-        return new PublicationAsset($logicalPath, $contents);
+        return $contents;
     }
 
     private function retainEntryAsset(int $bytes, string $source, Limits $limits, int &$retainedAssetBytes): void
@@ -337,7 +352,7 @@ final readonly class Publisher
 
         $budget->addAsset($size, $destination);
         $this->directory(dirname($destination));
-        if (!@copy($source, $destination) || !@chmod($destination, 0644)) {
+        if (!@copy($source, $destination) || !@chmod($destination, self::FILE_PERMISSIONS)) {
             throw new ContentException("Unable to copy '{$source}' to '{$destination}'.");
         }
     }
@@ -366,7 +381,8 @@ final readonly class Publisher
             return;
         }
 
-        if (!@mkdir($path, 0755, true) || !@chmod($path, 0755)) {
+        $this->directory(dirname($path));
+        if (!@mkdir($path, self::DIRECTORY_PERMISSIONS) || !@chmod($path, self::DIRECTORY_PERMISSIONS)) {
             throw new ContentException("Unable to create output directory '{$path}'.");
         }
     }
