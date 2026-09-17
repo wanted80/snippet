@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.0](https://github.com/wanted80/snippet/compare/v3.2.0...v3.3.0) (2026-09-17)
+
+
+### Features
+
+* minify JavaScript and harden static publication ([#48](https://github.com/wanted80/snippet/issues/48)) ([0fe9dd1](https://github.com/wanted80/snippet/commit/0fe9dd1a10154531f0075225e24d2d2f80a8f18d))
+
 ## [3.2.0](https://github.com/wanted80/snippet/compare/v3.1.0...v3.2.0) (2026-09-09)
 
 
