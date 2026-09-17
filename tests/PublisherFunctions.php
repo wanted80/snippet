@@ -27,7 +27,7 @@ function file_get_contents(string $filename): string|false
 
 function chmod(string $filename, int $permissions): bool
 {
-    return !PublisherFaults::fails('chmod') && \chmod($filename, $permissions);
+    return !PublisherFaults::fails('chmod') && !PublisherFaults::fails('chmod:' . basename($filename)) && \chmod($filename, $permissions);
 }
 
 function copy(string $from, string $to): bool
@@ -88,7 +88,7 @@ function fclose(mixed $stream): bool
     return \fclose($stream);
 }
 
-function mkdir(string $directory, int $permissions, bool $recursive): bool
+function mkdir(string $directory, int $permissions, bool $recursive = false): bool
 {
     return !PublisherFaults::fails('mkdir') && \mkdir($directory, $permissions, $recursive);
 }

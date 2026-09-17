@@ -33,7 +33,7 @@ abstract class TestCase extends BaseTestCase
         ApplicationClock::reset();
         PublisherFaults::reset();
         $this->site();
-        copy(dirname(__DIR__) . '/site/favicon.svg', $this->directory . '/site/favicon.svg');
+        copy(__DIR__ . '/../site/favicon.svg', $this->directory . '/site/favicon.svg');
     }
 
     protected function tearDown(): void
@@ -127,7 +127,7 @@ abstract class TestCase extends BaseTestCase
 
     protected function resources(): void
     {
-        $source = dirname(__DIR__) . '/resources';
+        $source = __DIR__ . '/../resources';
         mkdir($this->directory . '/resources', 0777, true);
         copy($source . '/theme.css', $this->directory . '/resources/theme.css');
         copy($source . '/theme.js', $this->directory . '/resources/theme.js');

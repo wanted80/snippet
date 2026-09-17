@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 
-const script = readFileSync(new URL('../../resources/theme.js', import.meta.url), 'utf8');
+const script = readFileSync(process.env.SNIPPET_THEME_SCRIPT ?? new URL('../../resources/theme.js', import.meta.url), 'utf8');
 
 function page({ stored = null, controls = true, metadata = true, blockedStorage = false } = {}) {
     const root = { dataset: {} };

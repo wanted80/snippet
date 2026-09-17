@@ -20,8 +20,8 @@
         "ext-pcntl": "*",
         "ext-pcov": "*",
         "ext-posix": "*",
-        "laravel/pint": "^1.32.0",
-        "pestphp/pest": "^5.1.4",
+        "laravel/pint": "^1.32.1",
+        "pestphp/pest": "^5.2.1",
         "pestphp/pest-plugin-agent": "^5.0",
         "pestphp/pest-plugin-browser": "^5.0",
         "pestphp/pest-plugin-evals": "^5.0.3",
@@ -29,11 +29,11 @@
         "pestphp/pest-plugin-rector": "^5.0.4",
         "pestphp/pest-plugin-type-coverage": "^5.0.2",
         "phpstan/extension-installer": "^1.4.3",
-        "phpstan/phpstan": "^2.2.13",
+        "phpstan/phpstan": "^2.2.14",
         "phpstan/phpstan-deprecation-rules": "^2.0.4",
         "phpstan/phpstan-phpunit": "^2.0",
         "phpstan/phpstan-strict-rules": "^2.0",
-        "rector/rector": "^2.6.6"
+        "rector/rector": "^2.6.7"
     },
     "autoload": {
         "psr-4": {

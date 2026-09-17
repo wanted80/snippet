@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Snippet\Exception\ContentException;
+use Snippet\Publishing\BuildReport;
 use Snippet\Publishing\PublicationAsset;
 use Snippet\Publishing\PublicationAssets;
 use Snippet\Publishing\PublicationInputLoader;
@@ -47,9 +48,9 @@ it('fingerprints entry assets from their exact published bytes with XXH3', funct
     $this->resources();
     $this->site(['build' => ['minify' => true]]);
     $themeCss = "@layer theme {\n    :root { color: red; }\n}\n";
-    $themeJs = "document.documentElement.dataset.ready = 'yes';\n";
+    $themeJs = "/* ordinary */document.documentElement.dataset.ready = 'yes';\n";
     $siteCss = "@layer overrides {\n    :root { color: blue; }\n}\n";
-    $siteJs = "window.siteReady = true;\n";
+    $siteJs = "/*! license */window.siteReady   = true;\n";
     file_put_contents($this->directory . '/resources/theme.css', $themeCss);
     file_put_contents($this->directory . '/resources/theme.js', $themeJs);
     file_put_contents($this->directory . '/site/site.css', $siteCss);
@@ -62,9 +63,9 @@ it('fingerprints entry assets from their exact published bytes with XXH3', funct
     $publishedSiteCss = '@layer overrides{:root{color: blue;}}';
     $assets = [
         'theme.' . hash('xxh3', $publishedThemeCss) . '.css' => $publishedThemeCss,
-        'theme.' . hash('xxh3', $themeJs) . '.js' => $themeJs,
+        'theme.' . hash('xxh3', " document.documentElement.dataset.ready = 'yes';\n") . '.js' => " document.documentElement.dataset.ready = 'yes';\n",
         'site.' . hash('xxh3', $publishedSiteCss) . '.css' => $publishedSiteCss,
-        'site.' . hash('xxh3', $siteJs) . '.js' => $siteJs,
+        'site.' . hash('xxh3', "/*! license */window.siteReady = true;\n") . '.js' => "/*! license */window.siteReady = true;\n",
     ];
     $html = file_get_contents($this->directory . '/public/index.html');
     assert(is_string($html));
@@ -127,6 +128,67 @@ it('validates every configured site asset in the retained resource snapshot', fu
 
     expect(fn(): PublicationResources => new Publisher(engineRoot: $this->directory)->validatedResources($this->directory, $config))
         ->toThrow(ContentException::class, "site/assets/declared.txt' must be a regular non-symlink file");
+});
+
+it('requires UTF-8 text at each publication entry asset boundary', function (string $relativePath, bool $minify): void {
+    $this->content();
+    $this->resources();
+    $this->site(['build' => ['minify' => $minify]]);
+    file_put_contents($this->directory . '/site/site.css', 'body{}');
+    file_put_contents($this->directory . '/site/site.js', 'true;');
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    $path = $this->directory . '/' . $relativePath;
+    file_put_contents($path, "\xFF");
+
+    expect(fn(): PublicationResources => new Publisher(engineRoot: $this->directory)->validatedResources($this->directory, $config))
+        ->toThrow(ContentException::class, "Publication asset '{$path}' must be readable UTF-8 text.");
+})->with([
+    'favicon' => 'site/favicon.svg',
+    'theme CSS' => 'resources/theme.css',
+    'theme JavaScript' => 'resources/theme.js',
+    'site CSS' => 'site/site.css',
+    'site JavaScript' => 'site/site.js',
+])->with(['readable' => false, 'minified' => true]);
+
+it('accepts the exact source asset limit before minification and rejects the next byte', function (bool $minify, bool $overLimit): void {
+    $this->content();
+    $this->resources();
+    $this->site(['build' => ['minify' => $minify]]);
+    file_put_contents($this->directory . '/resources/theme.css', $overLimit ? "body{}\n" : 'body{}');
+    file_put_contents($this->directory . '/resources/theme.js', 'true;');
+    file_put_contents($this->directory . '/site/favicon.svg', '<svg/>');
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    $load = fn(): PublicationResources => new Publisher(engineRoot: $this->directory)->validatedResources(
+        $this->directory,
+        $config,
+        new Limits(assetBytes: 6),
+    );
+
+    if ($overLimit) {
+        expect($load)->toThrow(ContentException::class, "resources/theme.css' exceeds the 6-byte asset limit.");
+
+        return;
+    }
+
+    expect($load()->assets->themeStylesheet->contents)->toBe('body{}');
+})->with(['readable' => false, 'minified' => true])->with(['exact limit' => false, 'one byte over' => true]);
+
+it('reuses a complete validated resource snapshot without reopening its sources', function (): void {
+    $this->content();
+    $this->resources();
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    $publisher = new Publisher(engineRoot: $this->directory);
+    $resources = $publisher->validatedResources($this->directory, $config);
+    unlink($this->directory . '/resources/templates/layout.html');
+    unlink($this->directory . '/resources/theme.css');
+    unlink($this->directory . '/resources/theme.js');
+
+    $publisher->publish($this->directory, $config, $this->catalog(), templates: $resources->templates, assets: $resources->assets);
+
+    expect(file_get_contents($this->directory . '/public/index.html'))->toContain('Generated and published with');
+    foreach ($resources->assets->all() as $asset) {
+        expect(file_get_contents($this->directory . '/public' . $asset->publishedPath))->toBe($asset->contents);
+    }
 });
 
 it('keeps each caller-supplied publication resource when loading its missing peer', function (string $supplied): void {
@@ -394,4 +456,50 @@ it('exposes the complete publication inventory as one exact ordered snapshot', f
         ->and($inventory->contains('/tags/café/'))->toBeTrue()
         ->and($inventory->contains('/tags/caf%C3%A9/'))->toBeTrue()
         ->and($inventory->contains('/missing/'))->toBeFalse();
+});
+
+it('keeps script source ceilings and the previous publication when preparation fails', function (string $failure): void {
+    $this->content();
+    $this->resources();
+    $this->site(['build' => ['minify' => true]]);
+    file_put_contents($this->directory . '/resources/theme.css', 'x');
+    file_put_contents($this->directory . '/resources/theme.js', 'x');
+    file_put_contents($this->directory . '/site/favicon.svg', '<svg/>');
+    file_put_contents($this->directory . '/site/site.js', 'x');
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    $publisher = new Publisher(engineRoot: $this->directory);
+    $publisher->publish($this->directory, $config, $this->catalog());
+
+    $original = file_get_contents($this->directory . '/public/index.html');
+    file_put_contents($this->directory . '/site/site.js', str_repeat(' ', 40));
+    $limits = match ($failure) {
+        'source' => new Limits(assetBytes: 39),
+        'retained' => new Limits(retainedEntryAssetBytes: 41),
+        default => new Limits(),
+    };
+    if ($failure === 'read') {
+        PublisherFaults::set('publishing_file_get_contents', ['pass', 'fail']);
+    }
+
+    expect(fn(): BuildReport => $publisher->publish($this->directory, $config, $this->catalog(), $limits))
+        ->toThrow(ContentException::class, match ($failure) {
+            'source' => "site/site.js' exceeds the 39-byte asset limit",
+            'retained' => 'retained-entry-asset ceiling',
+            default => 'Unable to read publication asset',
+        })
+        ->and(file_get_contents($this->directory . '/public/index.html'))->toBe($original)
+        ->and(glob($this->directory . '/.snippet-build-*'))->toBe([]);
+})->with(['source', 'retained', 'read']);
+
+it('publishes uncertain scripts unchanged with their original fingerprint', function (): void {
+    $this->content();
+    $this->resources();
+    $this->site(['build' => ['minify' => true]]);
+    $script = 'const   ratio = value / 2;';
+    file_put_contents($this->directory . '/site/site.js', $script);
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    $publisher = new Publisher(engineRoot: $this->directory);
+    $publisher->publish($this->directory, $config, $this->catalog());
+
+    expect(file_get_contents($this->directory . '/public/assets/site.' . hash('xxh3', $script) . '.js'))->toBe($script);
 });

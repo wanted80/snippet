@@ -9,24 +9,6 @@ use Snippet\Site\ConfigLoader;
 
 mutates(CatalogLoader::class);
 
-/**
- * Run an operation without PHPUnit converting its intentionally suppressed
- * filesystem warning into a test warning.
- *
- * @template T
- * @param Closure():T $operation
- * @return T
- */
-function withoutFilesystemErrorHandler(Closure $operation): mixed
-{
-    set_error_handler(null);
-    try {
-        return $operation();
-    } finally {
-        restore_error_handler();
-    }
-}
-
 it('rejects unreadable content assets during validation without changing the publication', function (string $command): void {
     $path = $this->item('post', ['title' => 'Post', 'description' => 'D'], '[Notes](notes.txt)');
     file_put_contents($path . '/notes.txt', 'Notes.');
