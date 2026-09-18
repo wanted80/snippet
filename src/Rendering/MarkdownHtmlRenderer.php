@@ -18,7 +18,7 @@ use Snippet\Markdown\Text;
 use Snippet\Markdown\ThematicBreak;
 
 /** Serializes a validated Markdown document to escaped HTML. */
-final class MarkdownHtmlRenderer
+final readonly class MarkdownHtmlRenderer
 {
     /**
      * Render a validated document with escaped text and context-aware relative links.

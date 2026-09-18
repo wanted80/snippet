@@ -20,7 +20,7 @@ use function preg_replace;
 use function strcspn;
 
 /** Parses the supported Markdown subset into compact source-backed node arenas. */
-final class Parser
+final readonly class Parser
 {
     /**
      * Parse an article while retaining its path for actionable syntax errors.

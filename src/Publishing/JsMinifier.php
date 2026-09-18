@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Snippet\Publishing;
 
+use NoDiscard;
+
 /** Conservative byte scanner; uncertain lexical syntax leaves the entire asset unchanged. */
-final class JsMinifier
+final readonly class JsMinifier
 {
     /**
      * Collapse horizontal whitespace and remove ordinary comments, preserving all
@@ -13,6 +15,7 @@ final class JsMinifier
      * Repeated passes preserve the same bytes. Work is linear and temporary
      * storage is proportional to the input size.
      */
+    #[NoDiscard('the minified JavaScript should be written or otherwise consumed')]
     public function minify(string $source): string
     {
         $length = mb_strlen($source, '8bit');
