@@ -4,16 +4,16 @@
 
 # Snippet
 
-Snippet is a small, dependency-free PHP 8.5+ publishing system for one author. It turns self-contained Markdown content directories into a completely static website. This repository contains the generator and its canonical defaults; the public example site lives separately under `demo/`.
+Snippet is a small PHP 8.5+ publishing system for one author. Its publishing engine has no third-party runtime packages: it uses PHP and its required extensions to turn self-contained Markdown content directories into a completely static website. This repository contains the generator and its canonical defaults; the public example site lives separately under `demo/`.
 
 Snippet provides:
 
-- strict configuration, metadata, content, asset, and template validation;
-- deterministic article, page, tag, and index routes;
-- transactional publication that preserves the last valid `public/` on failure;
-- a live-reloading local preview;
-- semantic HTML, customizable plain CSS, and light/dark themes; and
-- no third-party runtime PHP packages.
+- strict configuration, metadata, content, asset, and template validation.
+- deterministic article, page, tag, and index routes.
+- transactional publication that preserves the last valid `public/` on failure.
+- a live-reloading local preview.
+- semantic HTML, customizable plain CSS, and light/dark themes.
+- the publishing runtime uses no third-party packages. Development tooling is kept separate.
 
 ## Why I created Snippet
 
@@ -22,6 +22,12 @@ I created Snippet because I wanted a publishing system that met my own needs wit
 I have been working with AI for more than a year, and I believe now is the perfect time to use it as a partner. It makes it possible to build things that were previously out of reach outside our professional work—not because the ideas were missing, but because there was never enough time or more than two hands to do everything. It is also a great time to create more open-source projects driven by our own ideas and needs.
 
 I mainly used GPT 5.6 Sol with medium and xhigh reasoning, and GPT 5.6 Luna with high and xhigh reasoning for smaller tasks. Sometimes I also used subchats in Codex, asking Luna to work within Sol's session and vice versa.
+
+## Runtime and development dependencies
+
+The publishing engine runs on PHP 8.5+ and the required PHP extensions listed in `composer.json`. Its application code uses the PHP standard library and does not require third-party packages at runtime. A generated site is static and needs neither PHP nor Composer when it is hosted.
+
+Composer is project infrastructure. It provides the PHP platform requirement, the PSR-4 autoloader, and the project scripts. Packages listed under `require-dev` are used only to develop and verify Snippet: they cover testing, code coverage, formatting, refactoring, static analysis, mutation testing, and browser checks. They are not dependencies of the generated site or of the publishing engine's runtime behavior.
 
 ## Quick start
 
@@ -250,14 +256,14 @@ Assets placed beside `page.md` or `article.md` are copied beside that item's gen
 
 The supported Markdown subset is:
 
-- paragraphs separated by blank lines;
-- level 1–3 ATX headings, with the first authored heading at level one and no skipped levels;
-- unordered lists using `-` or `*`;
-- ordered lists using numeric markers such as `1.`;
-- fenced code blocks using triple backticks, with an optional language;
-- inline code;
-- emphasis, strong emphasis, and strikethrough;
-- links with safe HTTP(S), root-relative, or relative targets; and
+- paragraphs separated by blank lines.
+- level 1–3 ATX headings, with the first authored heading at level one and no skipped levels.
+- unordered lists using `-` or `*`.
+- ordered lists using numeric markers such as `1.`.
+- fenced code blocks using triple backticks, with an optional language.
+- inline code.
+- emphasis, strong emphasis, and strikethrough.
+- links with safe HTTP(S), root-relative, or relative targets.
 - thematic breaks.
 
 Raw HTML, images, tables, nested lists, HTML-style attributes, and arbitrary extensions are not supported. Link labels must not be blank. Text, labels, URLs, and code are escaped so authored content cannot become executable markup.
@@ -425,13 +431,13 @@ Once the new site has replaced `public/`, an error removing the previous publica
 
 The generated routes are:
 
-- `/index.html`, containing the homepage;
-- `/404.html`, containing the shared-layout not-found document used by compatible static hosts;
-- `/articles/index.html`, `/pages/index.html`, and `/tags/index.html`;
-- `/articles/<slug>/index.html` for each article;
-- `/<slug>/index.html` for each page;
-- `/tags/<tag-slug>/index.html` for each tag;
-- `/llms.txt`, containing the metadata-only language-model index; and
+- `/index.html`, containing the homepage.
+- `/404.html`, containing the shared-layout not-found document used by compatible static hosts.
+- `/articles/index.html`, `/pages/index.html`, and `/tags/index.html`.
+- `/articles/<slug>/index.html` for each article.
+- `/<slug>/index.html` for each page.
+- `/tags/<tag-slug>/index.html` for each tag.
+- `/llms.txt`, containing the metadata-only language-model index.
 - generated and copied assets beneath `/assets/` or beside their content item.
 
 `/llms.txt` has this exact shape, with each collection heading and its list omitted when that collection is empty:
@@ -458,7 +464,7 @@ Articles are ordered by date descending and then slug ascending. Pages are order
 
 Markdown inline, list-item, and link traversals, together with preview filesystem fingerprint records, are exposed internally as fresh, forward-only generators. This reduces transient allocations for one-pass consumers. The validated catalog remains materialized because ordering, complete route inventory, tag aggregation, reference validation, and snapshot-safe transactional publication all require one shared complete snapshot; generators do not replace it.
 
-Runtime code uses only PHP's standard library. Composer supplies the PHP platform requirement, PSR-4 autoloading, project scripts, and approved development-only quality tools. The selected static host owns upload configuration, public HTTPS, and certificates; only the generated `public/` directory is deployable. This repository deploys the demo to GitHub Pages after the Quality workflow succeeds for a push to `main`. The Pages workflow checks out that exact tested commit and builds the demo with the production builder image. Pull requests and manual quality runs do not deploy. Stable releases separately publish the versioned builder image; generated output remains ignored, and no publication branch is used.
+The publishing runtime uses PHP's standard library and required extensions, with no third-party PHP packages. Composer supplies project infrastructure and development tooling: the PHP platform requirement, PSR-4 autoloading, project scripts, and approved quality tools. The selected static host owns upload configuration, public HTTPS, and certificates; only the generated `public/` directory is deployable. This repository deploys the demo to GitHub Pages after the Quality workflow succeeds for a push to `main`. The Pages workflow checks out that exact tested commit and builds the demo with the production builder image. Pull requests and manual quality runs do not deploy. Stable releases separately publish the versioned builder image; generated output remains ignored, and no publication branch is used.
 
 The root-level `/404.html` uses the same layout, navigation, theme, optional site assets, configured deployment path, and minification policy as every other document. GitHub Pages and static hosts with the same convention serve it for missing routes with a 404 response. Snippet preview mirrors that behavior beneath the configured deployment path and still injects live reload only into the served response.
 
@@ -489,7 +495,8 @@ Composer and npm lock files pin development tooling. Only the Docker development
 stage installs Node dependencies, Chromium, and browser system libraries. npm
 modules live in an isolated `/app/node_modules` volume, and the browser cache is
 readable by the development user. Production and release-builder stages remain
-browser-free. No runtime dependency or publishing-engine capability is added.
+browser-free. These tools do not become runtime dependencies or add publishing
+capabilities.
 
 The test harness uses direct Pest `Webpage` assertions to avoid the plugin's
 automatic failure screenshots. It adapts the pinned browser plugin's process
@@ -509,6 +516,6 @@ Snippet follows Semantic Versioning. Pull requests are squash-merged with conven
 - [`demo/`](demo/) for the public example site's content and configuration override
 - [`site/`](site/) for generic initialized-site configuration, fonts, and assets
 - [`resources/`](resources/) for builder-owned templates, theme assets, and preview support
-- [`src/`](src/) for the dependency-free builder
+- [`src/`](src/) for the publishing engine
 
 Snippet source is available under the [MIT License](LICENSE). The bundled Atkinson Hyperlegible Next font files retain their separate [SIL Open Font License 1.1](site/assets/fonts/atkinson-hyperlegible-next/OFL.txt).
