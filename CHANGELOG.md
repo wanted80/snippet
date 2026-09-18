@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.1](https://github.com/wanted80/snippet/compare/v3.3.0...v3.3.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* enforce PHP declaration and architecture conventions ([#50](https://github.com/wanted80/snippet/issues/50)) ([36aefe4](https://github.com/wanted80/snippet/commit/36aefe463457417c87fd15fcccd3fd3b8fd63e2a))
+
 ## [3.3.0](https://github.com/wanted80/snippet/compare/v3.2.0...v3.3.0) (2026-09-17)
 
 
