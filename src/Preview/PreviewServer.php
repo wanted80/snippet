@@ -6,6 +6,7 @@ namespace Snippet\Preview;
 
 use Closure;
 use Generator;
+use Override;
 use Snippet\Cli\ErrorReporter;
 use Snippet\Exception\ContentException;
 use Snippet\Publishing\PublicationInputLoader;
@@ -53,6 +54,7 @@ final class PreviewServer implements Previewer
         $this->publicationInputLoader = $publicationInputLoader ?? new PublicationInputLoader(publisher: $this->publisher);
     }
 
+    #[Override]
     public function run(
         string $root,
         SplFileObject $stdout,

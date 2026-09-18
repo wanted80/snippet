@@ -58,19 +58,10 @@ snippet/
 
 ## Composer policy
 
-Composer is allowed only as project infrastructure. Runtime dependencies remain forbidden.
-
-Allowed:
-- PHP platform requirement
-- PSR-4 autoloading
-- project scripts
-- the development packages already approved in `composer.json`
-
-Forbidden:
-- third-party runtime packages
-- framework packages
-
-Every external package requires an explicit architectural decision recorded in the repository before it is added.
+Composer is project infrastructure only. Architecture tests restrict runtime
+requirements to PHP and extensions; approved development tools are listed in
+`composer.json`. Every new external package requires an explicit architectural
+decision recorded in the repository before it is added.
 
 ## Runtime and commands
 
@@ -162,48 +153,18 @@ page -> /<slug>/
 
 ## PHP style
 
-Use:
+Mechanical rules live in `tests/Feature/ArchitectureTest.php`,
+`tests/Feature/PresetsTest.php`, `pint.json`, `rector.php`, and `phpstan.neon`.
+They enforce declaration conventions, dependency boundaries, prohibited syntax,
+and code style. Read these before changing PHP; keep justified declaration
+exceptions documented beside their architecture expectations.
 
-- strict types
-- readonly where useful
-- enums when appropriate
-- typed properties
-- explicit return types
-- match where clearer
-
-### Modern PHP features
-
-The project targets PHP 8.5+ and should use the best applicable features from
-the latest PHP versions. Before adding custom machinery, review whether the
-language or standard library now expresses the same behavior more clearly,
-safely, or precisely.
-
-Prefer, when they fit the domain:
-
-- enums for finite value sets;
-- readonly classes and properties for immutable validated data;
-- constructor property promotion and asymmetric visibility for intentional
-  ownership and mutation boundaries;
-- property hooks for derived or guarded property behavior when they make an
-  invariant clearer than ordinary methods;
-- union, intersection, DNF, `never`, `static`, and standalone `true`, `false`,
-  or `null` types where they make invalid states harder to represent;
-- typed class constants for stable, class-owned configuration and invariants;
-- `#[\Override]`, `#[\NoDiscard]`, `#[\SensitiveParameter]`, and other built-in
-  attributes when they enforce a real API contract;
-- first-class callables, closures in constant expressions, `match`, null-safe
-  access, and named arguments when they improve reading order or remove
-  incidental state;
-- clone-with for purposeful immutable copy operations; and
-- current standard-library APIs such as `array_all()`, `array_any()`,
-  `array_find()`, `array_first()`, `array_last()`, and `mb_trim()` instead of
-  hand-written equivalents.
-
-Never use PHP's Pipe Operator. Do not introduce a feature merely to demonstrate
-that it exists. Property hooks, asymmetric setters, clone-with, lazy objects,
-fibers, and advanced type forms should solve a concrete problem in the code at
-hand. Prefer the simplest modern construct that makes the contract more obvious
-to a reader.
+Use the simplest modern PHP 8.5+ construct that makes the contract clear.
+Prefer standard-library functionality over custom machinery. Choose enums,
+property hooks, asymmetric visibility, and other language features when they
+solve a concrete problem, not merely to demonstrate them. Mutable classes should
+keep fixed dependencies readonly. Use `#[\NoDiscard]` with an explanatory message
+when discarding the result defeats the operation; that decision needs judgment.
 
 ### PHPDoc
 

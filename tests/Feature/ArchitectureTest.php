@@ -4,8 +4,121 @@ declare(strict_types=1);
 
 use Snippet\Application;
 use Snippet\Cli\Command;
+use Snippet\Content\CatalogBudget;
+use Snippet\Exception\ContentException;
+use Snippet\Markdown\InlineBuilder;
 use Snippet\Markdown\InlineSearch;
+use Snippet\Preview\PreviewServer;
+use Snippet\Publishing\BuildBudget;
+use Snippet\Publishing\BuildReport;
+use Snippet\Publishing\CssMinifier;
+use Snippet\Publishing\JsMinifier;
 use Snippet\Rendering\OpenGraphType;
+use Snippet\Support\ApplicationVersion;
+use Snippet\Support\TrustedPhpLoader;
+
+arch('keeps data and services readonly unless their contract requires an exception')
+    ->expect('Snippet')
+    ->classes()
+    ->toBeReadonly()
+    ->ignoring([
+        CatalogBudget::class, // Accumulates retained content costs.
+        BuildBudget::class, // Accumulates publication costs.
+        InlineBuilder::class, // Appends nodes during parsing.
+        InlineSearch::class, // Caches per-document lookahead.
+        PreviewServer::class, // Updates watched-file fingerprints.
+        CssMinifier::class, // Maintains streaming scanner buffers.
+        TrustedPhpLoader::class, // Advances a literal-array token cursor.
+        BuildReport::class, // Exposes a derived property hook; backed fields are readonly.
+        ContentException::class, // Inherits mutable internal exception state.
+        ApplicationVersion::class, // Contains only the release-managed constant.
+    ]);
+
+it('marks declared interface implementations and overridden methods with Override', function (ReflectionMethod $method): void {
+    expect($method->getAttributes(Override::class))->toHaveCount(1);
+})->with(function (): Generator {
+    $root = dirname(__DIR__, 2) . '/src/';
+    $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+    foreach ($files as $file) {
+        assert($file instanceof SplFileInfo);
+        if ($file->getExtension() !== 'php') {
+            continue;
+        }
+
+        $relative = mb_substr($file->getPathname(), mb_strlen($root), -4);
+        $class = 'Snippet\\' . str_replace('/', '\\', $relative);
+        if (!class_exists($class)) {
+            continue;
+        }
+
+        foreach (new ReflectionClass($class)->getMethods() as $method) {
+            if ($method->getDeclaringClass()->getName() !== $class || !$method->isUserDefined() || $method->isConstructor() || !$method->hasPrototype()) {
+                continue;
+            }
+
+            yield $class . '::' . $method->getName() => [$method];
+        }
+    }
+});
+
+it('keeps fixed state readonly in mutable workers and the hooked build report', function (string $class, array $mutable): void {
+    assert(class_exists($class));
+    foreach (new ReflectionClass($class)->getProperties() as $property) {
+        if ($property->isVirtual() || in_array($property->getName(), $mutable, true)) {
+            continue;
+        }
+
+        expect($property->isReadOnly())->toBeTrue($class . '::$' . $property->getName() . ' must be readonly');
+    }
+})->with([
+    'content budget' => [CatalogBudget::class, ['assetBytes', 'assets', 'markdownBytes', 'nodes']],
+    'build budget' => [BuildBudget::class, ['bytes', 'pageBytes', 'documents', 'assets']],
+    'inline search' => [InlineSearch::class, ['matches']],
+    'preview' => [PreviewServer::class, ['watchedFiles']],
+    'build report' => [BuildReport::class, []],
+]);
+
+it('limits Composer runtime requirements to PHP and extensions', function (): void {
+    $source = file_get_contents(dirname(__DIR__, 2) . '/composer.json');
+    assert(is_string($source));
+    $composer = json_decode($source, associative: true, flags: JSON_THROW_ON_ERROR);
+    assert(is_array($composer) && is_array($composer['require']));
+
+    expect($composer['require'])->toHaveKey('php');
+    foreach (array_keys($composer['require']) as $package) {
+        expect($package === 'php' || str_starts_with($package, 'ext-'))->toBeTrue('Unexpected runtime requirement: ' . $package);
+    }
+});
+
+it('excludes pipe expressions from first-party PHP files and entry points', function (): void {
+    $root = dirname(__DIR__, 2);
+    $directory = new RecursiveCallbackFilterIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+        static fn(SplFileInfo $file): bool => !$file->isLink()
+            && !str_starts_with($file->getFilename(), '.')
+            && !in_array($file->getFilename(), ['vendor', 'node_modules', 'public'], true),
+    );
+    foreach (new RecursiveIteratorIterator($directory) as $file) {
+        assert($file instanceof SplFileInfo);
+        if ($file->getExtension() !== 'php' && !in_array($file->getPathname(), [$root . '/bin/snippet', $root . '/docker/builder/entrypoint.sh'], true)) {
+            continue;
+        }
+
+        $source = file_get_contents($file->getPathname());
+        assert(is_string($source));
+        $pipes = array_filter(PhpToken::tokenize($source), static fn(PhpToken $token): bool => $token->id === T_PIPE);
+        expect($pipes)->toBeEmpty('Pipe expressions are forbidden in ' . $file->getPathname());
+    }
+});
+
+it('requires JavaScript minification results to be consumed', function (): void {
+    $method = new ReflectionMethod(JsMinifier::class, 'minify');
+    $attributes = $method->getAttributes(NoDiscard::class);
+
+    expect($attributes)->toHaveCount(1)
+        ->and($attributes[0]->newInstance()->message)
+        ->toBe('the minified JavaScript should be written or otherwise consumed');
+});
 
 arch('models CLI commands and emitted Open Graph types as closed value sets')
     ->expect([Command::class, OpenGraphType::class])
