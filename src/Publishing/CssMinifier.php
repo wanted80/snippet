@@ -34,7 +34,7 @@ final class CssMinifier
 
     private int $outputBytes = 0;
 
-    private ?string $lastOutputByte = null;
+    private bool $lastOutputWasSeparator = false;
 
     private bool $pendingWhitespace = false;
 
@@ -130,7 +130,7 @@ final class CssMinifier
                 $this->delimiters = mb_substr($this->delimiters, 0, -1, '8bit');
             }
 
-            $this->emitByte($byte);
+            $this->emitByte($byte, $this->isSeparator($byte));
         }
 
         if ($slash) {
@@ -248,19 +248,20 @@ final class CssMinifier
             return;
         }
 
-        if (!$this->isSeparator($current) && ($this->lastOutputByte === null || !$this->isSeparator($this->lastOutputByte))) {
+        if (!$this->isSeparator($current) && !$this->lastOutputWasSeparator) {
             $this->emitByte(' ');
         }
 
         $this->pendingWhitespace = false;
     }
 
-    private function emitByte(string $byte): void
+    /** Only unescaped punctuation outside strings and comments separates CSS syntax. */
+    private function emitByte(string $byte, bool $separator = false): void
     {
         $this->outputBuffer .= $byte;
         ++$this->outputBufferBytes;
         ++$this->outputBytes;
-        $this->lastOutputByte = $byte;
+        $this->lastOutputWasSeparator = $separator;
         if ($this->outputBufferBytes >= self::BUFFER_BYTES) {
             $this->flush();
         }
@@ -349,7 +350,7 @@ final class CssMinifier
         $this->outputBuffer = '';
         $this->outputBufferBytes = 0;
         $this->outputBytes = 0;
-        $this->lastOutputByte = null;
+        $this->lastOutputWasSeparator = false;
         $this->pendingWhitespace = false;
         $this->delimiters = '';
     }

@@ -75,7 +75,7 @@ it('renders deterministic pages navigation, directory order, CSP, and extended M
         ->toContain('<s>old</s>', '<hr>', 'Content-Security-Policy')
         ->toContain('<a class="menu-link" href="/alpha/">Zulu</a>')
         ->toContain('<a class="menu-link" href="/zulu/" aria-current="page">Alpha</a>')
-        ->toContain('<a class="menu-link" href="/llms.txt">llms.txt</a>')
+        ->toContain('<a href="/llms.txt">llms.txt</a>')
         ->toMatch('~>Articles</a>[\s\S]*>Tags</a>[\s\S]*>Pages</a>[\s\S]*>Zulu</a>[\s\S]*>Alpha</a>[\s\S]*>llms\.txt</a>~')
         ->and($directory)->toBeString()
         ->toContain('<a href="/zulu/">Alpha</a>', '<a href="/alpha/">Zulu</a>', '<a class="menu-link" href="/pages/" aria-current="page">Pages</a>')
@@ -212,6 +212,7 @@ it('allows placeholders in ordinary text and quoted attributes containing equals
         'sitename' => 'Brand',
         'navigation' => '',
         'body' => 'Body',
+        'profiles' => '',
     ]);
 
     expect($rendered)->toContain('lang="locale=en"', 'example=Body')

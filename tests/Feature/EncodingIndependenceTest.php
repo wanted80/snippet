@@ -17,7 +17,7 @@ it('validates and publishes identical UTF-8 inputs without changing the process 
         'alt' => str_repeat('界', 320),
     ], "# 日本語\n\nCafé **中文** and [this article](https://example.test/publication/articles/nihongo/).\n");
     $this->image($path . '/cover.webp');
-    $this->site(['title' => '日本語', 'url' => 'https://example.test/publication', 'build' => ['minify' => true]]);
+    $this->site(['title' => '日本語', 'url' => 'https://example.test/publication']);
     file_put_contents($this->directory . '/site/site.js', 'document.documentElement.dataset.custom = "日本語";');
 
     $build = function (): array {

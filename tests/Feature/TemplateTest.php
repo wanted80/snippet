@@ -16,7 +16,7 @@ it('defines the consolidated thirteen-template interface', function (): void {
     }
 
     expect($contracts)->toBe([
-        'layout.html' => ['language', 'description', 'author', 'version', 'title', 'canonical', 'social_metadata', 'base_path', 'preloads', 'theme_script', 'theme_stylesheet', 'site_stylesheet', 'site_script', 'sitename', 'navigation', 'body'],
+        'layout.html' => ['language', 'description', 'author', 'version', 'title', 'canonical', 'social_metadata', 'base_path', 'preloads', 'theme_script', 'theme_stylesheet', 'site_stylesheet', 'site_script', 'sitename', 'navigation', 'body', 'profiles'],
         'home.html' => ['site_title', 'featured_article', 'archive_section', 'tag_section', 'empty_state', 'home_grid_class'],
         'featured-article.html' => ['url', 'title', 'date', 'tags', 'figure', 'document'],
         'article-figure.html' => ['url', 'alt', 'width', 'height'],
@@ -82,6 +82,7 @@ it('keeps the default layout self-contained and loads only local stylesheets', f
         'site_script' => '',
         'sitename' => 'Brand',
         'navigation' => '',
+        'profiles' => '',
         'body' => '',
     ]);
 
@@ -92,8 +93,8 @@ it('keeps the default layout self-contained and loads only local stylesheets', f
         '<link rel="stylesheet" href="/assets/theme.1234567890abcdef.css">',
         '<p class="site-footer-row">',
         '<span>Generated and published with</span>',
-        '<span class="site-footer-heart" aria-hidden="true">♥</span>',
-        '<a href="https://github.com/wanted80/snippet"><svg class="site-footer-github" viewBox="0 0 24 24" aria-hidden="true" focusable="false">',
+        '<svg class="site-footer-heart" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 21 3.4 12.5a5.5 5.5 0 0 1 7.8-7.8l.8.8.8-.8a5.5 5.5 0 0 1 7.8 7.8Z"/></svg>',
+        '<a href="https://github.com/wanted80/snippet"><span>Snippet</span></a>',
         '<span>Snippet</span></a>',
         "style-src 'self'",
         "font-src 'self'",

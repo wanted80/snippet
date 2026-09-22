@@ -12,7 +12,6 @@ use Snippet\Preview\PreviewServer;
 use Snippet\Publishing\BuildBudget;
 use Snippet\Publishing\BuildReport;
 use Snippet\Publishing\CssMinifier;
-use Snippet\Publishing\JsMinifier;
 use Snippet\Rendering\OpenGraphType;
 use Snippet\Support\ApplicationVersion;
 use Snippet\Support\TrustedPhpLoader;
@@ -109,15 +108,6 @@ it('excludes pipe expressions from first-party PHP files and entry points', func
         $pipes = array_filter(PhpToken::tokenize($source), static fn(PhpToken $token): bool => $token->id === T_PIPE);
         expect($pipes)->toBeEmpty('Pipe expressions are forbidden in ' . $file->getPathname());
     }
-});
-
-it('requires JavaScript minification results to be consumed', function (): void {
-    $method = new ReflectionMethod(JsMinifier::class, 'minify');
-    $attributes = $method->getAttributes(NoDiscard::class);
-
-    expect($attributes)->toHaveCount(1)
-        ->and($attributes[0]->newInstance()->message)
-        ->toBe('the minified JavaScript should be written or otherwise consumed');
 });
 
 arch('models CLI commands and emitted Open Graph types as closed value sets')

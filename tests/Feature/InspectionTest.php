@@ -27,12 +27,16 @@ it('exposes exactly the documented theme tokens hooks and layers with canonical 
     $colors = $defaults['colors'];
     $fonts = $defaults['fonts'];
     $sizing = $defaults['sizing'];
+    assert(is_array($defaults['effects']));
     assert(is_array($colors) && is_array($fonts) && is_array($sizing));
     expect(array_keys($colors))->toBe(['--color-background', '--color-surface', '--color-interactive', '--color-text', '--color-muted', '--color-accent', '--color-border', '--color-header-background', '--color-navigation-background', '--color-header-button-background', '--color-navigation-item-background', '--color-on-accent'])
         ->and(array_keys($fonts))->toBe(['--font-reading', '--font-interface', '--font-wordmark', '--font-code'])
         ->and(array_keys($sizing))->toBe(['--measure-prose', '--measure-shell', '--space-1', '--space-2', '--space-3', '--space-4', '--space-5', '--space-6', '--space-section', '--radius-control', '--radius-panel'])
         ->and(array_keys($defaults))->toBe(['colors', 'fonts', 'sizing', 'effects'])
-        ->and($defaults['effects'])->toBe([
+        ->and(array_map(static function (mixed $value): string {
+            assert(is_string($value));
+            return preg_replace('/\s+/', ' ', $value) ?? $value;
+        }, $defaults['effects']))->toBe([
             '--opacity-header-background' => '82%',
             '--opacity-navigation-background' => '82%',
             '--shadow-header' => '0 0.25rem 0.9rem light-dark(rgb(0 0 0 / 10%), rgb(0 0 0 / 22%))',
@@ -42,7 +46,7 @@ it('exposes exactly the documented theme tokens hooks and layers with canonical 
         ->and($colors['--color-header-background'])->toBe('var(--color-surface)')
         ->and($colors['--color-on-accent'])->toBe('var(--color-background)')
         ->and($colors['--color-accent'])->toBe('light-dark(#8a3f2d, #9fc5ff)')
-        ->and($fonts['--font-reading'])->toBe('ui-serif, Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif')
+        ->and($fonts['--font-reading'])->toBe('ui-serif, charter, "Bitstream Charter", "Sitka Text", cambria, georgia, serif')
         ->and($sizing['--space-section'])->toBe('clamp(5rem, 12vw, 7rem)')
         ->and($result['class_hooks'])->toBe(['.site-header', '.site-brand', '.site-wordmark', '.site-navigation', '.site-main', '.article-list', '.article-figure', '.content-header', '.prose', '.tag-list', '.site-footer'])
         ->and($result['layers'])->toBe(['reset', 'tokens', 'base', 'layout', 'components', 'overrides'])
@@ -95,8 +99,8 @@ it('rejects incomplete duplicate and unsupported token declarations', function (
     ['--font-interface: system-ui, sans-serif;', '--font-interface: "Unclosed font;'],
     ['--font-interface: system-ui, sans-serif;', "--font-interface: \"Invalid\nfont\";"],
     ['--font-interface: system-ui, sans-serif;', "--font-interface: \"Invalid\rfont\";"],
-    ["--space-1: 0.35rem;\n        --space-2: 0.7rem;", '--space-1: calc(1rem; --space-2: 2rem);'],
-    ["--space-1: 0.35rem;\n        --space-2: 0.7rem;", '--space-1: "Font; --space-2: Name";'],
+    ["--space-1: 0.35rem;\n    --space-2: 0.7rem;", '--space-1: calc(1rem; --space-2: 2rem);'],
+    ["--space-1: 0.35rem;\n    --space-2: 0.7rem;", '--space-1: "Font; --space-2: Name";'],
     ['@layer tokens {', '@layer tokens { :root { --space-1: 1rem; } } @layer tokens {'],
     ['@layer tokens {', '@layer private {'],
     ['--space-1: 0.35rem;', '@media print { --space-1: 1rem; }'],
@@ -243,4 +247,10 @@ it('continues reading declarations after empty CSS statements', function (): voi
     assert(is_string($css));
     file_put_contents($path, str_replace('--space-1:', '; --space-1:', $css));
     expect(new Inspector($this->directory)->inspect('theme'))->toBe(new Inspector(dirname(__DIR__, 2))->inspect('theme'));
+});
+
+
+it('rejects an unclosed installed stylesheet comment outside the tokens layer', function (): void {
+    expect(fn(): array => new ThemeContract()->defaults('/* unfinished'))
+        ->toThrow(ContentException::class, 'unclosed comment');
 });

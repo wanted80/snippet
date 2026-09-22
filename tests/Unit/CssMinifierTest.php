@@ -64,6 +64,7 @@ it('handles complete escape forms and end-of-input scanner states', function (st
     expect($output)->toBe($expected);
 })->with([
     'empty input' => ['', ''],
+    'leading whitespace before a token' => ["  \na { }", ' a{}'],
     'trailing slash' => ['a /', 'a /'],
     'slash between tokens' => ['a / b', 'a / b'],
     'non-hexadecimal escape' => ['.a\\g { }', '.a\\g{}'],
@@ -212,6 +213,27 @@ it('keeps comment contents intact until the actual closing pair', function (): v
 
     expect($output)->toBe('a/*/  b */ c');
 });
+
+it('preserves descendant combinators after escaped punctuation', function (string $selector): void {
+    [$output] = minifiedCss($selector . ' { color: red; }');
+
+    expect($output)->toBe($selector . '{color: red;}')
+        ->and(minifiedCss($output)[0])->toBe($output);
+})->with(['.foo\\, .bar', '.foo\\; .bar', '.foo\\{ .bar', '.foo\\} .bar', '.foo\\2c  .bar', '.foo\\  .bar']);
+
+it('preserves CSS value and selector boundaries inside modern rules', function (string $source, string $expected): void {
+    [$output] = minifiedCss($source);
+
+    expect($output)->toBe($expected)
+        ->and(minifiedCss($output)[0])->toBe($output);
+})->with([
+    'custom properties and calculations' => ['a { --gap:  2px; width: calc(100% - var(--gap, 1px)); }', 'a{--gap: 2px;width: calc(100% - var(--gap,1px));}'],
+    'quoted URL' => ['a { background: url("images/a  b,c.svg"); }', 'a{background: url("images/a  b,c.svg");}'],
+    'escaped URL punctuation' => ['a { background: url(images/a\\)b.svg); }', 'a{background: url(images/a\\)b.svg);}'],
+    'comment between identifiers' => ['a { --value: one/**/two; }', 'a{--value: one/**/two;}'],
+    'comment inside compound selector' => ['.a/**/.b { color: red; }', '.a/**/.b{color: red;}'],
+    'layers and range queries' => ['@layer overrides { @media (width <= 40rem) { .a > .b { color: red; } } }', '@layer overrides{@media (width <= 40rem){.a > .b{color: red;}}}'],
+]);
 
 it('is idempotent with output bounded by large input', function (): void {
     $rule = ".item, .other { width: calc(100% - 1rem); color: red; }\n";

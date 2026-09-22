@@ -405,12 +405,12 @@ Source paths beneath `resources/` refer to the installed builder, not the mounte
 
 | Source | Output | Behavior |
 | --- | --- | --- |
-| `resources/theme.css` | `/assets/theme.<xxh3>.css` | Required built-in theme; minified when configured, then fingerprinted from the published bytes. |
-| `resources/theme.js` | `/assets/theme.<xxh3>.js` | Required progressive enhancement; conservatively minified when configured, then fingerprinted. |
-| `site/site.css` | `/assets/site.<xxh3>.css` | Optional site CSS; loaded after the built-in theme, minified when configured, then fingerprinted from the published bytes. |
-| `site/site.js` | `/assets/site.<xxh3>.js` | Optional local script; conservatively minified when configured, fingerprinted, and loaded with `defer` after the built-in script. |
+| `resources/theme.css` | `/assets/theme.<xxh3>.css` | Required built-in theme; always conservatively minified, then fingerprinted from the published bytes. |
+| `resources/theme.js` | `/assets/theme.<xxh3>.js` | Required progressive enhancement; copied unchanged and fingerprinted. |
+| `site/site.css` | `/assets/site.<xxh3>.css` | Optional site CSS; loaded after the built-in theme, always conservatively minified, then fingerprinted from the published bytes. |
+| `site/site.js` | `/assets/site.<xxh3>.js` | Optional local script; copied unchanged, fingerprinted, and loaded with `defer` after the built-in script. |
 
-The `build.minify` setting controls HTML, CSS, and JavaScript minification in direct builds, Docker, and preview. JavaScript preserves line breaks, strings, escapes, and license/preservation comments; uncertain syntax leaves the entire file unchanged. See the [minification scope](README.md#site-customization) for details.
+CSS entry files are always compacted in direct builds, Docker, and preview. HTML is published as rendered and JavaScript is copied unchanged. There is no minification setting: remove the obsolete `build` entry from existing `site/config.php` files. See the [minification scope](README.md#site-customization) for details.
 
 Both optional site files must be regular non-symlink UTF-8 files within the asset-size ceiling. If one is absent, Snippet emits neither its output file nor its HTML tag. Place rules in `@layer overrides`; use documented variables and classes rather than depending on the theme’s exact HTML structure. Patch and minor releases preserve this CSS contract. Breaking changes require a major release.
 

@@ -6,12 +6,15 @@ namespace Snippet\Site;
 
 use Uri\Rfc3986\Uri;
 
-/** Validated site identity, presentation inventory, and build preferences. */
+/** Validated site identity, presentation inventory, and homepage collections. */
 final readonly class Config
 {
     public string $basePath;
 
-    /** @param list<string> $assets */
+    /**
+     * @param list<string> $assets
+     * @param list<array{label?: string, url: string, icon?: string}> $profiles
+     */
     public function __construct(
         public string $title,
         public string $sitename,
@@ -24,7 +27,7 @@ final readonly class Config
         public bool $hasSiteScript = false,
         public int $homeArticles = 10,
         public int $homeTags = 20,
-        public bool $minify = false,
+        public array $profiles = [],
     ) {
         $this->basePath = Uri::parse($url)?->getRawPath() ?? '';
     }

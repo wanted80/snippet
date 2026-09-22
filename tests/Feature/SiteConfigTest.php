@@ -5,11 +5,27 @@ declare(strict_types=1);
 use Snippet\Exception\ContentException;
 use Snippet\Site\Config;
 use Snippet\Site\ConfigLoader;
+use Snippet\Support\TrustedPhpLoader;
 
 function loadSiteConfig(string $directory): Config
 {
     return new ConfigLoader()->load($directory . '/site');
 }
+
+it('loads site configuration without a build option', function (): void {
+    $path = $this->directory . '/site/config.php';
+    $values = new TrustedPhpLoader()->load($path, 'site configuration');
+    unset($values['build']);
+    file_put_contents($path, "<?php\ndeclare(strict_types=1);\nreturn " . var_export($values, true) . ";\n");
+
+    expect(loadSiteConfig($this->directory)->title)->toBe('Test Site');
+});
+
+it('rejects the removed build minification option', function (bool $enabled): void {
+    $this->site(['build' => ['minify' => $enabled]]);
+
+    expect(fn(): Config => loadSiteConfig($this->directory))->toThrow(ContentException::class, 'exact fields');
+})->with([false, true]);
 
 it('loads exact document, wordmark, and author identities with optional presentation files', function (): void {
     mkdir($this->directory . '/site/assets/media', 0777, true);
@@ -57,7 +73,6 @@ return [
     'author' => 'Writer',
     'sitename' => 'Wordmark',
     'title' => 'Title',
-    'build' => ['minify' => true],
     'home' => ['articles' => 1, 'tags' => 2],
 ];
 PHP);
@@ -169,8 +184,8 @@ it('rejects invalid outer PHP configuration contracts', function (string $source
     ["<?php declare(strict_types=1); throw new RuntimeException('broken');", 'broken'],
     ["<?php declare(strict_types=1); return 'bad';", 'exact fields'],
     ["<?php declare(strict_types=1); return [0 => 'bad'];", 'exact fields'],
-    ["<?php declare(strict_types=1); return ['title' => 'Title', 'author' => 'Writer', 'description' => 'Description.', 'url' => 'https://example.test', 'language' => 'en', 'home' => ['articles' => 1, 'tags' => 1], 'build' => ['minify' => false]];", 'exact fields'],
-    ["<?php declare(strict_types=1); return ['title' => 'Title', 'sitename' => 'Wordmark', 'description' => 'Description.', 'url' => 'https://example.test', 'language' => 'en', 'home' => ['articles' => 1, 'tags' => 1], 'build' => ['minify' => false]];", 'exact fields'],
+    ["<?php declare(strict_types=1); return ['title' => 'Title', 'author' => 'Writer', 'description' => 'Description.', 'url' => 'https://example.test', 'language' => 'en', 'home' => ['articles' => 1, 'tags' => 1]];", 'exact fields'],
+    ["<?php declare(strict_types=1); return ['title' => 'Title', 'sitename' => 'Wordmark', 'description' => 'Description.', 'url' => 'https://example.test', 'language' => 'en', 'home' => ['articles' => 1, 'tags' => 1]];", 'exact fields'],
 ]);
 
 it('reports a missing configuration file', function (): void {
@@ -207,7 +222,7 @@ it('rejects invalid UTF-8 site customizations', function (string $file): void {
     loadSiteConfig($this->directory);
 })->throws(ContentException::class, 'UTF-8')->with(['site.css', 'site.js']);
 
-it('rejects invalid exact home and build configuration', function (array $overrides, string $message): void {
+it('rejects invalid exact home configuration', function (array $overrides, string $message): void {
     /** @var array<string, mixed> $overrides */
     $this->site($overrides);
     loadSiteConfig($this->directory);
@@ -217,8 +232,4 @@ it('rejects invalid exact home and build configuration', function (array $overri
     'non-array home' => [['home' => null], 'exact articles and tags'],
     'zero articles' => [['home' => ['articles' => 0, 'tags' => 1]], 'positive integers'],
     'boolean tags' => [['home' => ['articles' => 1, 'tags' => true]], 'positive integers'],
-    'missing build field' => [['build' => []], 'exact minify'],
-    'unknown build field' => [['build' => ['minify' => false, 'extra' => false]], 'exact minify'],
-    'non-array build' => [['build' => false], 'exact minify'],
-    'non-boolean minify' => [['build' => ['minify' => 0]], 'boolean'],
 ]);

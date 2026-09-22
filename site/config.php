@@ -13,7 +13,4 @@ return [
         'articles' => 10,
         'tags' => 21,
     ],
-    'build' => [
-        'minify' => false,
-    ],
 ];

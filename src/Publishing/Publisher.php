@@ -27,9 +27,7 @@ final readonly class Publisher
     /** @param string $engineRoot Trusted installation directory, independent of the author workspace. */
     public function __construct(
         private TemplateLoader $templateLoader = new TemplateLoader(),
-        private HtmlMinifier $htmlMinifier = new HtmlMinifier(),
         private CssMinifier $cssMinifier = new CssMinifier(),
-        private JsMinifier $jsMinifier = new JsMinifier(),
         private Utf8FileValidator $utf8FileValidator = new Utf8FileValidator(),
         private string $engineRoot = __DIR__ . '/../..',
     ) {}
@@ -45,15 +43,15 @@ final readonly class Publisher
         $limits ??= new Limits();
         $retainedAssetBytes = 0;
         $templates = $this->templateLoader->load($this->engineRoot . '/resources/templates', $limits);
-        $themeStylesheet = $this->stylesheet($this->engineRoot . '/resources/theme.css', '/assets/theme.css', $config->minify, $limits, $retainedAssetBytes);
-        $themeScript = $this->script($this->engineRoot . '/resources/theme.js', '/assets/theme.js', $config->minify, $limits, $retainedAssetBytes);
+        $themeStylesheet = $this->stylesheet($this->engineRoot . '/resources/theme.css', '/assets/theme.css', $limits, $retainedAssetBytes);
+        $themeScript = $this->script($this->engineRoot . '/resources/theme.js', '/assets/theme.js', $limits, $retainedAssetBytes);
         $this->validateAsset($root . '/site/favicon.svg', $limits, true);
 
         $siteStylesheet = $config->hasSiteStylesheet
-            ? $this->stylesheet($root . '/site/site.css', '/assets/site.css', $config->minify, $limits, $retainedAssetBytes)
+            ? $this->stylesheet($root . '/site/site.css', '/assets/site.css', $limits, $retainedAssetBytes)
             : null;
         $siteScript = $config->hasSiteScript
-            ? $this->script($root . '/site/site.js', '/assets/site.js', $config->minify, $limits, $retainedAssetBytes)
+            ? $this->script($root . '/site/site.js', '/assets/site.js', $limits, $retainedAssetBytes)
             : null;
 
         foreach ($config->assets as $asset) {
@@ -132,23 +130,23 @@ final readonly class Publisher
         ?string $previewVersion,
     ): void {
         $renderer = new HtmlRenderer($config, $catalog, $templates, $assets->paths);
-        $this->writeHtml($output . '/index.html', $renderer->home(), $config->minify, $budget);
-        $this->writeHtml($output . '/404.html', $renderer->notFound(), $config->minify, $budget);
+        $this->writeHtml($output . '/index.html', $renderer->home(), $budget);
+        $this->writeHtml($output . '/404.html', $renderer->notFound(), $budget);
 
-        $this->writeHtml($output . "/pages/index.html", $renderer->pages(), $config->minify, $budget);
-        $this->writeHtml($output . "/articles/index.html", $renderer->articles(), $config->minify, $budget);
-        $this->writeHtml($output . "/tags/index.html", $renderer->tags(), $config->minify, $budget);
+        $this->writeHtml($output . "/pages/index.html", $renderer->pages(), $budget);
+        $this->writeHtml($output . "/articles/index.html", $renderer->articles(), $budget);
+        $this->writeHtml($output . "/tags/index.html", $renderer->tags(), $budget);
 
         foreach ($catalog->articles as $article) {
-            $this->publishItem($root, $output, $renderer, $config, $article, $budget);
+            $this->publishItem($root, $output, $renderer, $article, $budget);
         }
 
         foreach ($catalog->pages as $page) {
-            $this->publishItem($root, $output, $renderer, $config, $page, $budget);
+            $this->publishItem($root, $output, $renderer, $page, $budget);
         }
 
         foreach ($catalog->tags() as $tag) {
-            $this->writeHtml($output . '/tags/' . $tag->slug . '/index.html', $renderer->tag($tag), $config->minify, $budget);
+            $this->writeHtml($output . '/tags/' . $tag->slug . '/index.html', $renderer->tag($tag), $budget);
         }
 
         $this->writeLlms($output . '/llms.txt', new LlmsTxtRenderer($config, $catalog), $budget);
@@ -174,7 +172,6 @@ final readonly class Publisher
         string $root,
         string $output,
         HtmlRenderer $renderer,
-        Config $config,
         Article|Page $item,
         BuildBudget $budget,
     ): void {
@@ -185,7 +182,7 @@ final readonly class Publisher
             $sourceDirectory .= '/' . str_replace('-', '/', $item->date);
         }
         $sourceDirectory .= '/' . $item->slug;
-        $this->writeHtml($directory . 'index.html', $renderer->content($item), $config->minify, $budget);
+        $this->writeHtml($directory . 'index.html', $renderer->content($item), $budget);
         foreach ($item->assets as $asset) {
             $this->copy($sourceDirectory . '/' . $asset->path, $directory . $asset->path, $budget);
         }
@@ -217,9 +214,8 @@ final readonly class Publisher
         throw new ContentException("Unable to promote the new site to '{$public}'; the existing publication was preserved.");
     }
 
-    private function writeHtml(string $path, string $contents, bool $minify, BuildBudget $budget): void
+    private function writeHtml(string $path, string $contents, BuildBudget $budget): void
     {
-        $contents = $minify ? $this->htmlMinifier->minify($contents) : $contents;
         $budget->addPage($contents, $path);
         $this->writeFile($path, $contents);
     }
@@ -260,12 +256,9 @@ final readonly class Publisher
         }
     }
 
-    private function stylesheet(string $source, string $logicalPath, bool $minify, Limits $limits, int &$retainedAssetBytes): PublicationAsset
+    private function stylesheet(string $source, string $logicalPath, Limits $limits, int &$retainedAssetBytes): PublicationAsset
     {
-        $sourceBytes = $this->validateAsset($source, $limits, true);
-        if (!$minify) {
-            return new PublicationAsset($logicalPath, $this->readAsset($source, $sourceBytes, $limits, $retainedAssetBytes));
-        }
+        $this->validateAsset($source, $limits, true);
 
         $input = @fopen($source, 'rb');
         if (!is_resource($input)) {
@@ -296,12 +289,12 @@ final readonly class Publisher
         return new PublicationAsset($logicalPath, $contents);
     }
 
-    private function script(string $source, string $logicalPath, bool $minify, Limits $limits, int &$retainedAssetBytes): PublicationAsset
+    private function script(string $source, string $logicalPath, Limits $limits, int &$retainedAssetBytes): PublicationAsset
     {
         $sourceBytes = $this->validateAsset($source, $limits, true);
         $contents = $this->readAsset($source, $sourceBytes, $limits, $retainedAssetBytes);
 
-        return new PublicationAsset($logicalPath, $minify ? $this->jsMinifier->minify($contents) : $contents);
+        return new PublicationAsset($logicalPath, $contents);
     }
 
     private function readAsset(string $source, int $bytes, Limits $limits, int &$retainedAssetBytes): string
