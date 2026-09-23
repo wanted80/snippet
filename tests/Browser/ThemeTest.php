@@ -40,7 +40,7 @@ it('supports navigation keyboard movement wrapping and escape focus restoration'
     $browser = new Webpage($page, $url);
     $browser->click('.menu-toggle');
 
-    $page->waitForFunction('document.querySelector(".menu-toggle").getAttribute("aria-label") === "Close navigation"');
+    $page->waitForSelector('.menu-link:focus');
     $browser->assertScript('document.activeElement === document.querySelector(".menu-link")');
     $browser->assertScript('document.querySelector(".menu-toggle").getAttribute("aria-label")', 'Close navigation');
 
@@ -52,7 +52,7 @@ it('supports navigation keyboard movement wrapping and escape focus restoration'
 
     $page->keyDown('Escape');
     $page->keyUp('Escape');
-    $page->waitForFunction('document.querySelector(".menu-toggle").getAttribute("aria-label") === "Open navigation"');
+    $page->waitForSelector('.menu-toggle[aria-label="Open navigation"]:focus');
 
     $browser->assertScript('document.querySelector(".site-navigation").matches(":popover-open")', false);
     $browser->assertScript('document.activeElement === document.querySelector(".menu-toggle")');
