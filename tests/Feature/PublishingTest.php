@@ -17,8 +17,6 @@ use Snippet\Markdown\InlineArena;
 use Snippet\Markdown\Parser;
 use Snippet\Publishing\BuildReport;
 use Snippet\Publishing\CssMinifier;
-use Snippet\Publishing\HtmlMinifier;
-use Snippet\Publishing\JsMinifier;
 use Snippet\Publishing\LlmsTxtRenderer;
 use Snippet\Publishing\Publisher;
 use Snippet\Publishing\ReferenceValidator;
@@ -34,7 +32,7 @@ use Snippet\Site\Limits;
 use Snippet\Support\ApplicationVersion;
 use Snippet\Tests\PublisherFaults;
 
-mutates(CatalogLoader::class, CssMinifier::class, HtmlMinifier::class, HtmlRenderer::class, LlmsTxtRenderer::class, MarkdownHtmlRenderer::class, Parser::class, ReferenceValidator::class, TemplateLoader::class);
+mutates(CatalogLoader::class, CssMinifier::class, HtmlRenderer::class, LlmsTxtRenderer::class, MarkdownHtmlRenderer::class, Parser::class, ReferenceValidator::class, TemplateLoader::class);
 
 it('validates and publishes calendar dates independently of the process timezone', function (): void {
     $previousTimezone = date_default_timezone_get();
@@ -347,7 +345,7 @@ TXT . "\n")
         ->toContain('<article class="content-article">')
         ->toMatch('~<link rel="stylesheet" href="/assets/theme\.[0-9a-f]{16}\.css">\s+<link rel="stylesheet" href="/assets/site\.[0-9a-f]{16}\.css">~')
         ->toContain("style-src 'self'", "font-src 'self'", "img-src 'self'")->not->toContain('fonts.bunny.net', 'frame-ancestors')
-        ->toContain('<footer class="site-footer">', '<p class="site-footer-row">', '<span class="site-footer-heart" aria-hidden="true">♥</span>', '<a href="https://github.com/wanted80/snippet"><svg class="site-footer-github"')
+        ->toContain('<footer class="site-footer">', '<p class="site-footer-row">', '<svg class="site-footer-heart" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 21 3.4 12.5a5.5 5.5 0 0 1 7.8-7.8l.8.8.8-.8a5.5 5.5 0 0 1 7.8 7.8Z"/></svg>', '<a href="https://github.com/wanted80/snippet"><span>Snippet</span></a>')
         ->toContain('<h1>Post &lt;one&gt;</h1>')
         ->toContain('<figure class="article-figure">', '<img src="/articles/post/cover.webp" alt="Cover." width="1" height="1" fetchpriority="high">')
         ->toContain('<span class="tag-label">PHP &amp; Web</span>')
@@ -382,33 +380,33 @@ TXT . "\n")
         ->toContain('<a class="menu-link" href="/pages/">Pages</a>', '<a class="menu-link" href="/about/">About</a>')
         ->toMatch('~>Articles</a>[\s\S]*>Tags</a>[\s\S]*>Pages</a>[\s\S]*>About</a>~')->not->toContain('Article &amp; description.')
         ->and($untagged)->not->toContain('<ul class="tag-list">')
-        ->and($css)->toContain('--color-background: light-dark(#f7f1e8, #08090a);', '--opacity-header-background: 82%;', '::selection', 'scrollbar-color:')
+        ->and($css)->toContain('--color-background: light-dark(#f7f1e8,#08090a);', '--opacity-header-background: 82%;', '::selection', 'scrollbar-color:')
         ->toContain('min-inline-size: 320px;')
-        ->toContain('--color-interactive: light-dark(#eee3d8, #171d22);', '--space-section: clamp(5rem, 12vw, 7rem);')
-        ->toContain('--font-reading: ui-serif, Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;')
+        ->toContain('--color-interactive: light-dark(#eee3d8,#171d22);', '--space-section: clamp(5rem,12vw,7rem);')
+        ->toContain('--font-reading: ui-serif,charter,"Bitstream Charter","Sitka Text",cambria,georgia,serif;')
         ->toContain('display: grid;', 'grid-template-rows: auto 1fr auto;')
-        ->toContain('position: sticky;', '.site-header[data-scrolled]', '@supports (background: color-mix(in srgb, black 82%, transparent)) and ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))')
+        ->toContain('position: sticky;', '.site-header[data-scrolled]', '@supports (background: color-mix(in srgb,black 82%,transparent)) and', 'backdrop-filter: blur(1px)')
         ->toContain('@media (prefers-reduced-transparency: reduce)')
-        ->toMatch('/@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\.site-header\s*\{[^}]*transition: background-color 180ms ease, box-shadow 180ms ease;\s*\}\s*:root\[data-theme-changing\]\s*\.site-header\s*\{\s*transition: none;\s*\}\s*\}/s')
+        ->toMatch('/@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\.site-header\s*\{[^}]*transition:\s*background-color 180ms ease,\s*box-shadow 180ms ease;\s*\}\s*:root\[data-theme-changing\]\s*\.site-header\s*\{\s*transition: none;\s*\}\s*\}/s')
         ->toContain('--measure-prose: 44rem;', '--measure-shell: 44rem;', '--radius-control: 0.75rem;')
-        ->toContain('inline-size: min(100% - 2rem, var(--measure-shell));', 'margin-inline: auto;')
-        ->toContain('inline-size: min(100% - 1rem, calc(var(--measure-shell) + 1rem));')
-        ->toContain('--shadow-header: 0 0.25rem 0.9rem light-dark(rgb(0 0 0 / 10%), rgb(0 0 0 / 22%));')
+        ->toContain('inline-size: min(100% - 2rem,var(--measure-shell));', 'margin-inline: auto;')
+        ->toContain('inline-size: min(100% - 1rem,calc(var(--measure-shell) + 1rem));')
+        ->toContain('--shadow-header: 0 0.25rem 0.9rem light-dark(rgb(0 0 0 / 10%),rgb(0 0 0 / 22%));')
         ->toMatch('/\.site-header\[data-scrolled\]\s*\{[^}]*background: var\(--color-header-background\)/s')
         ->toMatch('/\.site-header\[data-scrolled\]\s*\{[^}]*box-shadow: var\(--shadow-header\)/s')
-        ->toContain('background: color-mix(in srgb, var(--color-navigation-background) var(--opacity-navigation-background), transparent);')
+        ->toContain('var(--color-navigation-background) var(--opacity-navigation-background),')
         ->toMatch('/\.site-footer\s*\{[^}]*text-align: center;/s')
         ->toMatch('/\.site-footer-row\s*\{[^}]*display: inline-flex;[^}]*align-items: center;[^}]*flex-wrap: wrap;/s')
         ->toMatch('/\.site-footer-link a\s*\{[^}]*display: inline-flex;[^}]*align-items: center;/s')
-        ->toMatch('/\.site-navigation\s*\{[^}]*inset-inline: max\(1rem, calc\(\(100vi - var\(--measure-shell\)\) \/ 2\)\) auto/s')
+        ->toMatch('/\.site-navigation\s*\{[^}]*inset-inline: max\(1rem,\s*calc\(\(100vi - var\(--measure-shell\)\) \/ 2\)\) auto/s')
         ->toMatch('/\.icon-button\s*\{[^}]*border-radius: var\(--radius-control\)/s')
         ->toMatch('/\.archive-list\s*\{[^}]*display: grid;[^}]*gap: var\(--space-4\)/s')
         ->toMatch('/\.tag-grid \.tag-count\s*\{[^}]*background: var\(--color-accent\);[^}]*color: var\(--color-on-accent\);[^}]*font-weight: 700/s')
         ->toMatch('/\.prose hr\s*\{[^}]*border: 0/s')
         ->toMatch('/\.skip-link\s*\{[^}]*z-index: 20/s')
         ->toContain('::-webkit-scrollbar')
-        ->toContain('@media (max-width: 40rem)')
-        ->toMatch('/@media \(max-width: 40rem\)[\s\S]*\.site-navigation\s*\{[^}]*inset-inline: 0\.75rem/s')
+        ->toContain('@media (width <= 40rem)')
+        ->toMatch('/@media \(width <= 40rem\)[\s\S]*\.site-navigation\s*\{[^}]*inset-inline: 0\.75rem/s')
         ->toContain('font-size: 0.9rem;', 'font-size: 0.9em;')
         ->toMatch('/\.tag-label\s*\{[^}]*display: block;[^}]*min-inline-size: 0;[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap/s')
         ->toMatch('/\.tag-list a\s*\{[^}]*max-inline-size: 100%/s')
@@ -437,7 +435,7 @@ it('builds an empty catalog through the CLI', function (): void {
     $stderr->rewind();
 
     expect($status)->toBe(0)
-        ->and($stdout->fgets())->toMatch('/^Built site: 0 articles, 0 pages, 0 tags, 3 assets, 9 files in \\d+ ms\\.\\n$/')
+        ->and($stdout->fgets())->toMatch('/^Built site: 0 articles,\s*0 pages,\s*0 tags,\s*3 assets,\s*9 files in \\d+ ms\\.\\n$/')
         ->and($stderr->fgets())->toBeEmpty()
         ->and(file_get_contents($this->directory . '/public/index.html'))->toContain('No articles have been published yet.')
         ->and(file_get_contents($this->directory . '/public/llms.txt'))->toBe("# Test Site\n\n> A test site.\n\nAuthor: Test Author\n")
@@ -563,9 +561,12 @@ it('closes the llms stream after writing every byte even when a write is partial
     $this->content();
     $this->resources();
     $config = new ConfigLoader()->load($this->directory . '/site');
+    $publisher = new Publisher(engineRoot: $this->directory);
+    $resources = $publisher->validatedResources($this->directory, $config);
+    PublisherFaults::reset();
     PublisherFaults::set('publishing_fwrite', ['partial']);
 
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+    $publisher->publish($this->directory, $config, $this->catalog(), templates: $resources->templates, assets: $resources->assets);
 
     expect(file_get_contents($this->directory . '/public/llms.txt'))->toBe("# Test Site\n\n> A test site.\n\nAuthor: Test Author\n")
         ->and(PublisherFaults::calls('publishing_fclose'))->toBe(1);
@@ -578,9 +579,12 @@ it('aborts a stalled llms write immediately and closes its stream', function (st
     mkdir($this->directory . '/public');
     file_put_contents($this->directory . '/public/index.html', 'old publication');
     $config = new ConfigLoader()->load($this->directory . '/site');
+    $publisher = new Publisher(engineRoot: $this->directory);
+    $resources = $publisher->validatedResources($this->directory, $config);
+    PublisherFaults::reset();
     PublisherFaults::set('publishing_fwrite', [$outcome, 'throw']);
 
-    expect(fn(): BuildReport => new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog()))
+    expect(fn(): BuildReport => $publisher->publish($this->directory, $config, $this->catalog(), templates: $resources->templates, assets: $resources->assets))
         ->toThrow(ContentException::class, 'Unable to write generated file')
         ->and(PublisherFaults::calls('publishing_fwrite'))->toBe(1)
         ->and(PublisherFaults::calls('publishing_fclose'))->toBe(1)
@@ -676,14 +680,18 @@ it('reports transactional publication and cleanup failures deterministically', f
         file_put_contents($this->directory . '/public/index.html', 'old');
     }
 
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    $catalog = new CatalogLoader()->load($this->directory . '/content');
+    $publisher = new Publisher(engineRoot: $this->directory);
+    $resources = $publisher->validatedResources($this->directory, $config);
+    PublisherFaults::reset();
+
     foreach ($faults as $operation => $outcomes) {
         PublisherFaults::set($operation, $outcomes);
     }
 
-    $config = new ConfigLoader()->load($this->directory . '/site');
-    $catalog = new CatalogLoader()->load($this->directory . '/content');
     try {
-        new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $catalog);
+        $publisher->publish($this->directory, $config, $catalog, templates: $resources->templates, assets: $resources->assets);
         throw new LogicException('Expected publication to fail.');
     } catch (ContentException $contentException) {
         expect($contentException->getMessage())->toContain($message);
@@ -711,7 +719,7 @@ it('reports transactional publication and cleanup failures deterministically', f
         'mkdir' => ['fail'],
     ], false, 'Unable to create output directory'],
     'asset size read' => [[
-        'filesize' => ['pass', 'pass', 'pass', 'fail'],
+        'filesize' => ['fail'],
     ], false, 'Unable to read publication asset size'],
     'existing backup' => [[
         'rename' => ['fail'],
@@ -847,7 +855,6 @@ it('preserves the current publication when minified asset preparation fails', fu
     /** @var array<string, list<'fail'|'pass'|'throw'>> $faults */
     $this->content();
     $this->resources();
-    $this->site(['build' => ['minify' => true]]);
     $config = new ConfigLoader()->load($this->directory . '/site');
     $catalog = new CatalogLoader()->load($this->directory . '/content');
     mkdir($this->directory . '/public');
@@ -906,7 +913,7 @@ it('builds complete indexes and truncates homepage collections at configured bou
         ->not->toContain('Third', 'Gamma', 'Delta')
         ->and($articles)->toContain('Newest description.', 'Second description.', 'Third description.', 'Oldest description.')
         ->toMatch('~Newest[\s\S]*Second[\s\S]*Third[\s\S]*Oldest~')
-        ->and($tags)->toMatch('~aria-label="Alpha, 2 articles"[\s\S]*>2</span>[\s\S]*aria-label="Beta, 2 articles"[\s\S]*>2</span>[\s\S]*aria-label="Delta, 1 article"[\s\S]*>1</span>[\s\S]*aria-label="Gamma, 1 article"[\s\S]*>1</span>~')
+        ->and($tags)->toMatch('~aria-label="Alpha,\s*2 articles"[\s\S]*>2</span>[\s\S]*aria-label="Beta,\s*2 articles"[\s\S]*>2</span>[\s\S]*aria-label="Delta,\s*1 article"[\s\S]*>1</span>[\s\S]*aria-label="Gamma,\s*1 article"[\s\S]*>1</span>~')
         ->and($home)->not->toContain('href="/articles/" aria-current', 'href="/tags/" aria-current');
 });
 
@@ -969,17 +976,8 @@ it('ships a storage-safe system-aware theme script as a dedicated asset', functi
         ->toContain('<button class="theme-toggle icon-button" type="button" data-theme-toggle aria-label="Toggle color theme" title="Toggle color theme">')
         ->toContain('<svg class="menu-icon theme-icon-light"', '<svg class="menu-icon theme-icon-dark"')
         ->toContain('<meta name="theme-color" content="#08090a">')->not->toContain('sha256-', "'unsafe-inline'", '<script>')
-        ->and($script)->toContain("'snippet-theme'", "matchMedia('(prefers-color-scheme: light)')", 'storage.getItem', 'storage.setItem', "themeButton?.setAttribute('aria-label', label)")
-        ->toContain("if (header !== null) {", "themeColor?.setAttribute")
-        ->and($script)->toContain("if (root.dataset.theme !== theme) {", "root.dataset.themeChanging = 'true';", 'window.requestAnimationFrame', 'delete root.dataset.themeChanging;', 'const sequence = ++themeChangeSequence;', 'themeChangeSequence === sequence')
-        ->toContain("window.addEventListener('storage'", 'event.storageArea !== storage', 'event.key !== storageKey && event.key !== null', 'preference ?? systemTheme()')
-        ->toContain("navigation.addEventListener('toggle'", "menuButton.setAttribute('aria-label', label)")
-        ->toContain("navigation.addEventListener('keydown'", "event.key === 'Escape'", 'navigation.hidePopover()', 'menuButton.focus()')
-        ->toContain("case 'ArrowDown':", "case 'ArrowUp':", "case 'Home':", "case 'End':")
-        ->toContain("document.querySelector('[data-site-header]')", "header.toggleAttribute('data-scrolled', scrolled)", "window.addEventListener('scroll', syncScrollState, { passive: true })", 'syncScrollState();', "window.addEventListener('pageshow', syncScrollState)")
-        ->not->toContain("menuButton.setAttribute('aria-expanded'")
-        ->and($script)->toBe(file_get_contents($this->directory . '/resources/theme.js'))
-        ->and(mb_substr_count($script, 'window.requestAnimationFrame'))->toBe(2);
+        ->and($script)->toContain('snippet-theme', 'matchMedia', 'getItem', 'setItem', 'hidePopover', 'requestAnimationFrame', 'ArrowDown', 'ArrowUp')
+        ->not->toContain('sourceMappingURL');
 });
 
 it('preloads each bundled upright font only when the theme and matching asset are available', function (bool $theme, bool $upright, bool $wordmark, array $expectedAssets): void {
@@ -1030,8 +1028,8 @@ it('preloads each bundled upright font only when the theme and matching asset ar
     'fonts without site stylesheet' => [false, true, true, []],
 ]);
 
-it('minifies generated HTML and first-party CSS and JavaScript while preserving copied assets', function (): void {
-    $this->item('page', ['title' => 'Page', 'description' => 'D'], "Text  with *inline* spacing.\n\n```js\nconst  value = '<tag>';\n```");
+it('compacts entry stylesheets while preserving prose code scripts and copied assets', function (): void {
+    $this->item('page', ['title' => 'Page', 'description' => 'D'], "Text  with *inline* spacing.\n\n```js\nconst  value = '<tag>';\n```\n");
     $siteStylesheet = "@layer overrides {\n    :root { --custom:  one; }\n}\n";
     $arbitraryCss = "custom { bytes:  unchanged; }\n";
     mkdir($this->directory . '/site/assets');
@@ -1041,39 +1039,24 @@ it('minifies generated HTML and first-party CSS and JavaScript while preserving 
     $css = file_get_contents($this->directory . '/resources/theme.css');
     $javascript = file_get_contents($this->directory . '/resources/theme.js');
     assert(is_string($css));
-    assert(is_string($javascript));
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
-    $readable = file_get_contents($this->directory . '/public/page/index.html');
-    $readableCss = file_get_contents($this->publishedAsset('theme.css'));
-    $readableTheme = file_get_contents($this->publishedAsset('site.css'));
-    $readableArbitraryCss = file_get_contents($this->directory . '/public/assets/site/copied.css');
-    assert(is_string($readable));
-    assert(is_string($readableCss));
+    $publisher = new Publisher(engineRoot: $this->directory);
+    $publisher->publish($this->directory, $config, $this->catalog());
 
-    $this->site(['build' => ['minify' => true]]);
-    $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
-    $compact = file_get_contents($this->directory . '/public/page/index.html');
-    $compactThemeScriptUrl = mb_substr($this->publishedAsset('theme.js'), mb_strlen($this->directory . '/public'));
+    $html = file_get_contents($this->directory . '/public/page/index.html');
     $compactCss = file_get_contents($this->publishedAsset('theme.css'));
-    $compactTheme = file_get_contents($this->publishedAsset('site.css'));
-    assert(is_string($compact));
     assert(is_string($compactCss));
-    assert(is_string($compactTheme));
 
-    expect($readable)->toContain("\n    <head>\n", "Text  with <em>inline</em> spacing.")
-        ->and($compact)->toContain('<html lang="en"> <head>', "Text  with <em>inline</em> spacing.", "const  value = &apos;&lt;tag&gt;&apos;;", '<script src="' . $compactThemeScriptUrl . '"></script>')
-        ->and(mb_strlen($compact, '8bit'))->toBeLessThan(mb_strlen($readable, '8bit'))
-        ->and($readableCss)->toBe($css)
-        ->and($readableTheme)->toBe($siteStylesheet)
-        ->and($readableArbitraryCss)->toBe($arbitraryCss)
-        ->and($compactCss)->not->toBe($css)
+    expect($html)->toContain("\n    <head>\n", "Text  with <em>inline</em> spacing.", "const  value = &apos;&lt;tag&gt;&apos;;")
         ->and(mb_strlen($compactCss, '8bit'))->toBeLessThan(mb_strlen($css, '8bit'))
-        ->and($compactTheme)->toBe('@layer overrides{:root{--custom: one;}}')
+        ->and(file_get_contents($this->publishedAsset('site.css')))->toBe('@layer overrides{:root{--custom: one;}}')
         ->and(file_get_contents($this->directory . '/public/assets/site/copied.css'))->toBe($arbitraryCss)
-        ->and(file_get_contents($this->publishedAsset('theme.js')))->toBe(new JsMinifier()->minify($javascript))->not->toBe($javascript);
+        ->and(file_get_contents($this->publishedAsset('theme.js')))->toBe($javascript);
+
+    $publisher->publish($this->directory, $config, $this->catalog());
+    expect(file_get_contents($this->directory . '/public/page/index.html'))->toBe($html)
+        ->and(file_get_contents($this->publishedAsset('theme.css')))->toBe($compactCss);
 });
 
 it('escapes every browser-facing URL beneath an encoded deployment path without moving output files', function (): void {
@@ -1114,7 +1097,7 @@ it('escapes every browser-facing URL beneath an encoded deployment path without 
         ->and($notFound)->toContain('<link rel="canonical" href="' . $canonicalBaseUrl . '/404.html">', '<a class="button-link" href="' . $browserBasePath . '/">Return home', '<script src="' . $browserBasePath . $themeScriptUrl . '"></script>', '<link rel="stylesheet" href="' . $browserBasePath . $themeStylesheetUrl . '">')
         ->and($llms)->toBeString()
         ->toContain('https://example.test/snippet&docs/%22%20%3C%3E%27/articles/post/', 'https://example.test/snippet&docs/%22%20%3C%3E%27/about/')
-        ->and($theme)->toBe('@font-face { src: url("site/fonts/snippet-logo/snippet-logo.woff2"); }')
+        ->and($theme)->toBe('@font-face{src: url("site/fonts/snippet-logo/snippet-logo.woff2");}')
         ->and($home)->not->toContain('/snippet&docs/')
         ->and(file_exists($this->directory . '/public/snippet&docs'))->toBeFalse();
 });

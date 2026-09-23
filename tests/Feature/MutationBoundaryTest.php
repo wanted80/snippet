@@ -6,13 +6,12 @@ use Snippet\Application;
 use Snippet\Content\Article;
 use Snippet\Content\CatalogLoader;
 use Snippet\Content\Page;
-use Snippet\Publishing\HtmlMinifier;
 use Snippet\Publishing\ReferenceValidator;
 use Snippet\Rendering\Template;
 use Snippet\Rendering\TemplateLoader;
 use Snippet\Site\Limits;
 
-mutates(CatalogLoader::class, HtmlMinifier::class, ReferenceValidator::class, TemplateLoader::class);
+mutates(CatalogLoader::class, ReferenceValidator::class, TemplateLoader::class);
 
 it('accepts catalog values exactly at their resource ceilings', function (): void {
     $articlePath = $this->article('article', [
@@ -109,9 +108,3 @@ it('distinguishes same-origin custom ports from external port variants', functio
     'different explicit port is external' => ['https://example.test:8444/missing/', 0],
     'default HTTPS port is external to a custom-port site' => ['https://example.test/missing/', 0],
 ]);
-
-it('preserves leading whitespace before the first HTML tag', function (): void {
-    $html = " \n<p>Text</p>";
-
-    expect(new HtmlMinifier()->minify($html))->toBe($html);
-});

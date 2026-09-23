@@ -10,3 +10,5 @@ Start with `inspect capabilities --json` and load the relevant installed contrac
 Keep the author's language, voice, and existing work. Edit source files under
 `content/` and `site/`; `public/` is generated output. Validate and build after
 source changes, and report any remaining errors or warnings.
+
+Optional ordered `profiles` links in site configuration require an HTTPS URL and at least a label or icon. Omitted labels produce icon-only links with the URL as their accessible name; supported icon names are `github`, `mastodon`, `bluesky`, `linkedin`, `instagram`, `youtube`, `x`, and `generic`.

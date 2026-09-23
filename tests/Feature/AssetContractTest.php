@@ -18,6 +18,28 @@ use Snippet\Tests\PublisherFaults;
 
 mutates(PublicationAssets::class, PublicationInputs::class, PublicationInventory::class, Publisher::class);
 
+it('always compacts entry CSS while preserving JavaScript and generated HTML', function (): void {
+    $this->content();
+    $this->resources();
+    $stylesheet = "a { color: red; }\n";
+    $javascript = "// ordinary comment\nconst  value = 'unchanged';\n";
+    file_put_contents($this->directory . '/resources/theme.css', $stylesheet);
+    file_put_contents($this->directory . '/resources/theme.js', $javascript);
+    file_put_contents($this->directory . '/site/site.css', $stylesheet);
+    file_put_contents($this->directory . '/site/site.js', $javascript);
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    $publisher = new Publisher(engineRoot: $this->directory);
+    $resources = $publisher->validatedResources($this->directory, $config);
+
+    expect($resources->assets->themeStylesheet->contents)->toBe('a{color: red;}')
+        ->and($resources->assets->siteStylesheet?->contents)->toBe('a{color: red;}')
+        ->and($resources->assets->themeScript->contents)->toBe($javascript)
+        ->and($resources->assets->siteScript?->contents)->toBe($javascript);
+
+    $publisher->publish($this->directory, $config, $this->catalog());
+    expect(file_get_contents($this->directory . '/public/index.html'))->toContain("\n    <head>\n");
+});
+
 it('enforces traversal depth even when author asset directories contain no files', function (string $collection): void {
     $root = $collection === 'content'
         ? $this->item('post', ['title' => 'Post', 'description' => 'Description.'])
@@ -46,7 +68,6 @@ it('requires a filename extension at the fingerprinted asset boundary', function
 it('fingerprints entry assets from their exact published bytes with XXH3', function (): void {
     $this->content();
     $this->resources();
-    $this->site(['build' => ['minify' => true]]);
     $themeCss = "@layer theme {\n    :root { color: red; }\n}\n";
     $themeJs = "/* ordinary */document.documentElement.dataset.ready = 'yes';\n";
     $siteCss = "@layer overrides {\n    :root { color: blue; }\n}\n";
@@ -63,9 +84,9 @@ it('fingerprints entry assets from their exact published bytes with XXH3', funct
     $publishedSiteCss = '@layer overrides{:root{color: blue;}}';
     $assets = [
         'theme.' . hash('xxh3', $publishedThemeCss) . '.css' => $publishedThemeCss,
-        'theme.' . hash('xxh3', " document.documentElement.dataset.ready = 'yes';\n") . '.js' => " document.documentElement.dataset.ready = 'yes';\n",
+        'theme.' . hash('xxh3', $themeJs) . '.js' => $themeJs,
         'site.' . hash('xxh3', $publishedSiteCss) . '.css' => $publishedSiteCss,
-        'site.' . hash('xxh3', "/*! license */window.siteReady = true;\n") . '.js' => "/*! license */window.siteReady = true;\n",
+        'site.' . hash('xxh3', $siteJs) . '.js' => $siteJs,
     ];
     $html = file_get_contents($this->directory . '/public/index.html');
     assert(is_string($html));
@@ -106,16 +127,21 @@ it('accepts the exact retained entry asset ceiling and rejects one byte above it
 it('enforces the retained entry asset ceiling against minified bytes', function (): void {
     $this->content();
     $this->resources();
-    $this->site(['build' => ['minify' => true]]);
-    file_put_contents($this->directory . '/resources/theme.css', 'abc');
+    file_put_contents($this->directory . '/resources/theme.css', 'a   { }');
     file_put_contents($this->directory . '/resources/theme.js', 'de');
     $config = new ConfigLoader()->load($this->directory . '/site');
 
-    expect(fn(): PublicationResources => new Publisher(engineRoot: $this->directory)->validatedResources(
+    $resources = new Publisher(engineRoot: $this->directory)->validatedResources(
         $this->directory,
         $config,
-        new Limits(retainedEntryAssetBytes: 4),
-    ))->toThrow(ContentException::class, '4-byte retained-entry-asset ceiling');
+        new Limits(retainedEntryAssetBytes: 5),
+    );
+    expect($resources->assets->themeStylesheet->contents)->toBe('a{}')
+        ->and(fn(): PublicationResources => new Publisher(engineRoot: $this->directory)->validatedResources(
+            $this->directory,
+            $config,
+            new Limits(retainedEntryAssetBytes: 4),
+        ))->toThrow(ContentException::class, '4-byte retained-entry-asset ceiling');
 });
 
 it('validates every configured site asset in the retained resource snapshot', function (): void {
@@ -130,10 +156,9 @@ it('validates every configured site asset in the retained resource snapshot', fu
         ->toThrow(ContentException::class, "site/assets/declared.txt' must be a regular non-symlink file");
 });
 
-it('requires UTF-8 text at each publication entry asset boundary', function (string $relativePath, bool $minify): void {
+it('requires UTF-8 text at each publication entry asset boundary', function (string $relativePath): void {
     $this->content();
     $this->resources();
-    $this->site(['build' => ['minify' => $minify]]);
     file_put_contents($this->directory . '/site/site.css', 'body{}');
     file_put_contents($this->directory . '/site/site.js', 'true;');
     $config = new ConfigLoader()->load($this->directory . '/site');
@@ -148,12 +173,11 @@ it('requires UTF-8 text at each publication entry asset boundary', function (str
     'theme JavaScript' => 'resources/theme.js',
     'site CSS' => 'site/site.css',
     'site JavaScript' => 'site/site.js',
-])->with(['readable' => false, 'minified' => true]);
+]);
 
-it('accepts the exact source asset limit before minification and rejects the next byte', function (bool $minify, bool $overLimit): void {
+it('accepts the exact source asset limit before minification and rejects the next byte', function (bool $overLimit): void {
     $this->content();
     $this->resources();
-    $this->site(['build' => ['minify' => $minify]]);
     file_put_contents($this->directory . '/resources/theme.css', $overLimit ? "body{}\n" : 'body{}');
     file_put_contents($this->directory . '/resources/theme.js', 'true;');
     file_put_contents($this->directory . '/site/favicon.svg', '<svg/>');
@@ -171,7 +195,7 @@ it('accepts the exact source asset limit before minification and rejects the nex
     }
 
     expect($load()->assets->themeStylesheet->contents)->toBe('body{}');
-})->with(['readable' => false, 'minified' => true])->with(['exact limit' => false, 'one byte over' => true]);
+})->with(['exact limit' => false, 'one byte over' => true]);
 
 it('reuses a complete validated resource snapshot without reopening its sources', function (): void {
     $this->content();
@@ -223,7 +247,6 @@ it('keeps each caller-supplied publication resource when loading its missing pee
 it('closes minification streams on success and when output allocation fails', function (bool $failOutput, int $closes): void {
     $this->content();
     $this->resources();
-    $this->site(['build' => ['minify' => true]]);
     if ($failOutput) {
         PublisherFaults::set('publishing_fopen', ['pass', 'fail']);
     }
@@ -310,7 +333,7 @@ it('publishes every optional CSS and JavaScript combination with stable ordering
         $sitePosition = mb_strpos($html, $paths->siteStylesheet);
         assert(is_int($themePosition));
         assert(is_int($sitePosition));
-        expect(file_get_contents($this->directory . '/public' . $paths->siteStylesheet))->toBe($siteCss)
+        expect(file_get_contents($this->directory . '/public' . $paths->siteStylesheet))->toBe('@layer overrides{:root{--custom: yes;}}')
             ->and($html)->toContain('<link rel="stylesheet" href="' . $paths->siteStylesheet . '">')
             ->and($themePosition)->toBeLessThan($sitePosition);
     } else {
@@ -461,7 +484,6 @@ it('exposes the complete publication inventory as one exact ordered snapshot', f
 it('keeps script source ceilings and the previous publication when preparation fails', function (string $failure): void {
     $this->content();
     $this->resources();
-    $this->site(['build' => ['minify' => true]]);
     file_put_contents($this->directory . '/resources/theme.css', 'x');
     file_put_contents($this->directory . '/resources/theme.js', 'x');
     file_put_contents($this->directory . '/site/favicon.svg', '<svg/>');
@@ -491,10 +513,9 @@ it('keeps script source ceilings and the previous publication when preparation f
         ->and(glob($this->directory . '/.snippet-build-*'))->toBe([]);
 })->with(['source', 'retained', 'read']);
 
-it('publishes uncertain scripts unchanged with their original fingerprint', function (): void {
+it('publishes scripts unchanged with their original fingerprint', function (): void {
     $this->content();
     $this->resources();
-    $this->site(['build' => ['minify' => true]]);
     $script = 'const   ratio = value / 2;';
     file_put_contents($this->directory . '/site/site.js', $script);
     $config = new ConfigLoader()->load($this->directory . '/site');

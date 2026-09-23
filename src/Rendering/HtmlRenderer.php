@@ -296,7 +296,6 @@ final readonly class HtmlRenderer
         foreach ($this->menuPages as $page) {
             $navigation .= "\n" . $this->navigationLink($page->url(), $page->title, $currentPage === $page->slug);
         }
-        $navigation .= "\n" . $this->navigationLink('/llms.txt', 'llms.txt', false);
 
         return $this->templates->render(Template::Layout, [
             'language' => $this->escape($this->config->language),
@@ -316,6 +315,7 @@ final readonly class HtmlRenderer
             'sitename' => $this->escape($this->config->sitename),
             'navigation' => $navigation,
             'body' => $body,
+            'profiles' => $this->profileLinks(),
         ]);
     }
 
@@ -444,6 +444,21 @@ final readonly class HtmlRenderer
             . $this->browserPath($url)
             . '">' . $this->escape($label)
             . '<svg class="button-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12h14m-6-6 6 6-6 6"></path></svg></a></p>';
+    }
+
+    private function profileLinks(): string
+    {
+        if ($this->config->profiles === []) {
+            return '';
+        }
+        $html = '<nav class="profile-links" aria-label="Profiles">';
+        foreach ($this->config->profiles as $profile) {
+            $icon = isset($profile['icon']) ? ProfileIcon::render($profile['icon']) : '';
+            $label = isset($profile['label']) ? '<span>' . $this->escape($profile['label']) . '</span>' : '';
+            $accessibleName = isset($profile['label']) ? '' : ' aria-label="' . $this->escape($profile['url']) . '"';
+            $html .= '<a rel="me" href="' . $this->escape($profile['url']) . '"' . $accessibleName . '>' . $icon . $label . '</a>';
+        }
+        return $html . '</nav>';
     }
 
     private function navigationLink(string $url, string $label, bool $current): string

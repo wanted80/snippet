@@ -113,9 +113,6 @@ abstract class TestCase extends BaseTestCase
                 'articles' => 10,
                 'tags' => 20,
             ],
-            'build' => [
-                'minify' => false,
-            ],
             ...$overrides,
         ];
         if (!is_dir($this->directory . '/site')) {

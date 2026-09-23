@@ -282,7 +282,7 @@ The root is the generator and reference implementation. `site/` supplies author-
 
 Container support is grouped by responsibility under `docker/`: `development/` owns the contributor image, `builder/` the published minimal image, `demo/` temporary demo composition, `preview/` local Caddy support, and `quality/` container-specific quality tooling. Shell sources retain their `.sh` extension in the repository even when an image installs them as an extensionless command.
 
-`site/config.php` defines the site's identity and build preferences with one exact shape:
+`site/config.php` defines the site's identity and homepage collections with one exact shape:
 
 ```php
 <?php
@@ -300,9 +300,6 @@ return [
         'articles' => 10,
         'tags' => 21,
     ],
-    'build' => [
-        'minify' => false,
-    ],
 ];
 ```
 
@@ -312,7 +309,18 @@ The `language` value sets the document's HTML language tag. The built-in interfa
 
 `title` is the document identity used in browser titles, descriptions, and the homepage's hidden heading. The required `sitename` is independent trimmed, non-empty UTF-8 text used by the centered wordmark and its “— Home” accessible label. The required `author` is also trimmed, non-empty UTF-8 text and supplies the document's author metadata; every document identifies its running Snippet version as the generator. The starter theme displays the site name in uppercase with the bundled Snippet Logo font; the stored and accessible text is unchanged, and unsupported glyphs fall back to the interface font.
 
-When `build.minify` is enabled, publication conservatively collapses whitespace-only text nodes between HTML tags. It leaves prose, attributes, comments, doctypes, inline spacing, and the contents of `pre`, `code`, `textarea`, `script`, and `style` unchanged. It also stream-minifies required `resources/theme.css` and optional `site/site.css`: external whitespace is collapsed, whitespace around `{`, `}`, `;`, and `,` is removed, and strings, escapes, comments, and meaningful token spacing are preserved. Malformed or uncertain CSS is copied unchanged. When minification is disabled, both stylesheets use the direct byte-for-byte copy path. The bundled `resources/theme.js` and optional `site/site.js` use a small native PHP minifier when enabled. It collapses horizontal whitespace and removes ordinary comments, retaining token-separating spaces, line breaks, quoted strings and escapes, and `/*!`, `@license`, and `@preserve` comments. Templates, non-comment slash tokens (including division and regular expressions), legacy HTML comments, hashbangs, non-ASCII code outside strings/comments, incomplete strings/comments, and source-map directives cause an exact whole-file fallback. It does not rename identifiers, optimize expressions, or remove semicolons. Output never grows, and repeated minification produces identical bytes. Disabled minification, content assets, and files beneath `site/assets/` retain their original bytes. JavaScript is checked against both source and retained-entry asset ceilings before minification.
+Publication always conservatively stream-minifies required `resources/theme.css` and optional `site/site.css`. External whitespace is collapsed, whitespace around unescaped `{`, `}`, `;`, and `,` is removed, and strings, escapes, comments, and meaningful token spacing are preserved, including descendant selectors after escaped punctuation. Malformed or uncertain CSS is copied unchanged. Output never grows, and repeated minification produces identical bytes. The builder does not merge rules, rewrite values, or change browser compatibility. HTML is published as rendered; bundled `resources/theme.js`, optional `site/site.js`, content assets, and files beneath `site/assets/` retain their original bytes. JavaScript remains subject to both source and retained-entry asset ceilings.
+
+There is no minification setting. When upgrading a workspace that contains `build.minify`, remove the entire `build` entry from `site/config.php`; obsolete configuration fields are rejected.
+
+Optional `profiles` is an ordered list of up to 32 footer links. Each entry requires an HTTPS URL without credentials and at least a label or one of the bundled `github`, `mastodon`, `bluesky`, `linkedin`, `instagram`, `youtube`, `x`, or `generic` icons. An omitted label produces an icon-only link whose accessible name is the destination URL. The footer also links to `llms.txt`.
+
+```php
+'profiles' => [
+    ['label' => 'GitHub', 'url' => 'https://github.com/example', 'icon' => 'github'],
+    ['url' => 'https://bsky.app/profile/example.org', 'icon' => 'bluesky'],
+],
+```
 
 ### Site assets
 
@@ -328,7 +336,7 @@ The default theme follows the visitor's system light or dark preference until th
 
 The default theme uses native popovers and CSS `light-dark()` in current browsers. Palette pairs live together in the token layer, and `@layer overrides` can customize them for both themes. Print output uses a light, high-contrast palette independently of the selected screen theme.
 
-The builder publishes its bundled `resources/theme.css` as `/assets/theme.<xxh3>.css`, then loads optional UTF-8 `site/site.css` from `/assets/site.<xxh3>.css`. Optional UTF-8 `site/site.js` is published to `/assets/site.<xxh3>.js` and loaded with `defer` after the built-in script. Each `<xxh3>` token is the complete 16-character lowercase digest of the exact published bytes, after optional CSS and JavaScript minification. Absent optional files produce neither tags nor output files. Files beneath `site/assets/`, the favicon, and content assets retain their stable paths. Put downstream CSS rules in the final layer:
+The builder publishes its bundled `resources/theme.css` as `/assets/theme.<xxh3>.css`, then loads optional UTF-8 `site/site.css` from `/assets/site.<xxh3>.css`. Optional UTF-8 `site/site.js` is published to `/assets/site.<xxh3>.js` and loaded with `defer` after the built-in script. Each `<xxh3>` token is the complete 16-character lowercase digest of the exact published bytes: compacted CSS or unchanged JavaScript. Absent optional files produce neither tags nor output files. Files beneath `site/assets/`, the favicon, and content assets retain their stable paths. Put downstream CSS rules in the final layer:
 
 ```css
 @layer overrides {

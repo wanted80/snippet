@@ -411,5 +411,5 @@ it('completes the JSON agent workflow through the Docker entrypoint', function (
     expect($status)->toBe(0)->and($stderr)->toBeEmpty()
         ->and(json_decode($bytes, true, flags: JSON_THROW_ON_ERROR))->toHaveKey('output', 'public/')
         ->and(file_get_contents($this->directory . '/public/index.html'))->toContain('First post', 'caf%C3%A9', '<strong>hello</strong>')
-        ->and(file_get_contents($this->publishedAsset('site.css')))->toContain('light-dark(#763524, #b9d5ff)', '--measure-prose: 42rem');
+        ->and(file_get_contents($this->publishedAsset('site.css')))->toContain('light-dark(#763524,#b9d5ff)', '--measure-prose: 42rem');
 });

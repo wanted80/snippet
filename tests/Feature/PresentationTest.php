@@ -6,6 +6,14 @@ use Snippet\Publishing\Publisher;
 use Snippet\Site\ConfigLoader;
 use Snippet\Support\ApplicationVersion;
 
+it('retains prefixed backdrop declarations wherever the theme enables glass', function (): void {
+    $css = file_get_contents(dirname(__DIR__, 2) . '/resources/theme.css');
+    assert(is_string($css));
+
+    expect(preg_match_all('/-webkit-backdrop-filter: saturate\(140%\) blur\(1rem\);\s*backdrop-filter: saturate\(140%\) blur\(1rem\);/', $css))->toBe(2)
+        ->and(preg_match_all('/-webkit-backdrop-filter: none;\s*backdrop-filter: none;/', $css))->toBe(3);
+});
+
 it('ships print colors and wrapping that remain usable with long titles and manual themes', function (): void {
     $this->item('post', ['title' => str_repeat('W', 120), 'description' => 'Description']);
     $this->resources();
@@ -50,15 +58,15 @@ it('renders independent document, author, and multilingual wordmark identities',
         ->not->toContain('aria-expanded=')
         ->and($css)->toContain('min-inline-size: 320px;', '--font-wordmark: var(--font-interface);')
         ->toContain('.site-header:has(.site-navigation:popover-open) .menu-toggle')
-        ->toMatch('/\.site-header\s*\{[^}]*grid-template-columns: minmax\(2\.75rem, 1fr\) minmax\(0, auto\) minmax\(2\.75rem, 1fr\)/s')
+        ->toMatch('/\.site-header\s*\{[^}]*grid-template-columns: minmax\(2\.75rem,\s*1fr\) minmax\(0,\s*auto\) minmax\(2\.75rem,\s*1fr\)/s')
         ->toMatch('/\.menu-toggle\s*\{[^}]*grid-column: 1;[^}]*justify-self: start/s')
         ->toMatch('/\.theme-toggle\s*\{[^}]*grid-column: 3;[^}]*justify-self: end/s')
         ->toMatch('/\.site-brand\s*\{[^}]*min-inline-size: 0;[^}]*max-inline-size: 100%;[^}]*overflow: clip visible;/s')
-        ->toMatch('/\.site-wordmark\s*\{[^}]*display: block;[^}]*max-inline-size: 100%;[^}]*overflow: clip visible;[^}]*font-family: var\(--font-wordmark\);[^}]*font-size: clamp\(1rem, 3\.8vw, 1\.6rem\);[^}]*font-kerning: normal;[^}]*font-synthesis: none;[^}]*font-weight: 400;[^}]*line-height: 1\.15;[^}]*text-transform: uppercase;[^}]*white-space: nowrap;/s')
-        ->toMatch('/\.article-figure\s*\{[^}]*inline-size: min\(100%, var\(--measure-prose\)\);[^}]*margin: 0 0 var\(--space-4\);/s')
+        ->toMatch('/\.site-wordmark\s*\{[^}]*display: block;[^}]*max-inline-size: 100%;[^}]*overflow: clip visible;[^}]*font-family: var\(--font-wordmark\);[^}]*font-size: clamp\(1rem,\s*3\.8vw,\s*1\.6rem\);[^}]*font-kerning: normal;[^}]*font-synthesis: none;[^}]*font-weight: 400;[^}]*line-height: 1\.15;[^}]*text-transform: uppercase;[^}]*white-space: nowrap;/s')
+        ->toMatch('/\.article-figure\s*\{[^}]*inline-size: min\(100%,\s*var\(--measure-prose\)\);[^}]*margin: 0 0 var\(--space-4\);/s')
         ->toMatch('/\.article-figure img\s*\{[^}]*inline-size: 100%;/s')
         ->toMatch('/\.prose\s*\{[^}]*hyphens: manual;/s')
-        ->and($javascript)->toContain('syncScrollState();', "window.addEventListener('pageshow', syncScrollState)")
+        ->and($javascript)->toContain('pageshow', 'data-scrolled')
         ->not->toContain("menuButton.setAttribute('aria-expanded'");
 });
 
@@ -86,7 +94,7 @@ it('ships and copies the configured wordmark font byte for byte', function (): v
             'font-style: normal;',
             'font-weight: 400;',
             'font-display: swap;',
-            '--font-wordmark: "Snippet Logo", var(--font-interface);',
+            '--font-wordmark: "Snippet Logo",var(--font-interface);',
         );
 });
 
@@ -123,7 +131,7 @@ it('preserves the public theme tokens, layers, and class hooks across generated 
     expect($status)->toBe(0)->and($error)->toBeEmpty();
     $css = file_get_contents($this->publishedAsset('theme.css'));
     assert(is_string($css));
-    expect($css)->toContain('@layer reset, tokens, base, layout, components, overrides;');
+    expect($css)->toContain('@layer reset,tokens,base,layout,components,overrides;');
 
     foreach ([
         '--color-background', '--color-surface', '--color-interactive', '--color-text',

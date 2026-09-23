@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Snippet\Publishing\PublicationInputLoader;
 use Snippet\Publishing\Publisher;
 use Snippet\Scaffolding\WorkspaceInitializer;
+use Snippet\Site\ConfigLoader;
 
 it('initializes only author-owned files and builds with the installed theme', function (): void {
     $workspace = $this->directory . '/publication';
@@ -58,7 +59,7 @@ it('uses an upgraded engine theme while preserving author CSS and JavaScript', f
 
     expect($second->assets->paths->themeStylesheet)->not->toBe($first->assets->paths->themeStylesheet)
         ->and($second->assets->paths->themeScript)->not->toBe($first->assets->paths->themeScript)
-        ->and($second->assets->siteStylesheet?->contents)->toBe($customCss)
+        ->and($second->assets->siteStylesheet?->contents)->toBe('@layer overrides{:root{--measure-prose: 42rem;}}')
         ->and($second->assets->siteScript?->contents)->toBe($customJs)
         ->and($second->assets->paths->siteScript)->toBe($first->assets->paths->siteScript)
         ->and(file_get_contents($workspace . '/site/site.js'))->toBe($customJs)
@@ -75,9 +76,11 @@ it('uses only the installed templates and theme assets even when workspace names
     file_put_contents($this->directory . '/resources/theme.js', 'Unsupported local script.');
 
     [$status, , $error] = validatePublication($this->directory, 'build');
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    $installed = new Publisher()->validatedResources($this->directory, $config);
 
     expect($status)->toBe(0)->and($error)->toBeEmpty()
         ->and(file_get_contents($this->directory . '/public/index.html'))->toContain('class="site-header"')
-        ->and(file_get_contents($this->publishedAsset('theme.css')))->toBe(file_get_contents(dirname(__DIR__, 2) . '/resources/theme.css'))
+        ->and(file_get_contents($this->publishedAsset('theme.css')))->toBe($installed->assets->themeStylesheet->contents)
         ->and(file_get_contents($this->publishedAsset('theme.js')))->toBe(file_get_contents(dirname(__DIR__, 2) . '/resources/theme.js'));
 });

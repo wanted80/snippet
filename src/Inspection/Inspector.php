@@ -94,11 +94,10 @@ final readonly class Inspector
                 'home' => ['type' => 'array', 'required' => ConfigLoader::HOME_FIELDS],
                 'home.articles' => ['type' => 'integer', 'minimum' => 1],
                 'home.tags' => ['type' => 'integer', 'minimum' => 1],
-                'build' => ['type' => 'array', 'required' => ConfigLoader::BUILD_FIELDS],
-                'build.minify' => ['type' => 'boolean'],
+                'profiles' => ['type' => 'ordered list', 'optional' => true, 'fields' => ['label', 'url', 'icon'], 'icons' => ConfigLoader::PROFILE_ICONS],
             ],
             'starter_values' => new TrustedPhpLoader()->load($path, 'installed starter configuration', new Limits()->metadataBytes),
-            'guidance' => 'All fields are required; starter values are not omission defaults. Internal resource limits are not author configuration.',
+            'guidance' => 'Identity and home fields are required. Profiles are optional. Entry CSS is always minified; HTML and JavaScript are not minified. Internal resource limits are not author configuration.',
         ];
     }
 

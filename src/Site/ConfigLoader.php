@@ -26,11 +26,11 @@ use function rawurldecode;
 /** Loads the stable, trusted site customization boundary. */
 final readonly class ConfigLoader
 {
-    public const array FIELDS = ['title', 'sitename', 'author', 'description', 'url', 'language', 'home', 'build'];
+    public const array FIELDS = ['title', 'sitename', 'author', 'description', 'url', 'language', 'home'];
 
     public const array HOME_FIELDS = ['articles', 'tags'];
 
-    public const array BUILD_FIELDS = ['minify'];
+    public const array PROFILE_ICONS = ['github', 'mastodon', 'bluesky', 'linkedin', 'instagram', 'youtube', 'x', 'generic'];
 
     public const string LANGUAGE_PATTERN = '/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/D';
 
@@ -47,8 +47,10 @@ final readonly class ConfigLoader
         $limits ??= new Limits();
         $path = $siteDirectory . '/config.php';
         $value = $this->phpLoader->load($path, 'site configuration', $limits->metadataBytes);
+        $profiles = $this->profiles(array_key_exists('profiles', $value) ? $value['profiles'] : []);
+        unset($value['profiles']);
         if (!$this->hasExactFields($value, self::FIELDS)) {
-            throw new ContentException("Site configuration must return the exact fields: title, sitename, author, description, url, language, home, build.");
+            throw new ContentException("Site configuration must return the exact fields: title, sitename, author, description, url, language, home (with optional profiles).");
         }
 
         $title = $this->text($value, 'title');
@@ -58,7 +60,6 @@ final readonly class ConfigLoader
         $url = $this->url($value['url']);
         $language = $this->language($value['language']);
         [$homeArticles, $homeTags] = $this->home($value['home']);
-        $minify = $this->build($value['build']);
         $assetsDirectory = $siteDirectory . '/assets';
         $assets = file_exists($assetsDirectory) || is_link($assetsDirectory)
             ? $this->fileInventory->files($assetsDirectory, 'site assets', $limits->catalogAssets, $limits->assetDepth)
@@ -68,7 +69,7 @@ final readonly class ConfigLoader
         $hasSiteStylesheet = $this->optionalTextAsset($stylesheet, 'Site site.css');
         $hasSiteScript = $this->optionalTextAsset($script, 'Site site.js');
 
-        return new Config($title, $sitename, $author, $description, $url, $language, $assets, $hasSiteStylesheet, $hasSiteScript, $homeArticles, $homeTags, $minify);
+        return new Config($title, $sitename, $author, $description, $url, $language, $assets, $hasSiteStylesheet, $hasSiteScript, $homeArticles, $homeTags, $profiles);
     }
 
     /**
@@ -133,17 +134,35 @@ final readonly class ConfigLoader
         return [$value['articles'], $value['tags']];
     }
 
-    private function build(mixed $value): bool
+    /** @return list<array{label?: string, url: string, icon?: string}> */
+    private function profiles(mixed $value): array
     {
-        if (!is_array($value) || !$this->hasExactFields($value, self::BUILD_FIELDS)) {
-            throw new ContentException("Site configuration field 'build' must contain the exact minify field.");
+        if (!is_array($value) || !array_is_list($value) || count($value) > 32) {
+            throw new ContentException('Site profiles must be an ordered list of at most 32 links.');
         }
-
-        if (!is_bool($value['minify'])) {
-            throw new ContentException("Site configuration field 'build.minify' must be a boolean.");
+        $profiles = [];
+        foreach ($value as $index => $profile) {
+            if (!is_array($profile) || array_diff(array_keys($profile), ['label', 'url', 'icon']) !== [] || !isset($profile['url']) || (!array_key_exists('label', $profile) && !array_key_exists('icon', $profile))) {
+                throw new ContentException("Site profiles entry {$index} requires an HTTPS URL and at least a label or icon.");
+            }
+            $url = $profile['url'];
+            $uri = is_string($url) ? Uri::parse($url) : null;
+            if (!is_string($url) || filter_var($url, FILTER_VALIDATE_URL) === false || !$uri instanceof Uri || $uri->getRawScheme() !== 'https' || $uri->getRawUserInfo() !== null) {
+                throw new ContentException("Site profiles entry {$index} requires an HTTPS URL without credentials.");
+            }
+            $link = ['url' => $url];
+            if (array_key_exists('label', $profile)) {
+                $link['label'] = $this->text(['label' => $profile['label']], 'label');
+            }
+            if (array_key_exists('icon', $profile)) {
+                if (!is_string($profile['icon']) || !in_array($profile['icon'], self::PROFILE_ICONS, true)) {
+                    throw new ContentException("Site profiles entry {$index} has an unsupported icon.");
+                }
+                $link['icon'] = $profile['icon'];
+            }
+            $profiles[] = $link;
         }
-
-        return $value['minify'];
+        return $profiles;
     }
 
     private function language(mixed $value): string

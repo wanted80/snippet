@@ -27,9 +27,8 @@ abstract class BrowserTestCase extends TestCase
         parent::tearDown();
     }
 
-    protected function publication(bool $minify, string $css = ''): string
+    protected function publication(string $css = ''): string
     {
-        $this->site(['build' => ['minify' => $minify]]);
         $this->item('about', ['title' => 'About', 'description' => 'About this site.', 'menu_order' => 1], "# About\n\n```php\necho 'hello';\n```\n\n" . str_repeat("A paragraph.\n\n", 40));
         $this->article('post', ['title' => 'Post', 'description' => 'A post.', 'date' => '2026-01-01', 'tags' => ['Theme']], "# Heading\n\n```php\necho 'hello';\n```\n\n" . str_repeat("A paragraph with [a link](/about/).\n\n", 30));
         file_put_contents($this->directory . '/site/site.css', $css);

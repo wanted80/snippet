@@ -12,6 +12,7 @@ use Snippet\Publishing\Publisher;
 use Snippet\Publishing\ReferenceValidator;
 use Snippet\Rendering\AssetPaths;
 use Snippet\Site\Config;
+use Snippet\Site\ConfigLoader;
 
 mutates(ReferenceValidator::class);
 
@@ -86,9 +87,8 @@ MARKDOWN);
     $markdown = file_get_contents($path . '/article.md');
     assert(is_string($markdown));
     $this->resources();
-    $theme = file_get_contents($this->directory . '/resources/theme.css');
-    assert(is_string($theme));
-    $themePath = '/assets/theme.' . hash('xxh3', $theme) . '.css';
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    $themePath = new Publisher()->validatedResources($this->directory, $config)->assets->paths->themeStylesheet;
     file_put_contents($path . '/article.md', $markdown . "\n[site asset](/assets/site/downloads/guide.pdf)\n[theme]({$themePath})\n");
 
     expect(validatePublication($this->directory)[0])->toBe(0);

@@ -13,7 +13,7 @@ return [
         'articles' => 10,
         'tags' => 21,
     ],
-    'build' => [
-        'minify' => false,
+    'profiles' => [
+        ['label' => 'GitHub', 'url' => 'https://github.com/wanted80', 'icon' => 'github'],
     ],
 ];

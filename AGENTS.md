@@ -237,6 +237,10 @@ Articles are ordered by date descending and then slug ascending. Pages are order
 
 An article's enabled cover is rendered through `resources/templates/article-figure.html` as `<figure class="article-figure">` on its canonical page and when featured in full on the homepage. Do not render it on archive cards or tag pages. Preserve its original bytes and root-relative article asset URL; do not add resizing, compression, responsive variants, lazy-loading policy, captions, or an image-processing dependency.
 
+Optional ordered `profiles` links have an HTTPS URL and at least a label or bundled icon. They appear in the footer; omitting the label displays only the icon with the URL as its accessible name. The `llms.txt` link also appears in the footer.
+
+Publication always conservatively minifies the theme and optional site CSS, preserving meaningful token boundaries and falling back to the original bytes for uncertain syntax. HTML is published as rendered and JavaScript is copied unchanged. There is no `build` configuration or minification toggle; fingerprint entry assets from their final published bytes.
+
 Preview responses may receive a live-reload helper, but that helper must never be written into published HTML. Docker's local Caddy certificate is a preview concern only; deployment consists solely of `public/`, and the selected static host owns public HTTPS.
 
 ## Testing and verification

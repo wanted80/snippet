@@ -5,12 +5,62 @@ declare(strict_types=1);
 use Pest\Browser\Api\Webpage;
 use Pest\Browser\Playwright\Page;
 
-dataset('theme builds', ['ordinary' => false, 'minified' => true]);
 dataset('theme screens', ['desktop' => false, 'mobile' => true]);
 dataset('theme palettes', ['light' => 'light', 'dark' => 'dark']);
 
-it('computes component tokens and independent glass on real publications', function (bool $minify, bool $mobile, string $theme): void {
-    $url = $this->publication($minify, <<<'CSS'
+it('preserves escaped descendant selectors through publication', function (): void {
+    $url = $this->publication('@layer overrides { .foo\\, .bar { color: rgb(255 0 0); } }');
+    $pending = visit($url);
+    $page = $pending->__call('page', []);
+    assert($page instanceof Page);
+    $browser = new Webpage($page, $url);
+    $browser->script(<<<'JS'
+        () => {
+            const parent = document.createElement('div');
+            parent.className = 'foo,';
+            const child = document.createElement('span');
+            child.className = 'bar';
+            child.id = 'descendant';
+            parent.append(child);
+            const sibling = document.createElement('div');
+            sibling.className = 'foo, bar';
+            sibling.id = 'same-element';
+            document.body.append(parent, sibling);
+        }
+        JS);
+    $browser->assertScript('getComputedStyle(document.querySelector("#descendant")).color', 'rgb(255, 0, 0)');
+    $browser->assertScript('getComputedStyle(document.querySelector("#same-element")).color === getComputedStyle(document.body).color');
+});
+
+it('supports navigation keyboard movement wrapping and escape focus restoration', function (): void {
+    $url = $this->publication();
+    $pending = visit($url);
+    $page = $pending->__call('page', []);
+    assert($page instanceof Page);
+    $browser = new Webpage($page, $url);
+    $browser->click('.menu-toggle');
+
+    $page->waitForSelector('.menu-link:focus');
+    $browser->assertScript('document.activeElement === document.querySelector(".menu-link")');
+    $browser->assertScript('document.querySelector(".menu-toggle").getAttribute("aria-label")', 'Close navigation');
+
+    foreach ([['ArrowDown', 1], ['End', 3], ['ArrowDown', 0], ['ArrowUp', 3], ['Home', 0]] as [$key, $index]) {
+        $page->keyDown($key);
+        $page->keyUp($key);
+        $browser->assertScript('Array.from(document.querySelectorAll(".menu-link")).indexOf(document.activeElement)', $index);
+    }
+
+    $page->keyDown('Escape');
+    $page->keyUp('Escape');
+    $page->waitForSelector('.menu-toggle[aria-label="Open navigation"]:focus');
+
+    $browser->assertScript('document.querySelector(".site-navigation").matches(":popover-open")', false);
+    $browser->assertScript('document.activeElement === document.querySelector(".menu-toggle")');
+    $browser->assertScript('document.querySelector(".menu-toggle").getAttribute("aria-label")', 'Open navigation');
+});
+
+it('computes component tokens and independent glass on real publications', function (bool $mobile, string $theme): void {
+    $url = $this->publication(<<<'CSS'
         @layer overrides {
             :root {
                 --color-background: light-dark(#fafafa, #101010);
@@ -111,10 +161,10 @@ it('computes component tokens and independent glass on real publications', funct
         $browser->script($helper);
         $browser->assertScript('themeContrast(".tag-grid a", "color", ".tag-grid a", "backgroundColor") >= 4.5');
     }
-})->with('theme builds')->with('theme screens')->with('theme palettes');
+})->with('theme screens')->with('theme palettes');
 
-it('preserves theme selection motion and opaque fallback with author overrides', function (bool $minify, string $theme, bool $customized): void {
-    $url = $this->publication($minify, $customized ? <<<'CSS'
+it('preserves theme selection motion and opaque fallback with author overrides', function (string $theme, bool $customized): void {
+    $url = $this->publication($customized ? <<<'CSS'
         @layer overrides {
             :root {
                 --color-header-background: light-dark(#ddeeff, #223344);
@@ -198,10 +248,10 @@ it('preserves theme selection motion and opaque fallback with author overrides',
         $browser->assertScript('getComputedStyle(document.querySelector(".site-navigation")).backgroundColor', $theme === 'light' ? 'rgb(255, 250, 242)' : 'rgb(14, 17, 20)');
         $browser->assertScript('[".site-header", ".site-navigation", ".site-main"].every(s => getComputedStyle(document.querySelector(s)).boxShadow !== "none")');
     }
-})->with('theme builds')->with('theme palettes')->with(['default CSS' => false, 'custom site CSS' => true]);
+})->with('theme palettes')->with(['default CSS' => false, 'custom site CSS' => true]);
 
-it('lets override layer class rules win against responsive glass and interaction variants', function (bool $minify, bool $mobile): void {
-    $url = $this->publication($minify, <<<'CSS'
+it('lets override layer class rules win against responsive glass and interaction variants', function (bool $mobile): void {
+    $url = $this->publication(<<<'CSS'
         @layer overrides {
             .site-header, .site-navigation { background: rgb(20 40 60); backdrop-filter: none; }
             .icon-button, .menu-link, .button-link, .tag-list a { background: rgb(70 80 90); color: rgb(255 255 255); transition: none; }
@@ -226,4 +276,4 @@ it('lets override layer class rules win against responsive glass and interaction
     $browser->assertScript('[".menu-toggle", ".menu-link"].map(s => getComputedStyle(document.querySelector(s)).backgroundColor)', ['rgb(70, 80, 90)', 'rgb(70, 80, 90)']);
     $browser->assertScript('getComputedStyle(document.querySelector(".site-main")).borderRadius', '9px');
     $browser->assertScript('getComputedStyle(document.querySelector(".menu-link")).transitionDuration', '0s');
-})->with('theme builds')->with('theme screens');
+})->with('theme screens');
