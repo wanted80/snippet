@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.0.0](https://github.com/wanted80/snippet/compare/v3.3.1...v4.0.0) (2026-09-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* Site configuration no longer accepts the build.minify field. Remove the entire build entry from existing site/config.php files before upgrading. HTML and JavaScript are now published unchanged, while entry CSS is always compacted.
+
+### Features
+
+* add profile links and simplify publication minification ([#55](https://github.com/wanted80/snippet/issues/55)) ([cf28b08](https://github.com/wanted80/snippet/commit/cf28b08c1e4883cc1ea0aab9b5a3babe5191304e))
+
 ## [3.3.1](https://github.com/wanted80/snippet/compare/v3.3.0...v3.3.1) (2026-09-18)
 
 
