@@ -72,7 +72,7 @@ it('keeps fixed state readonly in mutable workers and the hooked build report', 
 })->with([
     'content budget' => [CatalogBudget::class, ['assetBytes', 'assets', 'markdownBytes', 'nodes']],
     'build budget' => [BuildBudget::class, ['bytes', 'pageBytes', 'documents', 'assets']],
-    'inline search' => [InlineSearch::class, ['matches']],
+    'inline search' => [InlineSearch::class, ['matches', 'closings']],
     'preview' => [PreviewServer::class, ['watchedFiles']],
     'build report' => [BuildReport::class, []],
 ]);

@@ -42,6 +42,38 @@ it('renders short emphasis as semantic HTML', function (string $markdown, string
     'whitespace stays literal' => ['before * * after', '<p>before * * after</p>'],
 ]);
 
+it('keeps inline delimiters inside complete code spans and links', function (string $markdown, string $html): void {
+    expect(MarkdownHtmlRenderer::render(new Parser()->parse($markdown, 'inline-boundaries.md')))
+        ->toBe($html . "\n");
+})->with([
+    'emphasis around code' => ['*Use `*` to multiply.*', '<p><em>Use <code>*</code> to multiply.</em></p>'],
+    'strong around code' => ['**Use `**` for strong.**', '<p><strong>Use <code>**</code> for strong.</strong></p>'],
+    'strike around code' => ['~~Use `~~` to strike.~~', '<p><s>Use <code>~~</code> to strike.</s></p>'],
+    'code at emphasis start' => ['*`*`*', '<p><em><code>*</code></em></p>'],
+    'code at strong start' => ['**`**`**', '<p><strong><code>**</code></strong></p>'],
+    'code at strike start' => ['~~`~~`~~', '<p><s><code>~~</code></s></p>'],
+    'emphasis around a link' => ['*Read [this](https://example.test/a*b).*', '<p><em>Read <a href="https://example.test/a*b">this</a>.</em></p>'],
+    'strong around a link' => ['**[this](https://example.test/a**b)**', '<p><strong><a href="https://example.test/a**b">this</a></strong></p>'],
+    'strike around a link' => ['~~[this](https://example.test/a~~b)~~', '<p><s><a href="https://example.test/a~~b">this</a></s></p>'],
+    'formatted link label' => ['*Read [**this**](https://example.test/).*', '<p><em>Read <a href="https://example.test/"><strong>this</strong></a>.</em></p>'],
+    'closing bracket in code' => ['[Use `]` here](https://example.test/)', '<p><a href="https://example.test/">Use <code>]</code> here</a></p>'],
+    'code at label start' => ['[`]`](https://example.test/)', '<p><a href="https://example.test/"><code>]</code></a></p>'],
+    'code and emphasis in label' => ['[*Use `*` here*](https://example.test/)', '<p><a href="https://example.test/"><em>Use <code>*</code> here</em></a></p>'],
+    'unclosed code stays literal' => ['*Use `x*', '<p><em>Use `x</em></p>'],
+    'unclosed link stays literal' => ['*Read [this](unfinished*', '<p><em>Read [this](unfinished</em></p>'],
+    'unclosed emphasis keeps code' => ['*Use `*` here', '<p>*Use <code>*</code> here</p>'],
+    'unclosed strike keeps code' => ['~~Use `~~` here', '<p>~~Use <code>~~</code> here</p>'],
+    'Unicode around code' => ['*日本語 `*` café*', '<p><em>日本語 <code>*</code> café</em></p>'],
+    'invalid multiline code' => ["*before `x*\na`", "<p><em>before `x</em>\na`</p>"],
+    'multiple code spans' => ['*`*` and `**`*', '<p><em><code>*</code> and <code>**</code></em></p>'],
+    'adjacent empty backticks' => ['*before `` and `*` after*', '<p><em>before `<code> and </code></em>` after*</p>'],
+]);
+
+it('still validates link targets inside formatting with the correct source line', function (): void {
+    expect(fn(): Document => new Parser()->parse("First line\n*Read [this](javascript:a*b).*", 'unsafe.md'))
+        ->toThrow(ContentException::class, "Unsafe link target 'javascript:a*b' in 'unsafe.md' at line 2.");
+});
+
 it('retains an exact compact document representation for every supported construct', function (): void {
     $markdown = <<<'MARKDOWN'
 # Héading `code`
