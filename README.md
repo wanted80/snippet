@@ -332,6 +332,8 @@ Every regular file under `site/assets/` is copied to `/assets/site/` with its re
 
 The 13 HTML templates under the builder’s `resources/templates/` own the document shell and shared page structures. They are released with the engine and validated before rendering. Named placeholders receive escaped text or trusted HTML generated from validated data. This is an internal rendering contract, not a site customization API.
 
+With JavaScript enabled, the browser interface theme color follows the resolved `--color-background`, including `site/site.css` overrides, on initial load and whenever the selected theme changes.
+
 The default theme follows the visitor's system light or dark preference until the menu's theme action is used. That choice is stored under `snippet-theme` and synchronized across open same-origin tabs when browser storage is available. The behavior lives in `resources/theme.js`, is copied unchanged to a fingerprinted `/assets/theme.<xxh3>.js` filename, and is permitted by the generated same-origin Content Security Policy without `unsafe-inline`.
 
 The default theme uses native popovers and CSS `light-dark()` in current browsers. Palette pairs live together in the token layer, and `@layer overrides` can customize them for both themes. Print output uses a light, high-contrast palette independently of the selected screen theme.

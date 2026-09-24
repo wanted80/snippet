@@ -2,7 +2,6 @@
   const storageKey = "snippet-theme";
   const root = document.documentElement;
   const system = window.matchMedia("(prefers-color-scheme: light)");
-  const colors = { light: "#f7f1e8", dark: "#08090a" };
   const systemTheme = () => (system.matches ? "light" : "dark");
   let preference = null;
   let storage = null;
@@ -22,7 +21,10 @@
   const initialTheme = preference ?? systemTheme();
   root.dataset.theme = initialTheme;
   const themeColor = document.querySelector('meta[name="theme-color"]');
-  themeColor?.setAttribute("content", colors[initialTheme]);
+  const syncThemeColor = () => {
+    themeColor?.setAttribute("content", window.getComputedStyle(root).backgroundColor);
+  };
+  syncThemeColor();
 
   const initialize = () => {
     const header = document.querySelector("[data-site-header]");
@@ -112,7 +114,7 @@
       const label = theme === "dark" ? "Use light theme" : "Use dark theme";
       themeButton?.setAttribute("aria-label", label);
       themeButton?.setAttribute("title", label);
-      themeColor?.setAttribute("content", colors[theme]);
+      syncThemeColor();
       if (persist && storage !== null) {
         try {
           storage.setItem(storageKey, theme);

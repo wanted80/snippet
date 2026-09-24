@@ -86,6 +86,7 @@
 @layer base {
   html {
     min-inline-size: 320px;
+    background: var(--color-background);
     scrollbar-color: var(--color-muted) var(--color-background);
     scrollbar-width: thin;
   }

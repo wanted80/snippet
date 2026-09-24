@@ -971,7 +971,7 @@ it('ships a storage-safe system-aware theme script as a dedicated asset', functi
     expect(mb_substr_count($html, '<script src="' . $scriptUrl . '"></script>'))->toBe(1)
         ->and($html)->toContain("script-src 'self'")
         ->toContain('<header class="site-header" data-site-header>', '<script src="' . $scriptUrl . '"></script>')
-        ->toMatch('~<meta charset="utf-8">.*<meta http-equiv="Content-Security-Policy".*<meta name="theme-color" content="#08090a">.*<link rel="icon" href="/favicon\.svg" type="image/svg\+xml">.*<script src="' . preg_quote($scriptUrl, '~') . '"></script>.*<link rel="stylesheet" href="' . preg_quote($stylesheetUrl, '~') . '">~s')
+        ->toMatch('~<meta charset="utf-8">.*<meta http-equiv="Content-Security-Policy".*<meta name="theme-color" content="#08090a">.*<link rel="icon" href="/favicon\.svg" type="image/svg\+xml">.*<link rel="stylesheet" href="' . preg_quote($stylesheetUrl, '~') . '">.*<script src="' . preg_quote($scriptUrl, '~') . '"></script>~s')
         ->toContain('<button class="menu-toggle icon-button" type="button" popovertarget="site-navigation" aria-controls="site-navigation" aria-label="Open navigation" title="Open navigation">')
         ->toContain('<button class="theme-toggle icon-button" type="button" data-theme-toggle aria-label="Toggle color theme" title="Toggle color theme">')
         ->toContain('<svg class="menu-icon theme-icon-light"', '<svg class="menu-icon theme-icon-dark"')
