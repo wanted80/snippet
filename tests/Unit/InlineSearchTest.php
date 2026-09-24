@@ -70,3 +70,33 @@ it('skips isolated markers when looking for a paired delimiter', function (): vo
     expect($search->find('**', 0, 7))->toBe(3)
         ->and($search->find('**', 5, 7))->toBeNull();
 });
+
+it('reuses formatting closers only within the same enclosing range', function (): void {
+    $search = new InlineSearch('a `*` b* c*');
+    expect($search->closing('*', 0, 11))->toBe(7);
+    $calls = PublisherFaults::calls('markdown_search');
+
+    expect($search->closing('*', 0, 11))->toBe(7)
+        ->and($search->closing('*', 1, 11))->toBe(7)
+        ->and($search->closing('*', 6, 11))->toBe(7)
+        ->and(PublisherFaults::calls('markdown_search'))->toBe($calls)
+        ->and($search->closing('*', 0, 4))->toBe(3)
+        ->and($search->closing('*', 5, 11))->toBe(7)
+        ->and($search->closing('*', 7, 11))->toBe(10)
+        ->and($search->closing('*', 0, 11))->toBe(7)
+        ->and($search->closing('*', 11, 11))->toBeNull();
+});
+
+it('does not repeatedly scan code spans after unmatched formatting openers', function (): void {
+    $source = str_repeat('*a `*` ', 4096);
+    $length = mb_strlen($source, '8bit');
+    $search = new InlineSearch($source);
+    expect($search->closing('*', 1, $length))->toBeNull();
+    $calls = PublisherFaults::calls('markdown_search');
+
+    for ($index = 1; $index < 4096; ++$index) {
+        expect($search->closing('*', $index * 7 + 1, $length))->toBeNull();
+    }
+
+    expect(PublisherFaults::calls('markdown_search'))->toBe($calls);
+});

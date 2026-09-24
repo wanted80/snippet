@@ -277,3 +277,28 @@ it('lets override layer class rules win against responsive glass and interaction
     $browser->assertScript('getComputedStyle(document.querySelector(".site-main")).borderRadius', '9px');
     $browser->assertScript('getComputedStyle(document.querySelector(".menu-link")).transitionDuration', '0s');
 })->with('theme screens');
+
+it('synchronizes browser color before DOM readiness and after theme changes', function (string $theme, bool $customized): void {
+    file_put_contents($this->directory . '/site/site.js', <<<'JS'
+        window.initialThemeColor = {
+            state: document.readyState,
+            color: document.querySelector('meta[name="theme-color"]').content,
+            background: getComputedStyle(document.body).backgroundColor,
+        };
+        JS);
+    $url = $this->publication($customized ? '@layer overrides { :root { --color-background: light-dark(#faf0e6, #0a141e); } }' : '');
+    $pending = visit($url, ['colorScheme' => $theme]);
+    $page = $pending->__call('page', []);
+    assert($page instanceof Page);
+    $browser = new Webpage($page, $url);
+    $light = $customized ? 'rgb(250, 240, 230)' : 'rgb(247, 241, 232)';
+    $dark = $customized ? 'rgb(10, 20, 30)' : 'rgb(8, 9, 10)';
+    $browser->assertScript('window.initialThemeColor', ['state' => 'interactive', 'color' => $theme === 'light' ? $light : $dark, 'background' => $theme === 'light' ? $light : $dark]);
+    $browser->assertScript('document.querySelector(".site-footer-row").textContent.replace(/\s+/g, " ").trim()', 'Generated and published with love by Snippet.');
+    $browser->assertScript('document.querySelector(".site-footer-heart").getAttribute("aria-hidden")', 'true');
+    $browser->click('.theme-toggle');
+    $browser->assertScript('document.querySelector("meta[name=theme-color]").content', $theme === 'light' ? $dark : $light);
+
+    $page->reload();
+    $browser->assertScript('window.initialThemeColor', ['state' => 'interactive', 'color' => $theme === 'light' ? $dark : $light, 'background' => $theme === 'light' ? $dark : $light]);
+})->with('theme palettes')->with([false, true]);

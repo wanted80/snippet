@@ -6,7 +6,7 @@ namespace Snippet\Tests;
 
 use RuntimeException;
 
-/** Deterministic fault queue used only by publication failure tests. */
+/** Deterministic filesystem aliases, fault queues, and operation counters for tests. */
 final class PublisherFaults
 {
     /** @var array<string, list<'fail'|'partial'|'pass'|'throw'|'zero'>> */
@@ -14,6 +14,19 @@ final class PublisherFaults
 
     /** @var array<string, int<0, max>> */
     private static array $calls = [];
+
+    /** @var array<string, string> */
+    private static array $pathAliases = [];
+
+    public static function aliasPathSegment(string $from, string $to): void
+    {
+        self::$pathAliases['/' . $from . '/'] = '/' . $to . '/';
+    }
+
+    public static function filesystemPath(string $path): string
+    {
+        return strtr($path, self::$pathAliases);
+    }
 
     /** @param list<'fail'|'partial'|'pass'|'throw'|'zero'> $outcomes */
     public static function set(string $operation, array $outcomes): void
@@ -25,6 +38,7 @@ final class PublisherFaults
     {
         self::$faults = [];
         self::$calls = [];
+        self::$pathAliases = [];
     }
 
     public static function record(string $operation): void

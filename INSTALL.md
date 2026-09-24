@@ -416,6 +416,8 @@ Both optional site files must be regular non-symlink UTF-8 files within the asse
 
 Custom scripts should target documented class hooks, guard optional elements, and preserve native navigation. The theme’s internal DOM and JavaScript functions may change; they are not a public script API. The existing same-origin Content Security Policy applies.
 
+With JavaScript enabled, the browser interface theme color follows the resolved `--color-background`, including `site/site.css` overrides, on initial load and whenever the selected theme changes.
+
 The no-JavaScript site remains readable and navigable. Authored content, links, and native-popover navigation work normally; the system color preference applies, and the inactive manual theme control stays hidden.
 
 Each `<xxh3>` token is the complete 16-character lowercase XXH3 digest. Files beneath `site/assets/` retain their relative names beneath `/assets/site/`; `site/favicon.svg` remains `/favicon.svg`; and content assets remain beside their generated page or article.

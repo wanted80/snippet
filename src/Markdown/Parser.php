@@ -377,7 +377,7 @@ final readonly class Parser
         if (($source[$offset + 1] ?? null) !== "~") {
             return null;
         }
-        $closing = $search->find('~~', $offset + 2, $end);
+        $closing = $search->closing('~~', $offset + 2, $end);
         if ($closing === null || $closing === $offset + 2) {
             return null;
         }
@@ -441,13 +441,8 @@ final readonly class Parser
 
     private function inlineCode(int $offset, int $end, InlineBuilder $nodes, InlineSearch $search, int $plainStart): ?int
     {
-        $closing = $search->find('`', $offset + 1, $end);
-        if ($closing === null || $closing === $offset + 1) {
-            return null;
-        }
-
-        // The opening backtick itself cannot be a newline.
-        if ($search->find("\n", $offset + 1, $closing) !== null) { // @pest-mutate-ignore: DecrementInteger
+        $closing = $search->codeEnd($offset, $end);
+        if ($closing === null) {
             return null;
         }
 
@@ -469,28 +464,13 @@ final readonly class Parser
         int $depth,
         int $maximumDepth,
     ): ?int {
-        if ($source[$offset] !== '[' || ($offset > 0 && $source[$offset - 1] === '!')) {
+        $bounds = $search->linkEnd($offset, $end);
+        if ($bounds === null) {
             return null;
         }
 
-        $labelEnd = $search->find(']', $offset + 1, $end); // @pest-mutate-ignore: DecrementInteger
-        if (
-            $labelEnd === null
-            || ($source[$labelEnd + 1] ?? null) !== '('
-            || $search->find("\n", $offset + 1, $labelEnd) !== null
-        ) {
-            return null;
-        }
-
+        [$labelEnd, $targetEnd] = $bounds;
         $targetStart = $labelEnd + 2;
-        $targetEnd = $search->find(')', $targetStart, $end);
-        if (
-            $targetEnd === null
-            || $targetEnd === $targetStart
-            || $search->find("\n", $targetStart, $targetEnd) !== null
-        ) {
-            return null;
-        }
 
         $label = mb_substr($source, $offset + 1, $labelEnd - $offset - 1, '8bit');
         if (mb_trim($label, encoding: 'UTF-8') === '') {
@@ -529,7 +509,7 @@ final readonly class Parser
             return null;
         }
 
-        $closing = $search->styleEnd($delimiter, $contentStart + 1, $end);
+        $closing = $search->closing($delimiter, $contentStart, $end);
         if ($closing === null) {
             return null;
         }

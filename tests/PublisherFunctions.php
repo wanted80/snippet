@@ -6,6 +6,11 @@ namespace Snippet\Publishing;
 
 use Snippet\Tests\PublisherFaults;
 
+function file_exists(string $filename): bool
+{
+    return \file_exists($filename) || \file_exists(PublisherFaults::filesystemPath($filename));
+}
+
 function rename(string $from, string $to): bool
 {
     return !PublisherFaults::fails('rename') && \rename($from, $to);

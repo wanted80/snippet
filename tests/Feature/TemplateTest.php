@@ -93,6 +93,7 @@ it('keeps the default layout self-contained and loads only local stylesheets', f
         '<link rel="stylesheet" href="/assets/theme.1234567890abcdef.css">',
         '<p class="site-footer-row">',
         '<span>Generated and published with</span>',
+        '<span class="visually-hidden"> love </span>',
         '<svg class="site-footer-heart" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 21 3.4 12.5a5.5 5.5 0 0 1 7.8-7.8l.8.8.8-.8a5.5 5.5 0 0 1 7.8 7.8Z"/></svg>',
         '<a href="https://github.com/wanted80/snippet"><span>Snippet</span></a>',
         '<span>Snippet</span></a>',
