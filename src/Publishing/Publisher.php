@@ -216,6 +216,11 @@ final readonly class Publisher
 
     private function writeHtml(string $path, string $contents, BuildBudget $budget): void
     {
+        // Distinct Unicode routes can name the same file on the destination filesystem.
+        if (file_exists($path)) {
+            throw new ContentException("Generated output path collides with an existing file: '{$path}'. Check content and tag slugs.");
+        }
+
         $budget->addPage($contents, $path);
         $this->writeFile($path, $contents);
     }

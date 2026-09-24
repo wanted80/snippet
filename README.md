@@ -250,6 +250,8 @@ The demo keeps `demo/content/pages/about/` as a conventional permanent About pag
 
 Tags retain their source order. Their route slugs are generated deterministically by lowercasing UTF-8 labels, replacing runs of characters other than Unicode letters, combining marks, and numbers with one hyphen, and trimming edge hyphens. `PHP 8.5` becomes `php-8-5`, `Café` becomes `café`, and `日本語` remains `日本語`. A generated slug must be non-empty and unique within an article, and it must map to one consistent display label throughout the catalog. Tag slugs and output-directory names remain Unicode—for example, `public/tags/café/`—while every emitted slug is UTF-8 percent-encoded as one RFC 3986 path segment, producing the ASCII-safe URL `/tags/caf%C3%A9/`.
 
+If distinct tag slugs resolve to the same file on the destination filesystem, publication fails and preserves the previous `public/`. This can happen with composed and decomposed spellings of the same Unicode text on macOS. Use one consistent spelling across tag labels.
+
 Assets placed beside `page.md` or `article.md` are copied beside that item's generated `index.html`, with relative paths preserved. Symlinks and paths whose first component is `index.html` are rejected.
 
 ### Markdown

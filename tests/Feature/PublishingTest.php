@@ -75,6 +75,26 @@ function publicationBytes(string $root): array
     return $files;
 }
 
+it('preserves the publication when Unicode tag paths alias on the destination filesystem', function (): void {
+    $this->article('first', ['title' => 'First', 'description' => 'D', 'date' => '2026-08-02', 'tags' => ["Caf\u{00e9}"]]);
+    $this->article('second', ['title' => 'Second', 'description' => 'D', 'date' => '2026-08-01', 'tags' => ["Cafe\u{0301}"]]);
+    $this->resources();
+    mkdir($this->directory . '/public');
+    file_put_contents($this->directory . '/public/index.html', 'Previous publication.');
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    $catalog = $this->catalog();
+
+    // Emulate normalization-insensitive path lookup even when tests run on Linux.
+    PublisherFaults::aliasPathSegment("caf\u{00e9}", "cafe\u{0301}");
+    PublisherFaults::aliasPathSegment("cafe\u{0301}", "caf\u{00e9}");
+
+    expect($catalog->tags())->toHaveCount(2)
+        ->and(fn(): BuildReport => new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $catalog))
+        ->toThrow(ContentException::class, 'Generated output path collides with an existing file')
+        ->and(publicationBytes($this->directory))->toBe(['index.html' => 'Previous publication.'])
+        ->and(glob($this->directory . '/.snippet-*'))->toBe([]);
+});
+
 function rendererContractTemplates(): Templates
 {
     $templates = [];
