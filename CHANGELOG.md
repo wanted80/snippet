@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.1](https://github.com/wanted80/snippet/compare/v4.0.0...v4.0.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* fix/footer accessibility theme color ([#57](https://github.com/wanted80/snippet/issues/57)) ([2c51102](https://github.com/wanted80/snippet/commit/2c511022e452cec7f3df55a7061dceb03f627fe8))
+
 ## [4.0.0](https://github.com/wanted80/snippet/compare/v3.3.1...v4.0.0) (2026-09-23)
 
 
