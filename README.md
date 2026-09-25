@@ -4,7 +4,7 @@
 
 # Snippet
 
-Snippet is a small PHP 8.5+ publishing system for one author. Its publishing engine has no third-party runtime packages: it uses PHP and its required extensions to turn self-contained Markdown content directories into a completely static website. This repository contains the generator and its canonical defaults; the public example site lives separately under `demo/`.
+Snippet is a simple PHP publishing system for one author designed for humans and AI agents. Its publishing engine has no third-party runtime packages: it uses PHP and its required extensions to turn self-contained Markdown content directories into a completely static website. This repository contains the generator and its canonical defaults; the public example site lives separately under `demo/`.
 
 Snippet provides:
 
@@ -14,10 +14,13 @@ Snippet provides:
 - a live-reloading local preview.
 - semantic HTML, customizable plain CSS, and light/dark themes.
 - the publishing runtime uses no third-party packages. Development tooling is kept separate.
+- its Docker image can be used inside workflows to build and deploy your static site easy.
 
 ## Why I created Snippet
 
-I created Snippet because I wanted a publishing system that met my own needs without relying on a third-party tool. It was also a perfect opportunity to explore how AI can turn an idea into a working project. I did not write a single line of code myself; instead, I contributed ideas, suggestions, part of my knowledge, and the guidance needed to lead the agent through the project.
+I created Snippet because I wanted a publishing system that met my own needs without relying on a third-party tool and allowed me to build and publish my website through GitHub workflow automation.
+
+It was also a perfect opportunity to explore how AI can turn an idea into a working project. I did not write a single line of code myself; instead, I contributed ideas, suggestions, part of my knowledge, and the guidance needed to lead the agent through the project.
 
 I have been working with AI for more than a year, and I believe now is the perfect time to use it as a partner. It makes it possible to build things that were previously out of reach outside our professional work—not because the ideas were missing, but because there was never enough time or more than two hands to do everything. It is also a great time to create more open-source projects driven by our own ideas and needs.
 
