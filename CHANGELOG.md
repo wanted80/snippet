@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.0](https://github.com/wanted80/snippet/compare/v4.0.1...v4.1.0) (2026-10-18)
+
+
+### Features
+
+* configure trusted HTTPS origins in the meta CSP ([#63](https://github.com/wanted80/snippet/issues/63)) ([5dde9a6](https://github.com/wanted80/snippet/commit/5dde9a690340bb0f8b4c589da26024c44cc3a527))
+
 ## [4.0.1](https://github.com/wanted80/snippet/compare/v4.0.0...v4.0.1) (2026-09-24)
 
 
