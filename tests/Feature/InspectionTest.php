@@ -58,6 +58,10 @@ it('shares configuration fields and safely parsed starter values', function (): 
     $result = new Inspector($root)->inspect('config');
     expect($result['required'])->toBe(ConfigLoader::FIELDS)
         ->and($result['starter_values'])->toBe(new TrustedPhpLoader()->load($root . '/site/config.php', 'starter'));
+    $fields = $result['fields'];
+    assert(is_array($fields) && is_array($fields['csp']));
+    expect($fields['csp']['optional'])->toBeTrue()
+        ->and($fields['csp']['fields'])->toBe(['script-src', 'style-src', 'img-src', 'font-src', 'connect-src']);
     $content = new Inspector($root)->inspect('content');
     $types = $content['types'];
     assert(is_array($types));
