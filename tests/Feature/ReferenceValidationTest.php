@@ -8,11 +8,12 @@ use Snippet\Markdown\Document;
 use Snippet\Markdown\InlineBuilder;
 use Snippet\Publishing\PublicationInputLoader;
 use Snippet\Publishing\PublicationInventory;
-use Snippet\Publishing\Publisher;
+use Snippet\Publishing\PublicationResourceLoader;
 use Snippet\Publishing\ReferenceValidator;
 use Snippet\Rendering\AssetPaths;
 use Snippet\Site\Config;
 use Snippet\Site\ConfigLoader;
+use Snippet\Site\Limits;
 
 mutates(ReferenceValidator::class);
 
@@ -88,7 +89,7 @@ MARKDOWN);
     assert(is_string($markdown));
     $this->resources();
     $config = new ConfigLoader()->load($this->directory . '/site');
-    $themePath = new Publisher()->validatedResources($this->directory, $config)->assets->paths->themeStylesheet;
+    $themePath = new PublicationResourceLoader()->load($this->directory, $config, new Limits())->assets->paths->themeStylesheet;
     file_put_contents($path . '/article.md', $markdown . "\n[site asset](/assets/site/downloads/guide.pdf)\n[theme]({$themePath})\n");
 
     expect(validatePublication($this->directory)[0])->toBe(0);
@@ -146,7 +147,7 @@ it('exposes a sorted deterministic publication inventory', function (): void {
     file_put_contents($path . '/notes.txt', 'notes');
     $this->resources();
 
-    $inputs = new PublicationInputLoader(publisher: new Publisher(engineRoot: $this->directory))->load($this->directory);
+    $inputs = new PublicationInputLoader(resourceLoader: new PublicationResourceLoader(engineRoot: $this->directory))->load($this->directory);
     $paths = new PublicationInventory($inputs->config, $inputs->catalog, $inputs->assets->paths)->paths();
     $sorted = $paths;
     sort($sorted, SORT_STRING);

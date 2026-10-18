@@ -5,7 +5,9 @@ declare(strict_types=1);
 use Pest\Browser\Playwright\Servers\PlaywrightNpmServer;
 use Pest\Browser\ServerManager;
 use Pest\Browser\Support\Trace;
+use Snippet\Tests\ApplicationClock;
 use Snippet\Tests\BrowserTestCase;
+use Snippet\Tests\PublisherFaults;
 use Snippet\Tests\TestCase;
 
 require_once __DIR__ . '/PublisherFunctions.php';
@@ -19,9 +21,17 @@ require_once __DIR__ . '/MarkdownFunctions.php';
 
 pest()
     ->extend(TestCase::class)
-    ->in('Feature', 'Unit');
+    ->in('Feature', 'Unit/Utf8FileValidatorTest.php', 'Unit/RegularFileInventoryTest.php');
 
 pest()->extend(BrowserTestCase::class)->in('Browser');
+
+pest()->beforeEach(function (): void {
+    ApplicationClock::reset();
+    PublisherFaults::reset();
+})->afterEach(function (): void {
+    ApplicationClock::reset();
+    PublisherFaults::reset();
+})->in('Feature', 'Unit', 'Browser');
 
 pest()->browser()->inChrome();
 

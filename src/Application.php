@@ -122,11 +122,11 @@ final readonly class Application
             }
 
             $publisher = $this->publisher ?? new Publisher();
-            $publicationInputLoader = $this->publicationInputLoader ?? new PublicationInputLoader(publisher: $publisher);
+            $publicationInputLoader = $this->publicationInputLoader ?? new PublicationInputLoader();
             $inputs = $publicationInputLoader->load($root);
             $catalog = $inputs->catalog;
             if ($command === Command::Build) {
-                $report = $publisher->publish($root, $inputs->config, $catalog, $inputs->limits, $inputs->templates, $inputs->assets);
+                $report = $publisher->publish($root, $inputs);
             }
         } catch (ContentException $contentException) {
             $output->failure($command, $contentException->getMessage());

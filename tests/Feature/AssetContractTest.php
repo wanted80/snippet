@@ -9,6 +9,7 @@ use Snippet\Publishing\PublicationAssets;
 use Snippet\Publishing\PublicationInputLoader;
 use Snippet\Publishing\PublicationInputs;
 use Snippet\Publishing\PublicationInventory;
+use Snippet\Publishing\PublicationResourceLoader;
 use Snippet\Publishing\PublicationResources;
 use Snippet\Publishing\Publisher;
 use Snippet\Site\Config;
@@ -16,7 +17,7 @@ use Snippet\Site\ConfigLoader;
 use Snippet\Site\Limits;
 use Snippet\Tests\PublisherFaults;
 
-mutates(PublicationAssets::class, PublicationInputs::class, PublicationInventory::class, Publisher::class);
+mutates(PublicationResourceLoader::class, PublicationAssets::class, PublicationInputs::class, PublicationInventory::class, Publisher::class);
 
 it('always compacts entry CSS while preserving JavaScript and generated HTML', function (): void {
     $this->content();
@@ -28,15 +29,15 @@ it('always compacts entry CSS while preserving JavaScript and generated HTML', f
     file_put_contents($this->directory . '/site/site.css', $stylesheet);
     file_put_contents($this->directory . '/site/site.js', $javascript);
     $config = new ConfigLoader()->load($this->directory . '/site');
-    $publisher = new Publisher(engineRoot: $this->directory);
-    $resources = $publisher->validatedResources($this->directory, $config);
+    $publisher = new Publisher();
+    $resources = new PublicationResourceLoader(engineRoot: $this->directory)->load($this->directory, $config, new Limits());
 
     expect($resources->assets->themeStylesheet->contents)->toBe('a{color: red;}')
         ->and($resources->assets->siteStylesheet?->contents)->toBe('a{color: red;}')
         ->and($resources->assets->themeScript->contents)->toBe($javascript)
         ->and($resources->assets->siteScript?->contents)->toBe($javascript);
 
-    $publisher->publish($this->directory, $config, $this->catalog());
+    $publisher->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
     expect(file_get_contents($this->directory . '/public/index.html'))->toContain("\n    <head>\n");
 });
 
@@ -78,7 +79,7 @@ it('fingerprints entry assets from their exact published bytes with XXH3', funct
     file_put_contents($this->directory . '/site/site.js', $siteJs);
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
 
     $publishedThemeCss = '@layer theme{:root{color: red;}}';
     $publishedSiteCss = '@layer overrides{:root{color: blue;}}';
@@ -105,7 +106,7 @@ it('accepts the exact retained entry asset ceiling and rejects one byte above it
     file_put_contents($this->directory . '/resources/theme.css', 'abc');
     file_put_contents($this->directory . '/resources/theme.js', 'de');
     $config = new ConfigLoader()->load($this->directory . '/site');
-    $load = fn(): PublicationResources => new Publisher(engineRoot: $this->directory)->validatedResources(
+    $load = fn(): PublicationResources => new PublicationResourceLoader(engineRoot: $this->directory)->load(
         $this->directory,
         $config,
         new Limits(retainedEntryAssetBytes: $limit),
@@ -131,13 +132,13 @@ it('enforces the retained entry asset ceiling against minified bytes', function 
     file_put_contents($this->directory . '/resources/theme.js', 'de');
     $config = new ConfigLoader()->load($this->directory . '/site');
 
-    $resources = new Publisher(engineRoot: $this->directory)->validatedResources(
+    $resources = new PublicationResourceLoader(engineRoot: $this->directory)->load(
         $this->directory,
         $config,
         new Limits(retainedEntryAssetBytes: 5),
     );
     expect($resources->assets->themeStylesheet->contents)->toBe('a{}')
-        ->and(fn(): PublicationResources => new Publisher(engineRoot: $this->directory)->validatedResources(
+        ->and(fn(): PublicationResources => new PublicationResourceLoader(engineRoot: $this->directory)->load(
             $this->directory,
             $config,
             new Limits(retainedEntryAssetBytes: 4),
@@ -152,7 +153,7 @@ it('validates every configured site asset in the retained resource snapshot', fu
     $config = new ConfigLoader()->load($this->directory . '/site');
     unlink($this->directory . '/site/assets/declared.txt');
 
-    expect(fn(): PublicationResources => new Publisher(engineRoot: $this->directory)->validatedResources($this->directory, $config))
+    expect(fn(): PublicationResources => new PublicationResourceLoader(engineRoot: $this->directory)->load($this->directory, $config, new Limits()))
         ->toThrow(ContentException::class, "site/assets/declared.txt' must be a regular non-symlink file");
 });
 
@@ -165,7 +166,7 @@ it('requires UTF-8 text at each publication entry asset boundary', function (str
     $path = $this->directory . '/' . $relativePath;
     file_put_contents($path, "\xFF");
 
-    expect(fn(): PublicationResources => new Publisher(engineRoot: $this->directory)->validatedResources($this->directory, $config))
+    expect(fn(): PublicationResources => new PublicationResourceLoader(engineRoot: $this->directory)->load($this->directory, $config, new Limits()))
         ->toThrow(ContentException::class, "Publication asset '{$path}' must be readable UTF-8 text.");
 })->with([
     'favicon' => 'site/favicon.svg',
@@ -182,7 +183,7 @@ it('accepts the exact source asset limit before minification and rejects the nex
     file_put_contents($this->directory . '/resources/theme.js', 'true;');
     file_put_contents($this->directory . '/site/favicon.svg', '<svg/>');
     $config = new ConfigLoader()->load($this->directory . '/site');
-    $load = fn(): PublicationResources => new Publisher(engineRoot: $this->directory)->validatedResources(
+    $load = fn(): PublicationResources => new PublicationResourceLoader(engineRoot: $this->directory)->load(
         $this->directory,
         $config,
         new Limits(assetBytes: 6),
@@ -197,37 +198,43 @@ it('accepts the exact source asset limit before minification and rejects the nex
     expect($load()->assets->themeStylesheet->contents)->toBe('body{}');
 })->with(['exact limit' => false, 'one byte over' => true]);
 
-it('reuses a complete validated resource snapshot without reopening its sources', function (): void {
-    $this->content();
+it('reuses complete validated inputs without reopening metadata, documents, templates, or entry assets', function (): void {
+    $item = $this->item('about', ['title' => 'About', 'description' => 'Original description.'], '# Original heading');
     $this->resources();
-    $config = new ConfigLoader()->load($this->directory . '/site');
-    $publisher = new Publisher(engineRoot: $this->directory);
-    $resources = $publisher->validatedResources($this->directory, $config);
-    unlink($this->directory . '/resources/templates/layout.html');
-    unlink($this->directory . '/resources/theme.css');
-    unlink($this->directory . '/resources/theme.js');
+    file_put_contents($this->directory . '/site/site.css', 'body { color: red; }');
+    file_put_contents($this->directory . '/site/site.js', 'window.original = true;');
+    $inputs = new PublicationInputLoader(resourceLoader: new PublicationResourceLoader(engineRoot: $this->directory))->load($this->directory);
+    $publisher = new Publisher();
+    $publisher->publish($this->directory, $inputs);
 
-    $publisher->publish($this->directory, $config, $this->catalog(), templates: $resources->templates, assets: $resources->assets);
+    $original = publicationBytes($this->directory);
+    foreach (['site/config.php', 'site/site.css', 'site/site.js', 'resources/templates/layout.html', 'resources/theme.css', 'resources/theme.js'] as $source) {
+        unlink($this->directory . '/' . $source);
+    }
+    unlink($item . '/meta.php');
+    unlink($item . '/page.md');
 
-    expect(file_get_contents($this->directory . '/public/index.html'))->toContain('Generated and published with');
-    foreach ($resources->assets->all() as $asset) {
+    $publisher->publish($this->directory, $inputs);
+
+    expect(publicationBytes($this->directory))->toBe($original);
+    foreach ($inputs->assets->all() as $asset) {
         expect(file_get_contents($this->directory . '/public' . $asset->publishedPath))->toBe($asset->contents);
     }
 });
 
-it('keeps each caller-supplied publication resource when loading its missing peer', function (string $supplied): void {
+it('keeps the complete input snapshot when resource sources change', function (string $changed): void {
     $this->content();
     $this->resources();
     $config = new ConfigLoader()->load($this->directory . '/site');
-    $publisher = new Publisher(engineRoot: $this->directory);
-    $original = $publisher->validatedResources($this->directory, $config);
+    $publisher = new Publisher();
+    $original = publicationInputs($this->directory, $config, $this->catalog());
 
-    if ($supplied === 'templates') {
+    if ($changed === 'templates') {
         $layoutPath = $this->directory . '/resources/templates/layout.html';
         $layout = file_get_contents($layoutPath);
         assert(is_string($layout));
         file_put_contents($layoutPath, str_replace('Generated and published with', 'New layout marker', $layout));
-        $publisher->publish($this->directory, $config, $this->catalog(), templates: $original->templates);
+        $publisher->publish($this->directory, $original);
         $html = file_get_contents($this->directory . '/public/index.html');
         expect($html)->toBeString()->toContain('Generated and published with')->not->toContain('New layout marker');
 
@@ -236,7 +243,7 @@ it('keeps each caller-supplied publication resource when loading its missing pee
 
     $oldThemeScript = $original->assets->themeScript;
     file_put_contents($this->directory . '/resources/theme.js', 'window.changed = true;');
-    $publisher->publish($this->directory, $config, $this->catalog(), assets: $original->assets);
+    $publisher->publish($this->directory, $original);
 
     expect(file_get_contents($this->directory . '/public' . $oldThemeScript->publishedPath))->toBe($oldThemeScript->contents)
         ->and(glob($this->directory . '/public/assets/theme.*.js'))->toBe([
@@ -253,7 +260,7 @@ it('closes minification streams on success and when output allocation fails', fu
     $config = new ConfigLoader()->load($this->directory . '/site');
 
     try {
-        (void) new Publisher(engineRoot: $this->directory)->validatedResources($this->directory, $config);
+        (void) new PublicationResourceLoader(engineRoot: $this->directory)->load($this->directory, $config, new Limits());
     } catch (ContentException $contentException) {
         expect($contentException->getMessage())->toContain('Unable to minify publication stylesheet');
     }
@@ -314,9 +321,9 @@ it('publishes every optional CSS and JavaScript combination with stable ordering
     }
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    $publisher = new Publisher(engineRoot: $this->directory);
-    $resources = $publisher->validatedResources($this->directory, $config);
-    $publisher->publish($this->directory, $config, $this->catalog(), templates: $resources->templates, assets: $resources->assets);
+    $publisher = new Publisher();
+    $resources = publicationInputs($this->directory, $config, $this->catalog());
+    $publisher->publish($this->directory, $resources);
     $html = file_get_contents($this->directory . '/public/index.html');
     assert(is_string($html));
     $paths = $resources->assets->paths;
@@ -366,7 +373,7 @@ it('keeps authored content, native navigation, and the system theme usable witho
     $this->item('page', ['title' => 'Page', 'description' => 'Description.'], 'Readable without JavaScript.');
     $this->resources();
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
     $page = file_get_contents($this->directory . '/public/page/index.html');
     $css = file_get_contents($this->publishedAsset('theme.css'));
     assert(is_string($page));
@@ -386,7 +393,7 @@ it('exposes only present customization assets to internal reference validation',
     $this->content();
     $this->resources();
     file_put_contents($this->directory . '/site/site.js', '/* custom */');
-    $inputs = new PublicationInputLoader(publisher: new Publisher(engineRoot: $this->directory))->load($this->directory);
+    $inputs = new PublicationInputLoader(resourceLoader: new PublicationResourceLoader(engineRoot: $this->directory))->load($this->directory);
     $paths = new PublicationInventory($inputs->config, $inputs->catalog, $inputs->assets->paths)->paths();
 
     expect($paths)->toContain($inputs->assets->themeStylesheet->publishedPath, $inputs->assets->themeScript->publishedPath, $inputs->assets->siteScript?->publishedPath)
@@ -409,7 +416,7 @@ it('counts every retained, generated, site, and content asset exactly once', fun
     file_put_contents($this->directory . '/site/site.js', '/* custom */');
     $this->resources();
 
-    $inputs = new PublicationInputLoader(publisher: new Publisher(engineRoot: $this->directory))->load($this->directory);
+    $inputs = new PublicationInputLoader(resourceLoader: new PublicationResourceLoader(engineRoot: $this->directory))->load($this->directory);
 
     expect($inputs->assetCount())->toBe(8)
         ->and($inputs->assets->all())->toBe([
@@ -436,7 +443,7 @@ it('exposes the complete publication inventory as one exact ordered snapshot', f
     file_put_contents($this->directory . '/site/site.js', '/* custom */');
     $this->resources();
 
-    $inputs = new PublicationInputLoader(publisher: new Publisher(engineRoot: $this->directory))->load($this->directory);
+    $inputs = new PublicationInputLoader(resourceLoader: new PublicationResourceLoader(engineRoot: $this->directory))->load($this->directory);
     assert($inputs->assets->siteStylesheet instanceof PublicationAsset);
     assert($inputs->assets->siteScript instanceof PublicationAsset);
     $expected = [
@@ -489,8 +496,8 @@ it('keeps script source ceilings and the previous publication when preparation f
     file_put_contents($this->directory . '/site/favicon.svg', '<svg/>');
     file_put_contents($this->directory . '/site/site.js', 'x');
     $config = new ConfigLoader()->load($this->directory . '/site');
-    $publisher = new Publisher(engineRoot: $this->directory);
-    $publisher->publish($this->directory, $config, $this->catalog());
+    $publisher = new Publisher();
+    $publisher->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
 
     $original = file_get_contents($this->directory . '/public/index.html');
     file_put_contents($this->directory . '/site/site.js', str_repeat(' ', 40));
@@ -503,7 +510,7 @@ it('keeps script source ceilings and the previous publication when preparation f
         PublisherFaults::set('publishing_file_get_contents', ['pass', 'fail']);
     }
 
-    expect(fn(): BuildReport => $publisher->publish($this->directory, $config, $this->catalog(), $limits))
+    expect(fn(): BuildReport => $publisher->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog(), $limits)))
         ->toThrow(ContentException::class, match ($failure) {
             'source' => "site/site.js' exceeds the 39-byte asset limit",
             'retained' => 'retained-entry-asset ceiling',
@@ -519,8 +526,8 @@ it('publishes scripts unchanged with their original fingerprint', function (): v
     $script = 'const   ratio = value / 2;';
     file_put_contents($this->directory . '/site/site.js', $script);
     $config = new ConfigLoader()->load($this->directory . '/site');
-    $publisher = new Publisher(engineRoot: $this->directory);
-    $publisher->publish($this->directory, $config, $this->catalog());
+    $publisher = new Publisher();
+    $publisher->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
 
     expect(file_get_contents($this->directory . '/public/assets/site.' . hash('xxh3', $script) . '.js'))->toBe($script);
 });

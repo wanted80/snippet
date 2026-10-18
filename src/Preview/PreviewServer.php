@@ -10,6 +10,7 @@ use Override;
 use Snippet\Cli\ErrorReporter;
 use Snippet\Exception\ContentException;
 use Snippet\Publishing\PublicationInputLoader;
+use Snippet\Publishing\PublicationResourceLoader;
 use Snippet\Publishing\Publisher;
 use Snippet\Site\Config;
 use SplFileObject;
@@ -50,8 +51,8 @@ final class PreviewServer implements Previewer
         private readonly bool $watchRuntimeSource = true,
         private readonly string $engineRoot = __DIR__ . '/../..',
     ) {
-        $this->publisher = $publisher ?? new Publisher(engineRoot: $engineRoot);
-        $this->publicationInputLoader = $publicationInputLoader ?? new PublicationInputLoader(publisher: $this->publisher);
+        $this->publisher = $publisher ?? new Publisher();
+        $this->publicationInputLoader = $publicationInputLoader ?? new PublicationInputLoader(resourceLoader: new PublicationResourceLoader(engineRoot: $engineRoot));
     }
 
     #[Override]
@@ -185,11 +186,7 @@ final class PreviewServer implements Previewer
         $inputs = $this->publicationInputLoader->load($root);
         $report = $this->publisher->publish(
             $root,
-            $inputs->config,
-            $inputs->catalog,
-            $inputs->limits,
-            $inputs->templates,
-            $inputs->assets,
+            $inputs,
             previewVersion: bin2hex(random_bytes(8)),
         );
         if ($report->cleanupWarning !== null) {

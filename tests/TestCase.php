@@ -30,16 +30,12 @@ abstract class TestCase extends BaseTestCase
         unlink($temporary);
         mkdir($temporary);
         $this->directory = $temporary;
-        ApplicationClock::reset();
-        PublisherFaults::reset();
         $this->site();
         copy(__DIR__ . '/../site/favicon.svg', $this->directory . '/site/favicon.svg');
     }
 
     protected function tearDown(): void
     {
-        ApplicationClock::reset();
-        PublisherFaults::reset();
         $this->remove($this->directory);
         parent::tearDown();
     }
