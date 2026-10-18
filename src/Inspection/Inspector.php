@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Snippet\Cli\Command;
 use Snippet\Content\ContentType;
 use Snippet\Exception\ContentException;
+use Snippet\Site\Config;
 use Snippet\Site\ConfigLoader;
 use Snippet\Site\Limits;
 use Snippet\Support\Slug;
@@ -95,9 +96,10 @@ final readonly class Inspector
                 'home.articles' => ['type' => 'integer', 'minimum' => 1],
                 'home.tags' => ['type' => 'integer', 'minimum' => 1],
                 'profiles' => ['type' => 'ordered list', 'optional' => true, 'fields' => ['label', 'url', 'icon'], 'icons' => ConfigLoader::PROFILE_ICONS],
+                'csp' => ['type' => 'array', 'optional' => true, 'fields' => Config::CSP_DIRECTIVES, 'constraint' => 'Each directive adds an ordered list of at most 32 explicit HTTPS origins, without trailing slash, path, credentials, query, fragment, or wildcards. Same-origin sources remain allowed.'],
             ],
             'starter_values' => new TrustedPhpLoader()->load($path, 'installed starter configuration', new Limits()->metadataBytes),
-            'guidance' => 'Identity and home fields are required. Profiles are optional. Entry CSS is always minified; HTML and JavaScript are not minified. Internal resource limits are not author configuration.',
+            'guidance' => 'Identity and home fields are required. Profiles and CSP additions are optional. Entry CSS is always minified; HTML and JavaScript are not minified. Internal resource limits are not author configuration.',
         ];
     }
 

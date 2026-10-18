@@ -401,6 +401,13 @@ Inside the container, use the canonical `bin/snippet` commands. Run only one dir
 
 The installed builder owns the HTML and theme behavior. Customize appearance through `site/site.css` and the [stable CSS API](README.md#stable-css-api). Optional `site/site.js` adds local behavior; both customization files remain author-owned. There are no template overrides.
 
+To load an external script from `site/site.js`, allow its HTTPS origin under
+`csp.script-src` in `site/config.php`. Allow any API origins it calls under
+`csp.connect-src`. The optional `csp` map also accepts `style-src`, `img-src`, and
+`font-src`; each adds up to 32 explicit HTTPS origins to the existing same-origin
+policy. Use origins without paths or trailing slashes. See the
+[configuration example](README.md#site-customization) for the complete setup.
+
 Source paths beneath `resources/` refer to the installed builder, not the mounted workspace:
 
 | Source | Output | Behavior |

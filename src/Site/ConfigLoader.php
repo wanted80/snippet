@@ -48,9 +48,10 @@ final readonly class ConfigLoader
         $path = $siteDirectory . '/config.php';
         $value = $this->phpLoader->load($path, 'site configuration', $limits->metadataBytes);
         $profiles = $this->profiles(array_key_exists('profiles', $value) ? $value['profiles'] : []);
-        unset($value['profiles']);
+        $csp = $this->csp(array_key_exists('csp', $value) ? $value['csp'] : []);
+        unset($value['profiles'], $value['csp']);
         if (!$this->hasExactFields($value, self::FIELDS)) {
-            throw new ContentException("Site configuration must return the exact fields: title, sitename, author, description, url, language, home (with optional profiles).");
+            throw new ContentException("Site configuration must return the exact fields: title, sitename, author, description, url, language, home (with optional profiles and csp).");
         }
 
         $title = $this->text($value, 'title');
@@ -69,7 +70,7 @@ final readonly class ConfigLoader
         $hasSiteStylesheet = $this->optionalTextAsset($stylesheet, 'Site site.css');
         $hasSiteScript = $this->optionalTextAsset($script, 'Site site.js');
 
-        return new Config($title, $sitename, $author, $description, $url, $language, $assets, $hasSiteStylesheet, $hasSiteScript, $homeArticles, $homeTags, $profiles);
+        return new Config($title, $sitename, $author, $description, $url, $language, $assets, $hasSiteStylesheet, $hasSiteScript, $homeArticles, $homeTags, $profiles, $csp);
     }
 
     /**
@@ -163,6 +164,36 @@ final readonly class ConfigLoader
             $profiles[] = $link;
         }
         return $profiles;
+    }
+
+    /** @return array<string, list<string>> */
+    private function csp(mixed $value): array
+    {
+        if (!is_array($value) || array_diff(array_keys($value), Config::CSP_DIRECTIVES) !== []) {
+            throw new ContentException("Site configuration field 'csp' accepts only script-src, style-src, img-src, font-src, and connect-src.");
+        }
+
+        $csp = [];
+        foreach (Config::CSP_DIRECTIVES as $directive) {
+            if (!array_key_exists($directive, $value)) {
+                continue;
+            }
+            $sources = $value[$directive];
+            if (!is_array($sources) || !array_is_list($sources) || count($sources) > 32) {
+                throw new ContentException("Site configuration field 'csp.{$directive}' must be an ordered list of at most 32 HTTPS origins.");
+            }
+
+            $origins = [];
+            foreach ($sources as $source) {
+                if (!is_string($source) || preg_match('~\Ahttps://[a-zA-Z0-9.-]+(?::[0-9]+)?\z~', $source) !== 1 || filter_var($source, FILTER_VALIDATE_URL) === false) {
+                    throw new ContentException("Site configuration field 'csp.{$directive}' requires explicit HTTPS origins without paths, credentials, queries, fragments, or wildcards.");
+                }
+                $origins[] = $source;
+            }
+            $csp[$directive] = $origins;
+        }
+
+        return $csp;
     }
 
     private function language(mixed $value): string
