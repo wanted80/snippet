@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+
 use Snippet\Application;
 use Snippet\Content\Article;
 use Snippet\Content\ArticleImage;
@@ -18,6 +19,7 @@ use Snippet\Markdown\Parser;
 use Snippet\Publishing\BuildReport;
 use Snippet\Publishing\CssMinifier;
 use Snippet\Publishing\LlmsTxtRenderer;
+use Snippet\Publishing\PublicationResourceLoader;
 use Snippet\Publishing\Publisher;
 use Snippet\Publishing\ReferenceValidator;
 use Snippet\Rendering\AssetPaths;
@@ -32,7 +34,7 @@ use Snippet\Site\Limits;
 use Snippet\Support\ApplicationVersion;
 use Snippet\Tests\PublisherFaults;
 
-mutates(CatalogLoader::class, CssMinifier::class, HtmlRenderer::class, LlmsTxtRenderer::class, MarkdownHtmlRenderer::class, Parser::class, ReferenceValidator::class, TemplateLoader::class);
+mutates(PublicationResourceLoader::class, CatalogLoader::class, CssMinifier::class, HtmlRenderer::class, LlmsTxtRenderer::class, MarkdownHtmlRenderer::class, Parser::class, ReferenceValidator::class, TemplateLoader::class);
 
 it('validates and publishes calendar dates independently of the process timezone', function (): void {
     $previousTimezone = date_default_timezone_get();
@@ -42,13 +44,13 @@ it('validates and publishes calendar dates independently of the process timezone
         $this->resources();
         $config = new ConfigLoader()->load($this->directory . '/site');
         $catalog = $this->catalog();
-        $publisher = new Publisher(engineRoot: $this->directory);
-        $publisher->publish($this->directory, $config, $catalog);
+        $publisher = new Publisher();
+        $publisher->publish($this->directory, publicationInputs($this->directory, $config, $catalog));
         $expected = publicationBytes($this->directory);
 
         date_default_timezone_set('Pacific/Apia');
         expect(serialize($this->catalog()))->toBe(serialize($catalog));
-        $publisher->publish($this->directory, $config, $catalog);
+        $publisher->publish($this->directory, publicationInputs($this->directory, $config, $catalog));
 
         expect(publicationBytes($this->directory))->toBe($expected)
             ->and($expected['articles/post/index.html'])->toContain('<time datetime="2011-12-30">December 30, 2011</time>');
@@ -56,24 +58,6 @@ it('validates and publishes calendar dates independently of the process timezone
         date_default_timezone_set($previousTimezone);
     }
 });
-
-/** @return array<string, string> */
-function publicationBytes(string $root): array
-{
-    $files = [];
-    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/public', FilesystemIterator::SKIP_DOTS));
-    foreach ($iterator as $file) {
-        assert($file instanceof SplFileInfo);
-        if ($file->isFile()) {
-            $contents = file_get_contents($file->getPathname());
-            assert(is_string($contents));
-            $files[mb_substr($file->getPathname(), mb_strlen($root . '/public/'))] = $contents;
-        }
-    }
-
-    ksort($files);
-    return $files;
-}
 
 it('preserves the publication when Unicode tag paths alias on the destination filesystem', function (): void {
     $this->article('first', ['title' => 'First', 'description' => 'D', 'date' => '2026-08-02', 'tags' => ["Caf\u{00e9}"]]);
@@ -85,11 +69,12 @@ it('preserves the publication when Unicode tag paths alias on the destination fi
     $catalog = $this->catalog();
 
     // Emulate normalization-insensitive path lookup even when tests run on Linux.
+    $inputs = publicationInputs($this->directory, $config, $catalog);
     PublisherFaults::aliasPathSegment("caf\u{00e9}", "cafe\u{0301}");
     PublisherFaults::aliasPathSegment("cafe\u{0301}", "caf\u{00e9}");
 
     expect($catalog->tags())->toHaveCount(2)
-        ->and(fn(): BuildReport => new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $catalog))
+        ->and(fn(): BuildReport => new Publisher()->publish($this->directory, $inputs))
         ->toThrow(ContentException::class, 'Generated output path collides with an existing file')
         ->and(publicationBytes($this->directory))->toBe(['index.html' => 'Previous publication.'])
         ->and(glob($this->directory . '/.snippet-*'))->toBe([]);
@@ -289,12 +274,12 @@ it('builds the complete deterministic site with escaped semantic HTML and every 
 
     $config = new ConfigLoader()->load($this->directory . '/site');
     $catalog = new CatalogLoader()->load($this->directory . '/content');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $catalog);
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $catalog));
     $first = publicationBytes($this->directory);
     $themeStylesheet = mb_substr($this->publishedAsset('theme.css'), mb_strlen($this->directory . '/public/'));
     $themeScript = mb_substr($this->publishedAsset('theme.js'), mb_strlen($this->directory . '/public/'));
     $siteStylesheet = mb_substr($this->publishedAsset('site.css'), mb_strlen($this->directory . '/public/'));
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $catalog);
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $catalog));
 
     $expectedFiles = [
         '404.html',
@@ -495,10 +480,11 @@ it('retains cleanup diagnostics in a successful publication report', function (b
     $this->content();
     mkdir($this->directory . '/public');
     file_put_contents($this->directory . '/public/index.html', 'Old publication.');
-    PublisherFaults::set('unlink', [$unexpected ? 'throw' : 'fail']);
     $config = new ConfigLoader()->load($this->directory . '/site');
+    $inputs = publicationInputs($this->directory, $config, $this->catalog(), engineRoot: dirname(__DIR__, 2));
+    PublisherFaults::set('unlink', [$unexpected ? 'throw' : 'fail']);
 
-    $report = new Publisher()->publish($this->directory, $config, $this->catalog());
+    $report = new Publisher()->publish($this->directory, $inputs);
 
     $backups = glob($this->directory . '/.snippet-backup-*');
     expect($backups)->toBeArray()->toHaveCount(1);
@@ -524,7 +510,7 @@ it('publishes readable files and traversable directories independently of the pr
 
     $previousMask = umask($mask);
     try {
-        new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $catalog);
+        new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $catalog));
     } finally {
         umask($previousMask);
     }
@@ -550,19 +536,20 @@ it('keeps abandoned build and backup trees separate across successive publicatio
     file_put_contents($this->directory . '/public/index.html', 'old publication');
     $config = new ConfigLoader()->load($this->directory . '/site');
     $catalog = $this->catalog();
-    $publisher = new Publisher(engineRoot: $this->directory);
+    $publisher = new Publisher();
     $pattern = $this->directory . ($failBuild ? '/.snippet-build-*' : '/.snippet-backup-*');
     $previous = [];
 
+    $inputs = publicationInputs($this->directory, $config, $catalog);
     foreach ([1, 2] as $count) {
         PublisherFaults::set('unlink', ['fail']);
         if ($failBuild) {
             PublisherFaults::set('copy', ['fail']);
-            expect(fn(): BuildReport => $publisher->publish($this->directory, $config, $catalog))
+            expect(fn(): BuildReport => $publisher->publish($this->directory, $inputs))
                 ->toThrow(ContentException::class, 'Temporary publication cleanup failed')
                 ->and(publicationBytes($this->directory))->toBe(['index.html' => 'old publication']);
         } else {
-            expect($publisher->publish($this->directory, $config, $catalog)->cleanupWarning)->toContain('The new site was published.');
+            expect($publisher->publish($this->directory, $inputs)->cleanupWarning)->toContain('The new site was published.');
         }
 
         $remaining = glob($pattern);
@@ -581,12 +568,12 @@ it('closes the llms stream after writing every byte even when a write is partial
     $this->content();
     $this->resources();
     $config = new ConfigLoader()->load($this->directory . '/site');
-    $publisher = new Publisher(engineRoot: $this->directory);
-    $resources = $publisher->validatedResources($this->directory, $config);
+    $publisher = new Publisher();
+    $inputs = publicationInputs($this->directory, $config, $this->catalog());
     PublisherFaults::reset();
     PublisherFaults::set('publishing_fwrite', ['partial']);
 
-    $publisher->publish($this->directory, $config, $this->catalog(), templates: $resources->templates, assets: $resources->assets);
+    $publisher->publish($this->directory, $inputs);
 
     expect(file_get_contents($this->directory . '/public/llms.txt'))->toBe("# Test Site\n\n> A test site.\n\nAuthor: Test Author\n")
         ->and(PublisherFaults::calls('publishing_fclose'))->toBe(1);
@@ -599,12 +586,12 @@ it('aborts a stalled llms write immediately and closes its stream', function (st
     mkdir($this->directory . '/public');
     file_put_contents($this->directory . '/public/index.html', 'old publication');
     $config = new ConfigLoader()->load($this->directory . '/site');
-    $publisher = new Publisher(engineRoot: $this->directory);
-    $resources = $publisher->validatedResources($this->directory, $config);
+    $publisher = new Publisher();
+    $inputs = publicationInputs($this->directory, $config, $this->catalog());
     PublisherFaults::reset();
     PublisherFaults::set('publishing_fwrite', [$outcome, 'throw']);
 
-    expect(fn(): BuildReport => $publisher->publish($this->directory, $config, $this->catalog(), templates: $resources->templates, assets: $resources->assets))
+    expect(fn(): BuildReport => $publisher->publish($this->directory, $inputs))
         ->toThrow(ContentException::class, 'Unable to write generated file')
         ->and(PublisherFaults::calls('publishing_fwrite'))->toBe(1)
         ->and(PublisherFaults::calls('publishing_fclose'))->toBe(1)
@@ -618,9 +605,10 @@ it('preserves the current publication when a copied asset cannot be made readabl
     mkdir($this->directory . '/public');
     file_put_contents($this->directory . '/public/index.html', 'old publication');
     $config = new ConfigLoader()->load($this->directory . '/site');
+    $inputs = publicationInputs($this->directory, $config, $this->catalog());
     PublisherFaults::set('chmod:favicon.svg', ['fail']);
 
-    expect(fn(): BuildReport => new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog()))
+    expect(fn(): BuildReport => new Publisher()->publish($this->directory, $inputs))
         ->toThrow(ContentException::class, "Unable to copy '{$this->directory}/site/favicon.svg'")
         ->and(publicationBytes($this->directory))->toBe(['index.html' => 'old publication'])
         ->and(glob($this->directory . '/.snippet-*'))->toBe([]);
@@ -638,7 +626,7 @@ it('preserves an existing publication when a pre-promotion copy fails', function
     unlink($path . '/asset.txt');
 
     try {
-        new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $catalog);
+        new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $catalog));
         throw new LogicException('Expected asset copying to fail.');
     } catch (ContentException $contentException) {
         expect($contentException->getMessage())->toContain('Unable to copy');
@@ -663,12 +651,9 @@ it('enforces publication resource ceilings before replacing the current site', f
         default => throw new LogicException("Unknown publication boundary '{$boundary}'."),
     };
 
-    $publisher = new Publisher(engineRoot: $this->directory);
+    $publisher = new Publisher();
 
-    $templates = $boundary === 'asset'
-        ? new TemplateLoader()->load($this->directory . '/resources/templates')
-        : null;
-    expect(fn(): BuildReport => $publisher->publish($this->directory, $config, $catalog, $limits, $templates))->toThrow(ContentException::class, $message)
+    expect(fn(): BuildReport => $publisher->publish($this->directory, publicationInputs($this->directory, $config, $catalog, $limits)))->toThrow(ContentException::class, $message)
         ->and(publicationBytes($this->directory))->toBe(['index.html' => 'old publication'])
         ->and(glob($this->directory . '/.snippet-*'))->toBe([]);
 })->with([
@@ -688,7 +673,7 @@ it('rejects a symlink or non-directory publication target without changing it', 
 
     $config = new ConfigLoader()->load($this->directory . '/site');
     $catalog = new CatalogLoader()->load($this->directory . '/content');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $catalog);
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $catalog));
 })->throws(ContentException::class, 'regular directory')->with(['symlink', 'file']);
 
 it('reports transactional publication and cleanup failures deterministically', function (array $faults, bool $existing, string $message): void {
@@ -702,8 +687,8 @@ it('reports transactional publication and cleanup failures deterministically', f
 
     $config = new ConfigLoader()->load($this->directory . '/site');
     $catalog = new CatalogLoader()->load($this->directory . '/content');
-    $publisher = new Publisher(engineRoot: $this->directory);
-    $resources = $publisher->validatedResources($this->directory, $config);
+    $publisher = new Publisher();
+    $inputs = publicationInputs($this->directory, $config, $catalog);
     PublisherFaults::reset();
 
     foreach ($faults as $operation => $outcomes) {
@@ -711,7 +696,7 @@ it('reports transactional publication and cleanup failures deterministically', f
     }
 
     try {
-        $publisher->publish($this->directory, $config, $catalog, templates: $resources->templates, assets: $resources->assets);
+        $publisher->publish($this->directory, $inputs);
         throw new LogicException('Expected publication to fail.');
     } catch (ContentException $contentException) {
         expect($contentException->getMessage())->toContain($message);
@@ -772,12 +757,13 @@ it('retains the original failure when temporary publication cleanup also fails',
     $this->resources();
     mkdir($this->directory . '/public');
     file_put_contents($this->directory . '/public/index.html', 'old publication');
+    $config = new ConfigLoader()->load($this->directory . '/site');
+    $inputs = publicationInputs($this->directory, $config, $this->catalog());
     PublisherFaults::set('copy', [$unexpectedFailure ? 'throw' : 'fail']);
     PublisherFaults::set('unlink', [$unexpectedCleanup ? 'throw' : 'fail']);
-    $config = new ConfigLoader()->load($this->directory . '/site');
 
     try {
-        new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+        new Publisher()->publish($this->directory, $inputs);
         throw new LogicException('Expected publication to fail.');
     } catch (ContentException $contentException) {
         $original = $contentException->getPrevious();
@@ -817,11 +803,12 @@ it('retains the original failure when temporary publication cleanup also fails',
 it('wraps unexpected publication failures exactly and removes the temporary tree', function (): void {
     $this->content();
     $this->resources();
-    PublisherFaults::set('file_put_contents', ['throw']);
     $config = new ConfigLoader()->load($this->directory . '/site');
+    $inputs = publicationInputs($this->directory, $config, $this->catalog());
+    PublisherFaults::set('file_put_contents', ['throw']);
 
     try {
-        new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+        new Publisher()->publish($this->directory, $inputs);
         throw new LogicException('Expected publication to fail.');
     } catch (ContentException $contentException) {
         expect($contentException->getMessage())->toBe('Unable to publish site: Injected file_put_contents failure.')
@@ -840,11 +827,12 @@ it('preserves the exact rollback state after promotion failures', function (bool
         mkdir($this->directory . '/public');
         file_put_contents($this->directory . '/public/index.html', 'old publication');
     }
-    PublisherFaults::set('rename', $renames);
     $config = new ConfigLoader()->load($this->directory . '/site');
+    $inputs = publicationInputs($this->directory, $config, $this->catalog());
+    PublisherFaults::set('rename', $renames);
 
     try {
-        new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+        new Publisher()->publish($this->directory, $inputs);
         throw new LogicException('Expected promotion to fail.');
     } catch (ContentException $contentException) {
         expect($contentException->getMessage())->toContain($message);
@@ -888,7 +876,7 @@ it('preserves the current publication when minified asset preparation fails', fu
         PublisherFaults::set($operation, $outcomes);
     }
 
-    expect(fn(): BuildReport => new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $catalog))
+    expect(fn(): BuildReport => new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $catalog)))
         ->toThrow(ContentException::class, $message)
         ->and(publicationBytes($this->directory))->toBe(['index.html' => 'old publication'])
         ->and(glob($this->directory . '/.snippet-*'))->toBe([]);
@@ -921,7 +909,7 @@ it('builds complete indexes and truncates homepage collections at configured bou
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
     $files = publicationBytes($this->directory);
     $home = $files['index.html'];
     $articles = $files['articles/index.html'];
@@ -942,7 +930,7 @@ it('omits homepage index links when configured collections are not truncated', f
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
 
     expect(file_get_contents($this->directory . '/public/index.html'))->not->toContain('View all articles', 'View all tags');
 });
@@ -952,7 +940,7 @@ it('hides the homepage grid when no secondary collection exists', function (): v
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
 
     expect(file_get_contents($this->directory . '/public/index.html'))
         ->toContain('<div class="home-grid home-grid-empty">')
@@ -966,7 +954,7 @@ it('generates useful empty collection pages', function (): void {
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
 
     expect(file_get_contents($this->directory . '/public/articles/index.html'))->toContain('No articles have been published yet.')
         ->and(file_get_contents($this->directory . '/public/pages/index.html'))->toContain('No pages have been published yet.')
@@ -979,7 +967,7 @@ it('ships a storage-safe system-aware theme script as a dedicated asset', functi
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
     $html = file_get_contents($this->directory . '/public/index.html');
     $scriptPath = $this->publishedAsset('theme.js');
     $scriptUrl = mb_substr($scriptPath, mb_strlen($this->directory . '/public'));
@@ -1020,7 +1008,7 @@ it('preloads each bundled upright font only when the theme and matching asset ar
     }
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
     $html = file_get_contents($this->directory . '/public/index.html');
     assert(is_string($html));
 
@@ -1061,8 +1049,8 @@ it('compacts entry stylesheets while preserving prose code scripts and copied as
     assert(is_string($css));
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    $publisher = new Publisher(engineRoot: $this->directory);
-    $publisher->publish($this->directory, $config, $this->catalog());
+    $publisher = new Publisher();
+    $publisher->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
 
     $html = file_get_contents($this->directory . '/public/page/index.html');
     $compactCss = file_get_contents($this->publishedAsset('theme.css'));
@@ -1074,7 +1062,7 @@ it('compacts entry stylesheets while preserving prose code scripts and copied as
         ->and(file_get_contents($this->directory . '/public/assets/site/copied.css'))->toBe($arbitraryCss)
         ->and(file_get_contents($this->publishedAsset('theme.js')))->toBe($javascript);
 
-    $publisher->publish($this->directory, $config, $this->catalog());
+    $publisher->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
     expect(file_get_contents($this->directory . '/public/page/index.html'))->toBe($html)
         ->and(file_get_contents($this->publishedAsset('theme.css')))->toBe($compactCss);
 });

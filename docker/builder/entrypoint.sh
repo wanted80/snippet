@@ -6,7 +6,8 @@ declare(strict_types=1);
 use Snippet\Application;
 use Snippet\Cli\ErrorReporter;
 use Snippet\Preview\PreviewServer;
-use Snippet\Publishing\Publisher;
+use Snippet\Publishing\PublicationInputLoader;
+use Snippet\Publishing\PublicationResourceLoader;
 use Snippet\Scaffolding\WorkspaceInitializer;
 
 const USAGE = "Usage:\n  snippet --version [--json]\n  snippet inspect <capabilities|theme|config|content> --json\n  snippet init [--json]\n  snippet validate [--json]\n  snippet build [--json]\n  snippet preview [--host=<host>] [--port=<port>]\n  snippet new page <slug> [--json]\n  snippet new article <slug> [--date=YYYY-MM-DD] [--json]\n";
@@ -31,7 +32,7 @@ $errorReporter = new ErrorReporter(
 do {
     $status = new Application(
         $workspace,
-        publisher: new Publisher(engineRoot: $engineRoot),
+        publicationInputLoader: new PublicationInputLoader(resourceLoader: new PublicationResourceLoader(engineRoot: $engineRoot)),
         previewer: new PreviewServer(
             engineRoot: $engineRoot,
             watchRuntimeSource: false,

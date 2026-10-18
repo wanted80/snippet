@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use Snippet\Publishing\PublicationInputLoader;
+use Snippet\Publishing\PublicationResourceLoader;
 use Snippet\Publishing\Publisher;
 use Snippet\Scaffolding\WorkspaceInitializer;
 use Snippet\Site\ConfigLoader;
+use Snippet\Site\Limits;
 
 it('initializes only author-owned files and builds with the installed theme', function (): void {
     $workspace = $this->directory . '/publication';
@@ -41,10 +43,10 @@ it('uses an upgraded engine theme while preserving author CSS and JavaScript', f
     file_put_contents($workspace . '/site/site.css', $customCss);
     $customJs = 'document.querySelector(".site-main")?.classList.add("custom");';
     file_put_contents($workspace . '/site/site.js', $customJs);
-    $publisher = new Publisher(engineRoot: $this->directory);
-    $inputs = new PublicationInputLoader(publisher: $publisher);
+    $publisher = new Publisher();
+    $inputs = new PublicationInputLoader(resourceLoader: new PublicationResourceLoader(engineRoot: $this->directory));
     $first = $inputs->load($workspace);
-    $publisher->publish($workspace, $first->config, $first->catalog);
+    $publisher->publish($workspace, $first);
 
     file_put_contents($this->directory . '/resources/theme.css', "\n/* upgraded theme */\n", FILE_APPEND);
     file_put_contents($this->directory . '/resources/theme.js', "\n/* upgraded behavior */\n", FILE_APPEND);
@@ -55,7 +57,7 @@ it('uses an upgraded engine theme while preserving author CSS and JavaScript', f
     $repeated = new WorkspaceInitializer($this->directory, $workspace)->initialize();
     expect($repeated['created'])->toBeEmpty();
     $second = $inputs->load($workspace);
-    $publisher->publish($workspace, $second->config, $second->catalog);
+    $publisher->publish($workspace, $second);
 
     expect($second->assets->paths->themeStylesheet)->not->toBe($first->assets->paths->themeStylesheet)
         ->and($second->assets->paths->themeScript)->not->toBe($first->assets->paths->themeScript)
@@ -77,7 +79,7 @@ it('uses only the installed templates and theme assets even when workspace names
 
     [$status, , $error] = validatePublication($this->directory, 'build');
     $config = new ConfigLoader()->load($this->directory . '/site');
-    $installed = new Publisher()->validatedResources($this->directory, $config);
+    $installed = new PublicationResourceLoader()->load($this->directory, $config, new Limits());
 
     expect($status)->toBe(0)->and($error)->toBeEmpty()
         ->and(file_get_contents($this->directory . '/public/index.html'))->toContain('class="site-header"')

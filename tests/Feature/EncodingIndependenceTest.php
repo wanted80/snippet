@@ -22,7 +22,7 @@ it('validates and publishes identical UTF-8 inputs without changing the process 
 
     $build = function (): array {
         $inputs = new PublicationInputLoader()->load($this->directory);
-        new Publisher()->publish($this->directory, $inputs->config, $inputs->catalog, $inputs->limits, $inputs->templates, $inputs->assets);
+        new Publisher()->publish($this->directory, $inputs);
         $files = [];
         $public = $this->directory . '/public/';
         foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($public, FilesystemIterator::SKIP_DOTS)) as $file) {

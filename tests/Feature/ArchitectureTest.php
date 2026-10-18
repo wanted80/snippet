@@ -12,6 +12,9 @@ use Snippet\Preview\PreviewServer;
 use Snippet\Publishing\BuildBudget;
 use Snippet\Publishing\BuildReport;
 use Snippet\Publishing\CssMinifier;
+use Snippet\Publishing\PublicationInputLoader;
+use Snippet\Publishing\PublicationResourceLoader;
+use Snippet\Publishing\Publisher;
 use Snippet\Rendering\OpenGraphType;
 use Snippet\Support\ApplicationVersion;
 use Snippet\Support\TrustedPhpLoader;
@@ -339,3 +342,7 @@ arch('keeps inspection independent from workspace mutation and publication orche
         'Snippet\\Publishing',
         'Snippet\\Preview',
     ]);
+
+arch('keeps publication input loading independent from publication writes')
+    ->expect([PublicationInputLoader::class, PublicationResourceLoader::class])
+    ->not->toUse(Publisher::class);

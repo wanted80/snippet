@@ -4,17 +4,10 @@ declare(strict_types=1);
 
 namespace Snippet\Publishing;
 
-use NoDiscard;
 use Snippet\Content\Article;
-use Snippet\Content\Catalog;
 use Snippet\Content\Page;
 use Snippet\Exception\ContentException;
 use Snippet\Rendering\HtmlRenderer;
-use Snippet\Rendering\TemplateLoader;
-use Snippet\Rendering\Templates;
-use Snippet\Site\Config;
-use Snippet\Site\Limits;
-use Snippet\Support\Utf8FileValidator;
 use Throwable;
 
 /** Builds a complete temporary tree and transactionally promotes it to public/. */
@@ -24,59 +17,16 @@ final readonly class Publisher
 
     private const int DIRECTORY_PERMISSIONS = 0755;
 
-    /** @param string $engineRoot Trusted installation directory, independent of the author workspace. */
-    public function __construct(
-        private TemplateLoader $templateLoader = new TemplateLoader(),
-        private CssMinifier $cssMinifier = new CssMinifier(),
-        private Utf8FileValidator $utf8FileValidator = new Utf8FileValidator(),
-        private string $engineRoot = __DIR__ . '/../..',
-    ) {}
-
     /**
-     * Validate and retain every non-content resource required for one publication snapshot.
-     *
-     * @throws ContentException when a required template or asset is invalid or unreadable
-     */
-    #[NoDiscard('the validated resources should be reused by publication')]
-    public function validatedResources(string $root, Config $config, ?Limits $limits = null): PublicationResources
-    {
-        $limits ??= new Limits();
-        $retainedAssetBytes = 0;
-        $templates = $this->templateLoader->load($this->engineRoot . '/resources/templates', $limits);
-        $themeStylesheet = $this->stylesheet($this->engineRoot . '/resources/theme.css', '/assets/theme.css', $limits, $retainedAssetBytes);
-        $themeScript = $this->script($this->engineRoot . '/resources/theme.js', '/assets/theme.js', $limits, $retainedAssetBytes);
-        $this->validateAsset($root . '/site/favicon.svg', $limits, true);
-
-        $siteStylesheet = $config->hasSiteStylesheet
-            ? $this->stylesheet($root . '/site/site.css', '/assets/site.css', $limits, $retainedAssetBytes)
-            : null;
-        $siteScript = $config->hasSiteScript
-            ? $this->script($root . '/site/site.js', '/assets/site.js', $limits, $retainedAssetBytes)
-            : null;
-
-        foreach ($config->assets as $asset) {
-            $this->validateAsset($root . '/site/assets/' . $asset, $limits, false);
-        }
-
-        return new PublicationResources(
-            $templates,
-            new PublicationAssets($themeStylesheet, $themeScript, $siteStylesheet, $siteScript),
-        );
-    }
-
-    /**
-     * Publish a complete site; backup-cleanup failures are reported after a successful promotion.
+     * Publish already validated inputs without reloading their retained resources.
+     * Backup-cleanup failures are reported after a successful promotion.
      * Failed-build cleanup diagnostics retain the original publication failure as their cause.
      *
      * @throws ContentException when rendering, copying, or publication fails
      */
     public function publish(
         string $root,
-        Config $config,
-        Catalog $catalog,
-        ?Limits $limits = null,
-        ?Templates $templates = null,
-        ?PublicationAssets $assets = null,
+        PublicationInputs $inputs,
         ?string $previewVersion = null,
     ): BuildReport {
         $public = $root . '/public';
@@ -84,20 +34,14 @@ final readonly class Publisher
             throw new ContentException("Publication target '{$public}' must be a regular directory or absent.");
         }
 
-        $limits ??= new Limits();
-        if (!$templates instanceof Templates || !$assets instanceof PublicationAssets) {
-            $resources = $this->validatedResources($root, $config, $limits);
-            $templates ??= $resources->templates;
-            $assets ??= $resources->assets;
-        }
-        $budget = new BuildBudget($limits);
+        $budget = new BuildBudget($inputs->limits);
         // Neighbouring random-byte lengths preserve the unique sibling-path contract.
         $suffix = bin2hex(random_bytes(8)); // @pest-mutate-ignore: DecrementInteger,IncrementInteger
         $temporary = $root . '/.snippet-build-' . $suffix;
         $backup = $root . '/.snippet-backup-' . $suffix;
 
         try {
-            $this->buildTree($root, $temporary, $config, $catalog, $templates, $assets, $budget, $previewVersion);
+            $this->buildTree($root, $temporary, $inputs, $budget, $previewVersion);
             $cleanupWarning = $this->promote($temporary, $public, $backup);
         } catch (Throwable $throwable) {
             $failure = $throwable instanceof ContentException
@@ -116,20 +60,17 @@ final readonly class Publisher
             throw $failure;
         }
 
-        return $budget->report($catalog, $cleanupWarning);
+        return $budget->report($inputs->catalog, $cleanupWarning);
     }
 
     private function buildTree(
         string $root,
         string $output,
-        Config $config,
-        Catalog $catalog,
-        Templates $templates,
-        PublicationAssets $assets,
+        PublicationInputs $inputs,
         BuildBudget $budget,
         ?string $previewVersion,
     ): void {
-        $renderer = new HtmlRenderer($config, $catalog, $templates, $assets->paths);
+        $renderer = new HtmlRenderer($inputs->config, $inputs->catalog, $inputs->templates, $inputs->assets->paths);
         $this->writeHtml($output . '/index.html', $renderer->home(), $budget);
         $this->writeHtml($output . '/404.html', $renderer->notFound(), $budget);
 
@@ -137,19 +78,19 @@ final readonly class Publisher
         $this->writeHtml($output . "/articles/index.html", $renderer->articles(), $budget);
         $this->writeHtml($output . "/tags/index.html", $renderer->tags(), $budget);
 
-        foreach ($catalog->articles as $article) {
+        foreach ($inputs->catalog->articles as $article) {
             $this->publishItem($root, $output, $renderer, $article, $budget);
         }
 
-        foreach ($catalog->pages as $page) {
+        foreach ($inputs->catalog->pages as $page) {
             $this->publishItem($root, $output, $renderer, $page, $budget);
         }
 
-        foreach ($catalog->tags() as $tag) {
+        foreach ($inputs->catalog->tags() as $tag) {
             $this->writeHtml($output . '/tags/' . $tag->slug . '/index.html', $renderer->tag($tag), $budget);
         }
 
-        $this->writeLlms($output . '/llms.txt', new LlmsTxtRenderer($config, $catalog), $budget);
+        $this->writeLlms($output . '/llms.txt', new LlmsTxtRenderer($inputs->config, $inputs->catalog), $budget);
 
         if ($previewVersion !== null) {
             $contents = $previewVersion . "\n";
@@ -158,12 +99,12 @@ final readonly class Publisher
             $this->writeFile($path, $contents);
         }
 
-        foreach ($assets->all() as $asset) {
+        foreach ($inputs->assets->all() as $asset) {
             $this->writeAsset($output . $asset->publishedPath, $asset, $budget);
         }
         $this->copy($root . '/site/favicon.svg', $output . '/favicon.svg', $budget);
 
-        foreach ($config->assets as $asset) {
+        foreach ($inputs->config->assets as $asset) {
             $this->copy($root . '/site/assets/' . $asset, $output . '/assets/site/' . $asset, $budget);
         }
     }
@@ -261,67 +202,6 @@ final readonly class Publisher
         }
     }
 
-    private function stylesheet(string $source, string $logicalPath, Limits $limits, int &$retainedAssetBytes): PublicationAsset
-    {
-        $this->validateAsset($source, $limits, true);
-
-        $input = @fopen($source, 'rb');
-        if (!is_resource($input)) {
-            throw new ContentException("Unable to minify publication stylesheet '{$source}'.");
-        }
-
-        $output = @fopen('php://temp', 'w+b');
-        if (!is_resource($output)) {
-            fclose($input);
-            throw new ContentException("Unable to minify publication stylesheet '{$source}'.");
-        }
-
-        try {
-            $publishedBytes = $this->cssMinifier->minify($input, $output);
-            $this->retainEntryAsset($publishedBytes, $source, $limits, $retainedAssetBytes);
-            if (!rewind($output)) {
-                throw new ContentException("Unable to read minified publication stylesheet '{$source}'.");
-            }
-            $contents = stream_get_contents($output);
-            if (!is_string($contents)) {
-                throw new ContentException("Unable to read minified publication stylesheet '{$source}'.");
-            }
-        } finally {
-            fclose($input);
-            fclose($output);
-        }
-
-        return new PublicationAsset($logicalPath, $contents);
-    }
-
-    private function script(string $source, string $logicalPath, Limits $limits, int &$retainedAssetBytes): PublicationAsset
-    {
-        $sourceBytes = $this->validateAsset($source, $limits, true);
-        $contents = $this->readAsset($source, $sourceBytes, $limits, $retainedAssetBytes);
-
-        return new PublicationAsset($logicalPath, $contents);
-    }
-
-    private function readAsset(string $source, int $bytes, Limits $limits, int &$retainedAssetBytes): string
-    {
-        $this->retainEntryAsset($bytes, $source, $limits, $retainedAssetBytes);
-
-        $contents = @file_get_contents($source);
-        if (!is_string($contents)) {
-            throw new ContentException("Unable to read publication asset '{$source}'.");
-        }
-
-        return $contents;
-    }
-
-    private function retainEntryAsset(int $bytes, string $source, Limits $limits, int &$retainedAssetBytes): void
-    {
-        $retainedAssetBytes += $bytes;
-        if ($retainedAssetBytes > $limits->retainedEntryAssetBytes) {
-            throw new ContentException("Retained entry assets exceed the {$limits->retainedEntryAssetBytes}-byte retained-entry-asset ceiling while loading '{$source}'.");
-        }
-    }
-
     /** @param resource $stream */
     private function writeStream(mixed $stream, string $contents, string $path): void
     {
@@ -353,24 +233,6 @@ final readonly class Publisher
         if (!@copy($source, $destination) || !@chmod($destination, self::FILE_PERMISSIONS)) {
             throw new ContentException("Unable to copy '{$source}' to '{$destination}'.");
         }
-    }
-
-    private function validateAsset(string $path, Limits $limits, bool $utf8): int
-    {
-        if (!is_file($path) || is_link($path)) {
-            throw new ContentException("Publication asset '{$path}' must be a regular non-symlink file.");
-        }
-
-        $size = @filesize($path);
-        if (!is_int($size) || $size > $limits->assetBytes) {
-            throw new ContentException("Publication asset '{$path}' exceeds the {$limits->assetBytes}-byte asset limit.");
-        }
-
-        if (!$this->utf8FileValidator->isValid($path, $utf8)) {
-            throw new ContentException("Publication asset '{$path}' must be readable" . ($utf8 ? ' UTF-8 text.' : '.'));
-        }
-
-        return $size;
     }
 
     private function directory(string $path): void

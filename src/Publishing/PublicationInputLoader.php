@@ -17,7 +17,7 @@ final readonly class PublicationInputLoader
         private Limits $limits = new Limits(),
         private ConfigLoader $configLoader = new ConfigLoader(),
         private CatalogLoader $catalogLoader = new CatalogLoader(),
-        private Publisher $publisher = new Publisher(),
+        private PublicationResourceLoader $resourceLoader = new PublicationResourceLoader(),
         private ReferenceValidator $referenceValidator = new ReferenceValidator(),
     ) {}
 
@@ -27,7 +27,7 @@ final readonly class PublicationInputLoader
     {
         $config = $this->configLoader->load($root . '/site', $this->limits);
         $catalog = $this->catalogLoader->load($root . '/content', $this->limits);
-        $resources = $this->publisher->validatedResources($root, $config, $this->limits);
+        $resources = $this->resourceLoader->load($root, $config, $this->limits);
         $inventory = new PublicationInventory($config, $catalog, $resources->assets->paths);
         $this->referenceValidator->validate($root, $config, $catalog, $inventory);
 

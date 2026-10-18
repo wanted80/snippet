@@ -18,7 +18,7 @@ it('ships print colors and wrapping that remain usable with long titles and manu
     $this->item('post', ['title' => str_repeat('W', 120), 'description' => 'Description']);
     $this->resources();
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
     $html = file_get_contents($this->directory . '/public/post/index.html');
     $css = file_get_contents($this->publishedAsset('theme.css'));
 
@@ -37,7 +37,7 @@ it('renders independent document, author, and multilingual wordmark identities',
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
 
     $home = file_get_contents($this->directory . '/public/index.html');
     $css = file_get_contents($this->publishedAsset('theme.css'));
@@ -81,7 +81,7 @@ it('ships and copies the configured wordmark font byte for byte', function (): v
     $this->resources();
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
     $published = file_get_contents($this->directory . '/public/assets/site/fonts/snippet-logo/snippet-logo.woff2');
     $theme = file_get_contents($this->publishedAsset('site.css'));
     assert(is_string($published));
@@ -107,7 +107,7 @@ SVG;
     file_put_contents($this->directory . '/site/favicon.svg', $favicon);
 
     $config = new ConfigLoader()->load($this->directory . '/site');
-    new Publisher(engineRoot: $this->directory)->publish($this->directory, $config, $this->catalog());
+    new Publisher()->publish($this->directory, publicationInputs($this->directory, $config, $this->catalog()));
     $published = file_get_contents($this->directory . '/public/favicon.svg');
     $home = file_get_contents($this->directory . '/public/index.html');
     assert(is_string($published));
