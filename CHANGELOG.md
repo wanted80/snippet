@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.0](https://github.com/wanted80/snippet/compare/v4.1.0...v4.2.0) (2026-10-23)
+
+
+### Features
+
+* allow disabling the meta content security policy ([#67](https://github.com/wanted80/snippet/issues/67)) ([44081f8](https://github.com/wanted80/snippet/commit/44081f8d5989dbc1923e2880ab774b7aa694c1fe))
+
 ## [4.1.0](https://github.com/wanted80/snippet/compare/v4.0.1...v4.1.0) (2026-10-18)
 
 
