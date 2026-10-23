@@ -16,7 +16,7 @@ final readonly class Config
     /**
      * @param list<string> $assets
      * @param list<array{label?: string, url: string, icon?: string}> $profiles
-     * @param array<string, list<string>> $csp Additional HTTPS origins by fetch directive.
+     * @param array<string, list<string>>|false $csp Additional HTTPS origins by fetch directive, or false to omit the meta policy.
      */
     public function __construct(
         public string $title,
@@ -31,14 +31,18 @@ final readonly class Config
         public int $homeArticles = 10,
         public int $homeTags = 20,
         public array $profiles = [],
-        public array $csp = [],
+        public array|false $csp = [],
     ) {
         $this->basePath = Uri::parse($url)?->getRawPath() ?? '';
     }
 
-    /** Extend the restrictive meta policy while retaining same-origin resources. */
-    public function contentSecurityPolicy(): string
+    /** Return the extended meta policy, or null when the host manages CSP. */
+    public function contentSecurityPolicy(): ?string
     {
+        if ($this->csp === false) {
+            return null;
+        }
+
         $directives = ["default-src 'none'", "base-uri 'none'", "form-action 'none'"];
         foreach (self::CSP_DIRECTIVES as $directive) {
             $sources = ["'self'", ...($this->csp[$directive] ?? [])];

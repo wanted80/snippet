@@ -513,6 +513,17 @@ For GitHub Pages, enable **Settings → Pages → Build and deployment → GitHu
 
 Deploy only `public/`. Keep it ignored; do not create a generated-output branch. The build includes a root-level `404.html` that GitHub Pages automatically uses for missing routes; its links and assets retain the configured deployment path for project sites. Other static hosts can use the same file through their custom-error-page configuration. GitHub Pages owns HTTPS and does not provide project-controlled response headers. On configurable hosts, add `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: strict-origin-when-cross-origin` alongside Snippet's meta CSP.
 
+### Host-managed Content Security Policy
+
+Set `'csp' => false` in `site/config.php` to omit Snippet's CSP meta tag from all
+published HTML, including `404.html`, and configure the complete policy on your
+host. An HTTP header cannot relax an existing meta policy: browsers enforce both.
+Omitting `csp` or setting it to `[]` restores Snippet's default policy.
+
+Direct Snippet preview omits the meta policy with this setting but does not apply
+your hosting configuration. Docker's Caddy preview still sends its own
+`frame-ancestors 'none'` header.
+
 ## Troubleshooting
 
 ### A preview port is already in use

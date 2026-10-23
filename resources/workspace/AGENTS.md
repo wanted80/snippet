@@ -13,4 +13,6 @@ source changes, and report any remaining errors or warnings.
 
 Optional ordered `profiles` links in site configuration require an HTTPS URL and at least a label or icon. Omitted labels produce icon-only links with the URL as their accessible name; supported icon names are `github`, `mastodon`, `bluesky`, `linkedin`, `instagram`, `youtube`, `x`, and `generic`.
 
-Optional `csp` configuration adds trusted HTTPS origins to `script-src`, `connect-src`, `style-src`, `img-src`, or `font-src`. Each directive accepts an ordered list of at most 32 origins without paths, trailing slashes, credentials, queries, fragments, or wildcards. Load external scripts from `site/site.js`; same-origin resources remain allowed and inline scripts remain blocked.
+An optional `csp` array adds trusted HTTPS origins to `script-src`, `connect-src`, `style-src`, `img-src`, or `font-src`. Each directive accepts an ordered list of at most 32 origins without paths, trailing slashes, credentials, queries, fragments, or wildcards. Load external scripts from `site/site.js`; same-origin resources remain allowed and inline scripts remain blocked.
+
+Set `'csp' => false` to omit the CSP meta tag from all generated HTML when the host manages the complete policy through response headers. Omitting `csp` or using `[]` retains the default meta policy. Snippet does not generate replacement response headers.
