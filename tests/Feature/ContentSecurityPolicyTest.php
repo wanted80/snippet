@@ -34,6 +34,27 @@ it('adds only the configured HTTPS origins in a stable directive order', functio
         ->and(serialize($loader->load($this->directory . '/site')))->toBe(serialize($config));
 });
 
+it('omits the meta policy from every document when the host manages CSP', function (): void {
+    $this->site(['csp' => false]);
+    $loader = new ConfigLoader();
+    $config = $loader->load($this->directory . '/site');
+    expect($config->csp)->toBeFalse()
+        ->and($config->contentSecurityPolicy())->toBeNull()
+        ->and(serialize($loader->load($this->directory . '/site')))->toBe(serialize($config));
+
+    $this->item('about', ['title' => 'About', 'description' => 'About.']);
+    $this->article('post', ['title' => 'Post', 'description' => 'Post.', 'date' => '2026-10-18', 'tags' => ['PHP']]);
+    [$status, , $error] = validatePublication($this->directory, 'build');
+    expect($status)->toBe(0, $error);
+
+    foreach (['index.html', '404.html', 'articles/index.html', 'pages/index.html', 'tags/index.html', 'about/index.html', 'articles/post/index.html', 'tags/php/index.html'] as $path) {
+        $html = file_get_contents($this->directory . '/public/' . $path);
+        assert(is_string($html));
+        expect($html)->not->toContain('Content-Security-Policy', '{{csp}}')
+            ->toContain('<meta charset="utf-8">', '<script src="', '<link rel="stylesheet"');
+    }
+});
+
 it('publishes the configured policy before scripts on every generated document', function (): void {
     $this->site(['csp' => ['script-src' => ['https://cdn.example.test'], 'connect-src' => ['https://events.example.test']]]);
     $this->item('about', ['title' => 'About', 'description' => 'About.']);
@@ -56,6 +77,10 @@ it('rejects malformed CSP additions with a field-specific error', function (mixe
     expect(fn(): Config => new ConfigLoader()->load($this->directory . '/site'))->toThrow(ContentException::class, 'csp');
 })->with([
     'null' => [null],
+    'true' => [true],
+    'zero' => [0],
+    'one' => [1],
+    'false string' => ['false'],
     'string' => ["script-src https://cdn.example.test"],
     'list' => [['https://cdn.example.test']],
     'unknown directive' => [['script-scr' => []]],

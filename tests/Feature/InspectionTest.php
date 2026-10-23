@@ -61,6 +61,8 @@ it('shares configuration fields and safely parsed starter values', function (): 
     $fields = $result['fields'];
     assert(is_array($fields) && is_array($fields['csp']));
     expect($fields['csp']['optional'])->toBeTrue()
+        ->and($fields['csp']['type'])->toBe('array|false')
+        ->and($fields['csp']['constraint'])->toContain('false omits the meta policy')
         ->and($fields['csp']['fields'])->toBe(['script-src', 'style-src', 'img-src', 'font-src', 'connect-src']);
     $content = new Inspector($root)->inspect('content');
     $types = $content['types'];

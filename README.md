@@ -327,7 +327,7 @@ Optional `profiles` is an ordered list of up to 32 footer links. Each entry requ
 ],
 ```
 
-Optional `csp` adds trusted external HTTPS origins to the meta Content Security
+An optional `csp` array adds trusted external HTTPS origins to the meta Content Security
 Policy. It accepts `script-src`, `connect-src`, `style-src`, `img-src`, and
 `font-src`; each value is an ordered list of at most 32 origins. For example,
 add this entry to `site/config.php` to permit a widget and its API:
@@ -353,6 +353,18 @@ script.src = 'https://cdn.example.com/widget.js';
 script.async = true;
 document.head.append(script);
 ```
+
+To manage the entire policy through your host's HTTP response headers, omit
+Snippet's meta policy with:
+
+```php
+'csp' => false,
+```
+
+This removes the CSP meta tag from every generated HTML document, including
+`404.html`. The host then owns the policy; Snippet does not generate a replacement
+header. Omit `csp` or use `[]` to restore the default meta policy. See the
+[host-managed CSP guidance](INSTALL.md#host-managed-content-security-policy).
 
 ### Site assets
 
@@ -512,7 +524,7 @@ The publishing runtime uses PHP's standard library and required extensions, with
 
 The root-level `/404.html` uses the same layout, navigation, theme, optional site assets, configured deployment path, and minification policy as every other document. GitHub Pages and static hosts with the same convention serve it for missing routes with a 404 response. Snippet preview mirrors that behavior beneath the configured deployment path and still injects live reload only into the served response.
 
-The default layout also carries a restrictive meta Content Security Policy for same-origin scripts, styles, images, fonts, and connections; optional `csp` configuration adds trusted HTTPS origins. An additional CSP response header is enforced alongside the meta policy, so any host policy must also permit the external resources you configure. Browsers do not enforce `frame-ancestors` from a meta policy, so configure the static host to send `Content-Security-Policy: frame-ancestors 'none'` as an HTTP response header. `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin` are sensible companion headers. Docker's local Caddy preview sends these headers, but deployment configuration belongs to the selected host. GitHub Pages does not provide project-controlled response headers, so its deployment retains the meta CSP but cannot add all of these recommended response headers.
+The default layout also carries a restrictive meta Content Security Policy for same-origin scripts, styles, images, fonts, and connections; an optional `csp` array adds trusted HTTPS origins, while `'csp' => false` omits the meta policy for host-managed CSP. An additional CSP response header is enforced alongside the meta policy, so any host policy must also permit the external resources you configure. Browsers do not enforce `frame-ancestors` from a meta policy, so configure the static host to send `Content-Security-Policy: frame-ancestors 'none'` as an HTTP response header. `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin` are sensible companion headers. Docker's local Caddy preview sends these headers, but deployment configuration belongs to the selected host. GitHub Pages does not provide project-controlled response headers, so its deployment retains the meta CSP but cannot add all of these recommended response headers.
 
 ## Maintenance and releases
 

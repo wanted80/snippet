@@ -279,6 +279,14 @@ final readonly class HtmlRenderer
             : '';
     }
 
+    private function renderContentSecurityPolicy(): string
+    {
+        $policy = $this->config->contentSecurityPolicy();
+        return $policy === null
+            ? ''
+            : '<meta http-equiv="Content-Security-Policy" content="' . htmlspecialchars($policy, ENT_COMPAT | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8') . '">';
+    }
+
     private function layout(
         string $title,
         string $description,
@@ -299,7 +307,7 @@ final readonly class HtmlRenderer
 
         return $this->templates->render(Template::Layout, [
             'language' => $this->escape($this->config->language),
-            'csp' => htmlspecialchars($this->config->contentSecurityPolicy(), ENT_COMPAT | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8'),
+            'csp' => $this->renderContentSecurityPolicy(),
             'description' => $this->escape($description),
             'author' => $this->escape($this->config->author),
             'version' => ApplicationVersion::CURRENT,

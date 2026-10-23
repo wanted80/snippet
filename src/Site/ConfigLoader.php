@@ -166,11 +166,15 @@ final readonly class ConfigLoader
         return $profiles;
     }
 
-    /** @return array<string, list<string>> */
-    private function csp(mixed $value): array
+    /** @return array<string, list<string>>|false */
+    private function csp(mixed $value): array|false
     {
+        if ($value === false) {
+            return false;
+        }
+
         if (!is_array($value) || array_diff(array_keys($value), Config::CSP_DIRECTIVES) !== []) {
-            throw new ContentException("Site configuration field 'csp' accepts only script-src, style-src, img-src, font-src, and connect-src.");
+            throw new ContentException("Site configuration field 'csp' must be false to omit the meta policy, or an array accepting only script-src, style-src, img-src, font-src, and connect-src.");
         }
 
         $csp = [];

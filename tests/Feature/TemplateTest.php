@@ -68,7 +68,7 @@ it('keeps the default layout self-contained and loads only local stylesheets', f
 
     $layout = $templates->render(Template::Layout, [
         'language' => 'en',
-        'csp' => "default-src 'none'; base-uri 'none'; form-action 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'",
+        'csp' => '<meta http-equiv="Content-Security-Policy" content="' . "default-src 'none'; base-uri 'none'; form-action 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'" . '">',
         'description' => 'Description',
         'author' => 'Writer &amp; Editor',
         'version' => ApplicationVersion::CURRENT,
