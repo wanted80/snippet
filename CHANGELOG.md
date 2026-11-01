@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.0](https://github.com/wanted80/snippet/compare/v4.2.0...v4.3.0) (2026-11-01)
+
+
+### Features
+
+* add /dev/null profiles and refresh project dependencies ([#71](https://github.com/wanted80/snippet/issues/71)) ([632d52a](https://github.com/wanted80/snippet/commit/632d52a3783d233fc35b5f22b321605191722def))
+
 ## [4.2.0](https://github.com/wanted80/snippet/compare/v4.1.0...v4.2.0) (2026-10-23)
 
 
