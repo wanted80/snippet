@@ -234,6 +234,18 @@ it('configures the first stable source release across bootstrap and subsequent r
                         'type' => 'generic',
                         'path' => 'INSTALL.md',
                     ],
+                    [
+                        'type' => 'generic',
+                        'path' => 'examples/github-pages.yml',
+                    ],
+                    [
+                        'type' => 'generic',
+                        'path' => 'demo/content/articles/2026/08/21/preview-and-validation/article.md',
+                    ],
+                    [
+                        'type' => 'generic',
+                        'path' => 'demo/content/articles/2026/08/25/start-your-site/article.md',
+                    ],
                 ],
             ],
         ],
@@ -330,11 +342,11 @@ it('composes and validates the complete demo from canonical shared inputs', func
         ->toBe(file_get_contents($root . '/demo/site/config.php'))
         ->not->toBe(file_get_contents($root . '/site/config.php'))
         ->and($workspace . '/resources')->not->toBeDirectory()
-        ->and($workspace . '/content/articles/2026/07/25/year-of-small-projects/article.md')->toBeFile()
+        ->and($workspace . '/content/articles/2026/08/25/start-your-site/article.md')->toBeFile()
         ->and($workspace . '/content/articles/2026/08/26/welcome/article.md')->toBeFile()
         ->and($workspace . '/content/pages/about/page.md')->toBeFile()
         ->and(validatePublication($workspace)[0])->toBe(0)
-        ->and(validatePublication($workspace)[1])->toMatch('/^Valid site: 17 articles, 1 page, \d+ tags, \d+ assets[.]\n$/');
+        ->and(validatePublication($workspace)[1])->toMatch('/^Valid site: 8 articles, 1 page, \d+ tags, \d+ assets[.]\n$/');
 });
 
 it('isolates mutation testing from the host checkout and detects any host change', function (): void {
@@ -356,7 +368,7 @@ it('isolates mutation testing from the host checkout and detects any host change
 it('keeps exact builder-image examples release-managed', function (): void {
     $root = dirname(__DIR__, 2);
 
-    foreach (['README.md', 'INSTALL.md'] as $document) {
+    foreach (['README.md', 'INSTALL.md', 'examples/github-pages.yml', 'demo/content/articles/2026/08/21/preview-and-validation/article.md', 'demo/content/articles/2026/08/25/start-your-site/article.md'] as $document) {
         $contents = file_get_contents($root . '/' . $document);
         assert(is_string($contents));
         $pattern = '~^.*v' . preg_quote(ApplicationVersion::CURRENT, '~') . '.*$~m';
@@ -369,23 +381,32 @@ it('keeps exact builder-image examples release-managed', function (): void {
 it('documents immutable builder consumption and optional runtime containment', function (): void {
     $root = dirname(__DIR__, 2);
     $installation = file_get_contents($root . '/INSTALL.md');
+    $example = file_get_contents($root . '/examples/github-pages.yml');
     $security = file_get_contents($root . '/SECURITY.md');
     $builderSmoke = file_get_contents($root . '/docker/builder/smoke.sh');
     assert(is_string($installation));
+    assert(is_string($example));
     assert(is_string($security));
     assert(is_string($builderSmoke));
 
     expect($installation)->toContain(
         'ghcr.io/wanted80/snippet:vX.Y.Z@sha256:<release-index-digest>',
-        'gh attestation verify "oci://${SNIPPET_IMAGE}"',
-        '--signer-workflow wanted80/snippet/.github/workflows/release.yml',
-        '--deny-self-hosted-runners',
-        'persist-credentials: false',
         '--pids-limit 64',
         '--cpus 2',
         'pids_limit: 64',
         'cpus: 2',
     )
+        ->and($example)->toContain(
+            'gh attestation verify "oci://${SNIPPET_IMAGE}"',
+            '--signer-workflow wanted80/snippet/.github/workflows/release.yml',
+            '--deny-self-hosted-runners',
+            'persist-credentials: false',
+            "if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'",
+            'needs: build',
+            'path: public/',
+            'pages: write',
+            'id-token: write',
+        )
         ->and($security)->toContain(
             '## Builder image integrity',
             'multi-platform base-image digests',

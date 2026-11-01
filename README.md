@@ -4,17 +4,131 @@
 
 # Snippet
 
-Snippet is a simple PHP publishing system for one author designed for humans and AI agents. Its publishing engine has no third-party runtime packages: it uses PHP and its required extensions to turn self-contained Markdown content directories into a completely static website. This repository contains the generator and its canonical defaults; the public example site lives separately under `demo/`.
+Write in Markdown. Keep your source in Git. Publish a static website.
 
-Snippet provides:
+Snippet is a small publishing system for one author: a personal site, a notebook,
+or a home for project updates. Keep your content in your own **public or private
+repository** and use the official Docker image to preview and build it. Your host
+receives ordinary static files, with no PHP, database, or server application to run.
 
-- strict configuration, metadata, content, asset, and template validation.
-- deterministic article, page, tag, and index routes.
-- transactional publication that preserves the last valid `public/` on failure.
-- a live-reloading local preview.
-- semantic HTML, customizable plain CSS, and light/dark themes.
-- the publishing runtime uses no third-party packages. Development tooling is kept separate.
-- its Docker image can be used inside workflows to build and deploy your static site easy.
+- **Write your way.** Markdown articles and pages, ordered tags, local attachments,
+  optional article covers, and a homepage featuring your newest article.
+- **Work with a coding agent.** Bundled authoring instructions and an inspectable
+  CLI help your agent create content, edit configuration, and customize styles.
+- **Make it yours.** Light and dark themes, responsive navigation, stable CSS
+  tokens, your own fonts and assets, and optional site JavaScript. The starter
+  includes **Snippet Logo, a custom header font created specifically for Snippet**.
+- **Preview as you write.** Live reload, useful validation errors, and the last
+  working publication preserved after an invalid edit.
+- **Publish with confidence.** Metadata, supported Markdown, covers, assets, and
+  internal links are checked before the complete build replaces `public/`.
+- **Share readable pages.** Semantic HTML, keyboard navigation, print styles,
+  canonical URLs, Open Graph and Twitter/X metadata, a themed 404 page, and a
+  metadata-only `llms.txt` index.
+- **Keep hosting simple.** Reproducible static builds from the Docker image and a
+  [ready-to-copy GitHub Pages workflow](examples/github-pages.yml), including
+  project-path and custom-domain guidance.
+
+[Explore the demo and guides](https://wanted80.github.io/snippet/) ·
+[Start your site](#quick-start) · [Installation and deployment](INSTALL.md) ·
+[CSS customization](#stable-css-api) · [Author with an agent](#write-and-style-with-a-coding-agent)
+
+## Quick start
+
+You need Docker and a text editor. These commands work in a Linux/macOS shell;
+on Windows, use WSL 2. Start in an empty directory for **your own site**:
+
+```bash
+mkdir my-site
+cd my-site
+
+# Reuse this helper in the current shell from your site's directory.
+snippet() {
+  docker run --rm --user "$(id -u):$(id -g)" \
+    --volume "$PWD:/workspace" \
+    ghcr.io/wanted80/snippet:v4.4.0 "$@" # x-release-please-version
+}
+
+snippet init
+snippet new page about
+```
+
+Set your name, description, and final HTTPS `url` in `site/config.php`.
+Write a few paragraphs in `content/pages/about/page.md`, and complete its
+`meta.php` with a title and description. The generated files are intentionally
+incomplete until you fill them in. See the [content examples](#content) for the
+exact format, or follow [the first-page walkthrough](https://wanted80.github.io/snippet/articles/start-your-site/).
+
+```bash
+snippet validate
+snippet build
+```
+
+Your website is now in `public/`. To preview it with live reload:
+
+```bash
+docker run --rm --init --user "$(id -u):$(id -g)" \
+  --publish 127.0.0.1:8080:8080 --volume "$PWD:/workspace" \
+  ghcr.io/wanted80/snippet:v4.4.0 preview --host=0.0.0.0 --port=8080 # x-release-please-version
+```
+
+Open `http://127.0.0.1:8080`. Edit, save, and see the browser refresh.
+Stop preview with Ctrl+C. [INSTALL.md](INSTALL.md#content-only-container-preview)
+has Compose and hardened container examples.
+
+Keep `content/`, `site/`, and the generated agent instructions in Git. Add
+`/public/`, `/.snippet-build-*/`, and `/.snippet-backup-*/` to your `.gitignore`;
+output is rebuilt, not committed. Create a public or private remote repository
+and push your source. To publish automatically, copy the
+[example workflow](examples/github-pages.yml) and follow the
+[Pages setup](INSTALL.md#ci-validation-build-and-github-pages).
+A private source repository does not imply a private website; Pages availability
+depends on your GitHub plan, as explained in that guide.
+
+You own the writing and `site/` customization. The image contains the engine and
+theme; you do not need to fork Snippet. Updating its pinned version and rebuilding
+brings theme fixes without replacing your source files.
+
+### Write and style with a coding agent
+
+`snippet init` includes a `snippet-authoring` skill and repository instructions.
+Use them with a coding agent that can read your workspace, edit files, and run
+its configured Snippet command. For example:
+
+> Use the snippet-authoring skill to create an About page from these notes, add
+> it to navigation, then validate and build the site.
+
+> Use the snippet-authoring skill to turn these notes into an article. Suggest a
+> title, description, and tags; use my supplied publication date, then validate
+> and build.
+
+> Use the snippet-authoring skill to give my site a warm light palette and a
+> readable dark palette. Adjust typography and spacing in site/site.css, then
+> validate, build, and review narrow and wide layouts in both themes.
+
+The agent can discover the installed content, configuration, and theme contracts
+through `inspect ... --json`, rather than guessing supported fields or CSS tokens.
+You review the writing and design in the same source files you would edit by hand.
+Bring your own coding agent; Snippet supplies the skill and CLI, and its publishing
+engine runs without an AI service. See [the agent guide](https://wanted80.github.io/snippet/articles/working-with-agents/)
+for more examples and [Agent CLI](#agent-cli) for the machine-readable interface.
+
+### Develop Snippet itself
+
+For engine and theme contributions, clone this repository and use Docker with Make:
+
+```bash
+git clone https://github.com/wanted80/snippet.git
+cd snippet
+cp .env.example .env
+make demo-check
+make docker-preview
+```
+
+`make demo-check` validates and builds the documentation demo in a temporary
+workspace. Contributor preview runs at `https://localhost:8443/` and watches
+`demo/content/`, root `site/`, and the installed theme. See
+[the contributor setup](INSTALL.md#contributor-docker-make-and-https-preview).
 
 ## Why I created Snippet
 
@@ -32,53 +146,6 @@ The publishing engine runs on PHP 8.5+ and the required PHP extensions listed in
 
 Composer is project infrastructure. It provides the PHP platform requirement, the PSR-4 autoloader, and the project scripts. Packages listed under `require-dev` are used only to develop and verify Snippet: they cover testing, code coverage, formatting, refactoring, static analysis, mutation testing, and browser checks. They are not dependencies of the generated site or of the publishing engine's runtime behavior.
 
-## Quick start
-
-The primary workflow is a content-only repository powered by the official builder image. Start in an empty directory with the pinned release:
-
-```bash
-mkdir my-site
-cd my-site
-
-docker run --rm \
-  --user "$(id -u):$(id -g)" \
-  --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v4.4.0 init # x-release-please-version
-```
-
-`--user` prevents root-owned output, while `--volume` exposes the current repository at the image's `/workspace` path. Edit the generated `site/config.php` and content, then rerun the command with `init` replaced by `validate` or `build`. Create later drafts through the same image, for example by replacing `init` with `new article first-post`.
-
-The publication inputs are `content/` and `site/`; `public/` is disposable output. Initialization also adds author-owned `AGENTS.md` and `.agents/skills/snippet-authoring/SKILL.md` for coding agents. The builder image supports `--version`, `inspect`, `init`, `new page`, `new article`, `validate`, `build`, and `preview`. Run the local development preview from a content-only repository with an explicitly published loopback port:
-
-```bash
-docker run --rm --init \
-  --read-only \
-  --cap-drop ALL \
-  --security-opt no-new-privileges \
-  --pids-limit 64 \
-  --cpus 2 \
-  --user "$(id -u):$(id -g)" \
-  --publish 127.0.0.1:8080:8080 \
-  --volume "$PWD:/workspace" \
-  --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-  ghcr.io/wanted80/snippet:v4.4.0 preview --host=0.0.0.0 --port=8080 # x-release-please-version
-```
-
-Preview is for local authoring only; production deployment still consists solely of the generated `public/` directory. See [INSTALL.md](INSTALL.md) for hardened raw-Docker and Compose preview examples, building another directory, direct PHP use, the contributor HTTPS preview, customization, CI, and deployment.
-
-For a full checkout used to develop Snippet itself, Docker with Make remains the recommended environment:
-
-```bash
-git clone https://github.com/wanted80/snippet.git
-cd snippet
-cp .env.example .env
-make demo-check
-```
-
-This builds the release image, assembles the demo in a temporary workspace, validates it, and proves the production build. [INSTALL.md](INSTALL.md) documents both official-image preview for content-only publications and direct preview from a full checkout.
-
-For contributor preview, run `make docker-preview` and open `https://localhost:8443/`. Docker exposes `demo/content/` as the CLI content collection and uses the canonical root `site/` and `resources/`, with live updates as those files change.
-
 ## Agent CLI
 
 Agents can query the installed engine before a workspace exists:
@@ -94,7 +161,7 @@ Inspection requires `--json`. The four subjects describe available commands and
 customization paths, the stable theme API and `engine_defaults`, required site
 configuration and `starter_values`, and the page/article authoring contract.
 Inspection reads installed engine resources, independently of workspace files.
-Theme results contain the 32 public tokens grouped into colors, fonts, sizing, and effects,
+Theme results contain the 34 public tokens grouped into colors, fonts, sizing, and effects,
 11 class hooks, layer order, and an override example. Values preserve CSS
 expressions; they exclude author CSS and print overrides. Configuration starter
 values are required values copied by initialization, not defaults for omissions.
@@ -312,7 +379,7 @@ The URL must be the final HTTPS site URL, including any deployment path, without
 
 The `language` value sets the document's HTML language tag. The built-in interface text and formatted publication dates remain English; this setting does not translate the theme.
 
-`title` is the document identity used in browser titles, descriptions, and the homepage's hidden heading. The required `sitename` is independent trimmed, non-empty UTF-8 text used by the centered wordmark and its “— Home” accessible label. The required `author` is also trimmed, non-empty UTF-8 text and supplies the document's author metadata; every document identifies its running Snippet version as the generator. The starter theme displays the site name in uppercase with the bundled Snippet Logo font; the stored and accessible text is unchanged, and unsupported glyphs fall back to the interface font.
+`title` is the document identity used in browser titles, descriptions, and the homepage's hidden heading. The required `sitename` is independent trimmed, non-empty UTF-8 text used by the centered wordmark and its “— Home” accessible label. The required `author` is also trimmed, non-empty UTF-8 text and supplies the document's author metadata; every document identifies its running Snippet version as the generator. The starter theme displays the site name in uppercase with Snippet Logo, a custom font created specifically for this project; the stored and accessible text is unchanged, and unsupported glyphs fall back to the interface font.
 
 Publication always conservatively stream-minifies required `resources/theme.css` and optional `site/site.css`. External whitespace is collapsed, whitespace around unescaped `{`, `}`, `;`, and `,` is removed, and strings, escapes, comments, and meaningful token spacing are preserved, including descendant selectors after escaped punctuation. Malformed or uncertain CSS is copied unchanged. Output never grows, and repeated minification produces identical bytes. The builder does not merge rules, rewrite values, or change browser compatibility. HTML is published as rendered; bundled `resources/theme.js`, optional `site/site.js`, content assets, and files beneath `site/assets/` retain their original bytes. JavaScript remains subject to both source and retained-entry asset ceilings.
 
@@ -397,7 +464,25 @@ The builder publishes its bundled `resources/theme.css` as `/assets/theme.<xxh3>
 }
 ```
 
-The starter site self-hosts the upright and italic variable webfonts for [Atkinson Hyperlegible Next](https://www.brailleinstitute.org/freefont/) for reading and interface text, plus the supplied Snippet Logo WOFF2 for the wordmark. The upright interface and wordmark fonts are each preloaded only when both `site/site.css` and the matching asset are present; the italic interface font remains demand-loaded. These known paths provide an optional preload optimization in the renderer; they do not constrain replacement fonts or require configurable preload machinery. The Atkinson files come from the [official font repository at commit `7925f50`](https://github.com/googlefonts/atkinson-hyperlegible-next/tree/7925f50f649b3813257faf2f4c0b381011f434f1) and are distributed under the SIL Open Font License 1.1 included beside them. No font-service request is made. Remove `site/site.css` to return all three stable font tokens to their system fallbacks, or replace its `@font-face` declarations and files beneath `site/assets/fonts/` to self-host other families.
+The starter site self-hosts the upright and italic variable webfonts for [Atkinson Hyperlegible Next](https://www.brailleinstitute.org/freefont/) for reading and interface text, plus Snippet Logo, the custom WOFF2 font created specifically for this project’s header wordmark. The upright interface and wordmark fonts are each preloaded only when both `site/site.css` and the matching asset are present; the italic interface font remains demand-loaded. These known paths provide an optional preload optimization in the renderer; they do not constrain replacement fonts or require configurable preload machinery. The Atkinson files come from the [official font repository at commit `7925f50`](https://github.com/googlefonts/atkinson-hyperlegible-next/tree/7925f50f649b3813257faf2f4c0b381011f434f1) and are distributed under the SIL Open Font License 1.1 included beside them. No font-service request is made. Remove `site/site.css` to return all three stable font tokens to their system fallbacks, or replace its `@font-face` declarations and files beneath `site/assets/fonts/` to self-host other families.
+
+Snippet Logo covers Latin letters, numbers, and selected punctuation; unsupported
+characters use the interface font. It styles the header's `sitename`, independently
+of the full document `title`. Keep the header name short: the default wordmark is
+one line, scales with viewport width, and clips names that exceed the space between
+the controls. To use the interface font in the header, add this to `site/site.css`:
+
+```css
+@layer overrides {
+    :root {
+        --font-wordmark: var(--font-interface);
+    }
+}
+```
+
+You can also point `--font-wordmark` at another self-hosted font. The custom logo
+font is an optional part of the starter's identity; the public CSS token makes it
+replaceable without changing templates.
 
 Every route keeps its canonical link and receives Open Graph and Twitter/X title, description, URL, and site-name metadata. Articles use `og:type=article`; other routes use `website`. A covered article also emits its validated absolute image URL, MIME type, dimensions, and non-empty authored alt text, and uses the large-image card. No site-wide social image or additional social configuration is implied.
 
@@ -426,7 +511,10 @@ surface intentionally has square corners at viewport widths up to `40rem`.
 
 The appended effects group exposes `--opacity-header-background` and
 `--opacity-navigation-background` (both `82%`), plus `--shadow-header`,
-`--shadow-menu`, and `--shadow-content`. Shadows use neutral black with the
+`--shadow-menu`, and `--shadow-content`. The additional
+`--opacity-header-button-background` and `--opacity-navigation-item-background`
+tokens both default to `90%`: a denser translucent fill keeps controls readable.
+Shadows use neutral black with the
 existing geometry: header `0 0.25rem 0.9rem` (10% light / 22% dark), navigation
 `0 1rem 2.5rem` (18% / 38%), and symmetric content side shadows
 `±1rem 0 2rem -1.35rem` (24% / 42%). Each shadow accepts `none`.
@@ -434,17 +522,34 @@ existing geometry: header `0 0.25rem 0.9rem` (10% light / 22% dark), navigation
 with existing keys first and additions appended deterministically.
 
 Use opaque component base colors and opacity percentages from `0%` to `100%`.
-Glass is mixed at each component from its base color and opacity, and requires
-both color mixing and backdrop filtering. At `100%` the fill is opaque.
-Unsupported browsers and reduced-transparency preferences use the opaque base
-without filtering. The unscrolled header always uses `--color-background`.
+Translucent fills are mixed at each component from its base color and opacity,
+and require support for both color mixing and backdrop filtering. At `100%`
+the fill is opaque. Unsupported browsers and reduced-transparency preferences
+use the opaque base without filtering. Blur is applied only to the scrolled
+header and navigation panel; their controls reveal that surface through
+translucent fills, without nested backdrop filters. Header controls use these
+fills on hover, touch-active, and while the menu is open; idle header controls
+remain transparent. Ordinary navigation items also use translucent fills.
+Selected and hovered/pressed menu items retain solid accent fills and
+`--color-on-accent` text for a clear state and predictable contrast. Blur is
+never animated. The fullscreen mobile dialog retains an opaque backdrop for
+reading and focus.
+
+The unscrolled header always uses `--color-background`.
 Screen rules, including responsive and interaction variants, belong to the
 published layers, so root variables and class rules in `@layer overrides` work
 without `!important`. Theme selection and print are unlayered exceptions:
 system/manual theme selection is preserved, motion effects respect reduced
 motion, and print forces high-contrast light colors with white on-accent text.
 
-For example, a Wanted80-style customization can separate header controls from
+Existing color overrides still supply each component's base color; the new
+control opacity tokens are independent of the header and panel opacity tokens.
+For the former solid control fills, set both new tokens to `100%`. With lower
+opacity, assess contrast against the composited surface in both themes; a base
+color alone does not describe the visible background. Setting a panel to `100%`
+does not also change its controls. No class hooks or layer order have changed.
+
+For example, a custom palette can separate header controls from
 menu items, make navigation opaque, and optionally remove the shadows:
 
 ```css
@@ -455,6 +560,8 @@ menu items, make navigation opaque, and optionally remove the shadows:
         --color-header-button-background: light-dark(#dce6f3, #26374c);
         --color-navigation-item-background: light-dark(#edf2fa, #1b293e);
         --opacity-navigation-background: 100%;
+        --opacity-header-button-background: 100%;
+        --opacity-navigation-item-background: 100%;
         --color-accent: light-dark(#174b91, #b8d5ff);
         --color-on-accent: light-dark(#ffffff, #111827);
         --radius-control: 0.5rem;

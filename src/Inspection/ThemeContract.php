@@ -13,7 +13,7 @@ final readonly class ThemeContract
         'colors' => ['--color-background', '--color-surface', '--color-interactive', '--color-text', '--color-muted', '--color-accent', '--color-border', '--color-header-background', '--color-navigation-background', '--color-header-button-background', '--color-navigation-item-background', '--color-on-accent'],
         'fonts' => ['--font-reading', '--font-interface', '--font-wordmark', '--font-code'],
         'sizing' => ['--measure-prose', '--measure-shell', '--space-1', '--space-2', '--space-3', '--space-4', '--space-5', '--space-6', '--space-section', '--radius-control', '--radius-panel'],
-        'effects' => ['--opacity-header-background', '--opacity-navigation-background', '--shadow-header', '--shadow-menu', '--shadow-content'],
+        'effects' => ['--opacity-header-background', '--opacity-navigation-background', '--shadow-header', '--shadow-menu', '--shadow-content', '--opacity-header-button-background', '--opacity-navigation-item-background'],
     ];
 
     public const array CLASS_HOOKS = ['.site-header', '.site-brand', '.site-wordmark', '.site-navigation', '.site-main', '.article-list', '.article-figure', '.content-header', '.prose', '.tag-list', '.site-footer'];

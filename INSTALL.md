@@ -2,6 +2,15 @@
 
 Snippet can build a site from a content-only repository with the official image, or run directly from a full source checkout. Production hosting receives only the generated `public/` directory and needs neither PHP nor Docker.
 
+Start with [the quick start](README.md#quick-start), then use the sections you need:
+
+- [Create a content repository](#content-only-builder-usage)
+- [Preview locally](#content-only-container-preview)
+- [Customize CSS and JavaScript](#css-and-javascript-customization)
+- [Publish with GitHub Actions](#ci-validation-build-and-github-pages)
+- [Work with an agent](#agent-workflow)
+- [Develop Snippet itself](#contributor-docker-make-and-https-preview)
+
 ## Content-only builder usage
 
 Install Docker Engine or Docker Desktop, then create an empty repository directory. On Windows, run these commands inside WSL 2 and keep the repository in the WSL filesystem.
@@ -39,6 +48,12 @@ The image exposes `--version`, `inspect`, `init`, `new page`, `new article`, `va
 Moving release aliases and `latest` are convenient for evaluation but unsuitable for reproducible publication. Pin a full release such as `v4.4.0` or an immutable image digest. <!-- x-release-please-version -->
 
 ## Agent workflow
+
+Use the bundled snippet-authoring skill with your coding agent to create pages
+and articles, edit site configuration, or customize colors, typography, spacing,
+and fonts. Start with the [example authoring and styling requests](README.md#write-and-style-with-a-coding-agent),
+then use the command sequence below. Your agent works on the source in your
+repository; Snippet supplies the inspectable contracts and validation tools.
 
 Use the builder image selected for your workspace so inspection describes that
 installed version. To test the current checkout, first run `make builder-image`.
@@ -434,87 +449,60 @@ Each `<xxh3>` token is the complete 16-character lowercase XXH3 digest. Files be
 
 ## CI validation, build, and GitHub Pages
 
-A content-only repository can validate and build with the exact same image as local work. This workflow grants only read access to repository contents and packages, does not retain checkout credentials, verifies the image's GitHub provenance, runs the container without networking or capabilities, mounts the checked-out workspace, and uploads `public/` only:
+Create a **public or private repository for your site**. It contains your writing
+and configuration; the public Snippet image supplies the builder. You do not need
+to fork this project or keep a copy of its PHP source.
 
-```yaml
-name: Site
+GitHub Pages is available for public repositories on GitHub Free; using a private
+repository requires an eligible paid plan. A private source repository does not
+make its published website private. See [GitHub's Pages availability and visibility
+guide](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site).
+You can also build from a private repository and upload `public/` to another
+static host.
 
-on:
-  push:
-    branches: [main]
-  pull_request:
+### Set up automatic publication
 
-permissions:
-  contents: read
-  packages: read
+1. Set `url` in `site/config.php` to the final HTTPS address, without a trailing slash: `https://YOUR-NAME.github.io/YOUR-REPOSITORY` for a project site, or `https://example.com` for a custom domain. Replace these placeholders with your own values.
+2. Copy [examples/github-pages.yml](examples/github-pages.yml) into your site's repository as `.github/workflows/site.yml`. This is a complete workflow with build and deployment jobs.
+3. In the site's repository, select **Settings → Pages → Build and deployment → GitHub Actions**.
+4. Commit `content/`, `site/`, `AGENTS.md`, `.agents/`, `.gitignore`, and the workflow. Keep `/public/` ignored.
+5. Push to `main`. The Actions tab shows validation, build, and deployment; Pages settings show the published URL. Adjust the workflow's branch checks if you use a different default branch.
 
-env:
-  SNIPPET_IMAGE: ghcr.io/wanted80/snippet:v4.4.0 # x-release-please-version
+Pull requests validate and build without deploying. Pushes to `main` publish the
+result; manual runs on `main` can republish it. The example uses the same pinned
+image as local authoring, verifies its GitHub provenance, and uploads only
+`public/`. Checkout credentials are not retained, and write permissions are
+limited to the deployment job. No personal access token is needed: the workflow
+uses GitHub's built-in `GITHUB_TOKEN`.
 
-jobs:
-  build:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Verify builder image provenance
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh attestation verify "oci://${SNIPPET_IMAGE}" \
-            -R wanted80/snippet \
-            --signer-workflow wanted80/snippet/.github/workflows/release.yml \
-            --deny-self-hosted-runners
-      - name: Validate
-        run: |
-          docker run --rm --network none --read-only --cap-drop ALL \
-            --security-opt no-new-privileges --pids-limit 64 --cpus 2 \
-            --user "$(id -u):$(id -g)" \
-            --mount type=bind,src="$GITHUB_WORKSPACE",dst=/workspace \
-            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-            "${SNIPPET_IMAGE}" validate
-      - name: Build
-        run: |
-          docker run --rm --network none --read-only --cap-drop ALL \
-            --security-opt no-new-privileges --pids-limit 64 --cpus 2 \
-            --user "$(id -u):$(id -g)" \
-            --mount type=bind,src="$GITHUB_WORKSPACE",dst=/workspace \
-            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-            "${SNIPPET_IMAGE}" build
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        if: github.ref == 'refs/heads/main'
-        with:
-          path: public/
-```
+The image-verification step uses the GitHub CLI supplied by GitHub-hosted runners.
+For immutable builds, replace `SNIPPET_IMAGE` with the exact
+`ghcr.io/wanted80/snippet:vX.Y.Z@sha256:<release-index-digest>` reference printed
+by Snippet's Builder Image release workflow. Use the multi-platform index digest.
+Review later image updates in a pull request and preview your custom CSS before
+adopting them.
 
-The attestation step requires a current GitHub CLI, which is preinstalled on GitHub-hosted runners. The readable version tag keeps this example release-managed. For immutable use, replace `SNIPPET_IMAGE` with the exact `ghcr.io/wanted80/snippet:vX.Y.Z@sha256:<release-index-digest>` reference printed by the Builder Image release workflow. Use the multi-platform index digest, not one architecture's child digest. Dependabot or equivalent automation should propose later digest updates; provenance verification then proves that the selected bytes were built by Snippet's hosted release workflow.
+### Custom domains and other hosts
 
-For GitHub Pages, enable **Settings → Pages → Build and deployment → GitHub Actions**, then add a deployment job that depends on the build job. Because pull requests must not deploy, use the branch condition shown here:
+For a custom domain, set it in Pages settings, configure your DNS with
+[GitHub's custom-domain instructions](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site),
+and use that same HTTPS address in `site/config.php`. Rebuild after changing the
+address. GitHub Actions publication does not need a `CNAME` file in `public/`.
+GitHub Pages handles public HTTPS; the local preview certificate is unrelated.
 
-```yaml
-  deploy:
-    if: github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: ubuntu-24.04
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
-```
+Other static hosts need the same generated `public/` directory. Run the image's
+`build` command in CI, then use your host's upload step with `public/` as its
+source. Store any host credentials in your CI secret store. PHP and Docker are
+needed only at build time, never on the public web server.
 
-Deploy only `public/`. Keep it ignored; do not create a generated-output branch. The build includes a root-level `404.html` that GitHub Pages automatically uses for missing routes; its links and assets retain the configured deployment path for project sites. Other static hosts can use the same file through their custom-error-page configuration. GitHub Pages owns HTTPS and does not provide project-controlled response headers. On configurable hosts, add `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: strict-origin-when-cross-origin` alongside Snippet's meta CSP.
+The build includes `404.html`, which GitHub Pages uses automatically. Configure
+other hosts to use it as their error page. On hosts with configurable response
+headers, add `Content-Security-Policy: frame-ancestors 'none'`,
+`X-Content-Type-Options: nosniff`, and
+`Referrer-Policy: strict-origin-when-cross-origin` alongside Snippet's meta CSP.
+GitHub Pages does not provide project-controlled response headers. See
+[GitHub's workflow guide](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
+for the hosting-side contract.
 
 ### Host-managed Content Security Policy
 

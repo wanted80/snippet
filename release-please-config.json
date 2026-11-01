@@ -22,6 +22,18 @@
                 {
                     "type": "generic",
                     "path": "INSTALL.md"
+                },
+                {
+                    "type": "generic",
+                    "path": "examples/github-pages.yml"
+                },
+                {
+                    "type": "generic",
+                    "path": "demo/content/articles/2026/08/21/preview-and-validation/article.md"
+                },
+                {
+                    "type": "generic",
+                    "path": "demo/content/articles/2026/08/25/start-your-site/article.md"
                 }
             ]
         }

@@ -46,6 +46,8 @@
     --color-on-accent: var(--color-background);
     --opacity-header-background: 82%;
     --opacity-navigation-background: 82%;
+    --opacity-header-button-background: 90%;
+    --opacity-navigation-item-background: 90%;
     --font-reading: ui-serif, charter, "Bitstream Charter", "Sitka Text", cambria, georgia, serif;
     --font-interface: system-ui, sans-serif;
     --font-wordmark: var(--font-interface);
@@ -401,7 +403,7 @@
 
   .site-header .menu-toggle[aria-expanded="true"],
   .site-header:has(.site-navigation:popover-open) .menu-toggle {
-    background: var(--color-header-button-background);
+    background: var(--header-button-fill, var(--color-header-button-background));
     color: var(--color-accent);
   }
 
@@ -602,7 +604,7 @@
   }
 
   .menu-link {
-    background: var(--color-navigation-item-background);
+    background: var(--navigation-item-fill, var(--color-navigation-item-background));
     overflow-wrap: anywhere;
     display: flex;
     inline-size: 100%;
@@ -863,6 +865,23 @@
 
   @supports (background: color-mix(in srgb, black 82%, transparent)) and
     ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    /* Translucent controls reveal the panel's blur without nesting backdrop filters. */
+    .site-header .icon-button {
+      --header-button-fill: color-mix(
+        in srgb,
+        var(--color-header-button-background) var(--opacity-header-button-background),
+        transparent
+      );
+    }
+
+    .menu-link {
+      --navigation-item-fill: color-mix(
+        in srgb,
+        var(--color-navigation-item-background) var(--opacity-navigation-item-background),
+        transparent
+      );
+    }
+
     .site-navigation {
       background: color-mix(
         in srgb,
@@ -875,6 +894,14 @@
   }
 
   @media (prefers-reduced-transparency: reduce) {
+    .site-header .icon-button {
+      --header-button-fill: var(--color-header-button-background);
+    }
+
+    .menu-link {
+      --navigation-item-fill: var(--color-navigation-item-background);
+    }
+
     .site-navigation {
       background: var(--color-navigation-background);
       -webkit-backdrop-filter: none;
@@ -921,7 +948,7 @@
     }
 
     .site-header .icon-button:hover {
-      background: var(--color-header-button-background);
+      background: var(--header-button-fill, var(--color-header-button-background));
       color: var(--color-accent);
     }
   }
@@ -953,7 +980,7 @@
     }
 
     .site-header .icon-button:active {
-      background: var(--color-header-button-background);
+      background: var(--header-button-fill, var(--color-header-button-background));
       color: var(--color-accent);
     }
   }

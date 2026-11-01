@@ -6,7 +6,7 @@ return [
     'title' => 'Snippet',
     'sitename' => 'Snippet',
     'author' => 'Snippet',
-    'description' => 'A personal collection of articles.',
+    'description' => 'Your writing, your repository, your static website. Learn to publish with Snippet.',
     'url' => 'https://wanted80.github.io/snippet',
     'language' => 'en',
     'home' => [
@@ -14,6 +14,6 @@ return [
         'tags' => 21,
     ],
     'profiles' => [
-        ['label' => 'GitHub', 'url' => 'https://github.com/wanted80', 'icon' => 'github'],
+        ['label' => 'GitHub', 'url' => 'https://github.com/wanted80/snippet', 'icon' => 'github'],
     ],
 ];
