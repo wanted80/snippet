@@ -358,7 +358,8 @@ it('cleans up interrupted transitions and page restoration', function (): void {
     $browser->click('.menu-link[href="/about/"]');
     $browser->assertPathIs('/about/');
 
-    $page->waitForLoadState('domcontentloaded');
+    // Pest's load-state wait does not consume its lazy protocol request.
+    $page->locator('#navigation-dialog')->waitFor(['state' => 'attached']);
     $browser->assertScript('document.querySelector("dialog").open', false);
 });
 
