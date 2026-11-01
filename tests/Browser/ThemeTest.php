@@ -357,6 +357,8 @@ it('cleans up interrupted transitions and page restoration', function (): void {
     $browser->click('.menu-toggle');
     $browser->click('.menu-link[href="/about/"]');
     $browser->assertPathIs('/about/');
+
+    $page->waitForLoadState('domcontentloaded');
     $browser->assertScript('document.querySelector("dialog").open', false);
 });
 
