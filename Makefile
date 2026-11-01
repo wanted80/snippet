@@ -29,7 +29,7 @@ help:
 	@echo '  make docker-shell          Open the development environment shell'
 	@echo '  make docker-config         Render and validate the Compose configuration'
 	@echo '  make docker-test           Run tests in development'
-	@echo '  make docker-test-browser   Run Chromium theme regression tests'
+	@echo '  make docker-test-browser   Run the full browser suite in all three engines'
 	@echo '  make docker-mutations      Require a 100% full-project mutation score'
 	@echo '  make docker-analyse        Run PHPStan in development'
 	@echo '  make docker-audit          Audit locked Composer dependencies'

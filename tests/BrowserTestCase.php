@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Snippet\Tests;
 
+use Pest\Browser\Api\Webpage;
 use Pest\Browser\Playwright\Client;
 use Pest\Browser\Playwright\Context;
 use Pest\Browser\Playwright\Page;
@@ -62,12 +63,51 @@ abstract class BrowserTestCase extends TestCase
         throw new RuntimeException('Temporary publication server did not start.');
     }
 
+    /** Native media emulation through Playwright's shared protocol, absent from Pest's Page API. */
+    protected function media(Page $page, string $media = 'screen'): void
+    {
+        $this->pageCommand($page, 'emulateMedia', ['media' => $media, 'reducedMotion' => 'reduce']);
+    }
+
+    /** Hold a real pointer press so :active is measured before release in every engine. */
+    protected function press(Page $page, string $selector): void
+    {
+        $page->locator($selector)->hover();
+        $this->pageCommand($page, 'mouseDown', ['button' => 'left']);
+    }
+
+    /** Release away from the control without activating its link or action. */
+    protected function release(Page $page): void
+    {
+        $this->pageCommand($page, 'mouseMove', ['x' => 0, 'y' => 0]);
+        $this->pageCommand($page, 'mouseUp', ['button' => 'left']);
+    }
+
     /**
-     * Pest 5.0.1 does not expose media emulation. Use its existing Chromium connection
-     * to send native CDP media preferences; never rewrite preference rules in CSS.
-     * @param list<array{name: string, value: string}> $features
+     * Compare numeric sRGB channels and alpha; engines serialize color-mix precision differently.
+     * @param array{float|int, float|int, float|int, float|int} $expected
      */
-    protected function media(Page $page, string $media = 'screen', array $features = []): void
+    protected function assertSrgb(Webpage $browser, string $selector, array $expected): void
+    {
+        $color = $browser->script('getComputedStyle(document.querySelector(' . json_encode($selector, flags: JSON_THROW_ON_ERROR) . ')).backgroundColor');
+        self::assertIsString($color);
+        self::assertStringStartsWith('color(srgb ', $color);
+        preg_match_all('/[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/i', $color, $matches);
+        $channels = array_map(floatval(...), $matches[0]);
+        if (count($channels) === 3) {
+            $channels[] = 1.0;
+        }
+        self::assertCount(4, $channels);
+        foreach ($expected as $index => $value) {
+            self::assertEqualsWithDelta($value, $channels[$index], 0.000001, $selector . ' color channel ' . $index);
+        }
+    }
+
+    /**
+     * Playwright 1.64 has no shared reduced-transparency option. Retain native Chromium
+     * coverage through CDP; callers explicitly skip this capability on other engines.
+     */
+    protected function reducedTransparency(Page $page): void
     {
         $pageId = new ReflectionProperty(Page::class, 'guid')->getValue($page);
         $contextId = new ReflectionProperty(Context::class, 'guid')->getValue($page->context());
@@ -77,11 +117,22 @@ abstract class BrowserTestCase extends TestCase
         foreach (Client::instance()->execute($contextId, 'newCDPSession', ['page' => ['guid' => $pageId]]) as $message) {
             if (isset($message['result']['session']['guid'])) {
                 $session = $message['result']['session']['guid'];
-                iterator_to_array(Client::instance()->execute($session, 'send', ['method' => 'Emulation.setEmulatedMedia', 'params' => ['media' => $media, 'features' => $features]]));
+                iterator_to_array(Client::instance()->execute($session, 'send', ['method' => 'Emulation.setEmulatedMedia', 'params' => ['media' => 'screen', 'features' => [
+                    ['name' => 'prefers-reduced-transparency', 'value' => 'reduce'],
+                    ['name' => 'prefers-reduced-motion', 'value' => 'reduce'],
+                ]]]));
                 // The browser context owns the session; detaching would reset emulation.
                 return;
             }
         }
         throw new RuntimeException('Chromium did not create a media emulation session.');
+    }
+
+    /** @param array<string, mixed> $parameters */
+    private function pageCommand(Page $page, string $method, array $parameters): void
+    {
+        $pageId = new ReflectionProperty(Page::class, 'guid')->getValue($page);
+        self::assertIsString($pageId);
+        iterator_to_array(Client::instance()->execute($pageId, $method, $parameters));
     }
 }

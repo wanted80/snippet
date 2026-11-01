@@ -26,78 +26,208 @@
   };
   syncThemeColor();
 
-  const initialize = () => {
+  const initializeHeader = () => {
     const header = document.querySelector("[data-site-header]");
-    const menuButton = document.querySelector('[popovertarget="site-navigation"]');
+    if (header === null) return;
+    const sync = () => {
+      if (!root.hasAttribute("data-navigation-modal")) {
+        header.toggleAttribute("data-scrolled", window.scrollY > 0);
+      }
+    };
+    window.addEventListener("scroll", sync, { passive: true });
+    window.addEventListener("pageshow", sync);
+    sync();
+  };
+
+  const initializeNavigation = () => {
+    const header = document.querySelector("[data-site-header]");
+    const button = document.querySelector(".menu-toggle");
     const navigation = document.querySelector("#site-navigation");
-    const themeButton = document.querySelector("[data-theme-toggle]");
+    const dialog = document.querySelector("#navigation-dialog");
+    if (!header || !button || !navigation || !dialog ||
+        typeof navigation.showPopover !== "function" ||
+        typeof dialog.showModal !== "function") return;
 
-    if (header !== null) {
-      let scrolled = false;
-      const syncScrollState = () => {
-        const nextScrolled = window.scrollY > 0;
-        if (nextScrolled === scrolled) {
-          return;
+    const compact = window.matchMedia("(max-width: 1024px)");
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const links = Array.from(navigation.querySelectorAll(".menu-link"));
+    const placeholder = document.createElement("div");
+    placeholder.setAttribute("aria-hidden", "true");
+    let savedScroll = 0;
+    let closing = null;
+    let opening = null;
+    let positionFrame = 0;
+
+    const sync = (open) => {
+      const label = open ? "Close navigation" : "Open navigation";
+      button.setAttribute("aria-expanded", String(open));
+      button.setAttribute("aria-label", label);
+      button.setAttribute("title", label);
+    };
+    const position = () => {
+      positionFrame = 0;
+      const top = Math.max(8, header.getBoundingClientRect().bottom + 8);
+      const width = navigation.getBoundingClientRect().width;
+      const left = Math.max(16, Math.min(button.getBoundingClientRect().left, root.clientWidth - width - 16));
+      navigation.style.setProperty("--navigation-top", `${top}px`);
+      navigation.style.setProperty("--navigation-left", `${left}px`);
+    };
+    const schedulePosition = () => {
+      if (navigation.matches(":popover-open") && !positionFrame) {
+        positionFrame = window.requestAnimationFrame(position);
+      }
+    };
+    const finishClose = (restoreFocus) => {
+      opening?.cancel();
+      opening = null;
+      closing?.cancel();
+      closing = null;
+      if (dialog.open) dialog.close();
+      if (placeholder.isConnected) {
+        placeholder.replaceWith(header);
+        header.append(navigation);
+        navigation.setAttribute("popover", "auto");
+        button.setAttribute("popovertarget", "site-navigation");
+        button.setAttribute("aria-controls", "site-navigation");
+        button.removeAttribute("aria-haspopup");
+        root.removeAttribute("data-navigation-modal");
+        root.style.removeProperty("--navigation-scroll");
+        window.scrollTo({ top: savedScroll, behavior: "instant" });
+        header.toggleAttribute("data-scrolled", savedScroll > 0);
+      }
+      sync(false);
+      if (restoreFocus) button.focus({ preventScroll: true });
+    };
+    const close = (restoreFocus = true, animate = true) => {
+      if (dialog.open) {
+        if (closing && animate) return;
+        const opacity = window.getComputedStyle(navigation).opacity;
+        opening?.cancel();
+        opening = null;
+        sync(false);
+        if (animate && !reducedMotion.matches) {
+          closing = navigation.animate([{ opacity }, { opacity: 0 }], { duration: 200, easing: "ease-out" });
+          const animation = closing;
+          animation.finished.then(() => {
+            if (closing === animation) finishClose(restoreFocus);
+          }, () => {});
+        } else {
+          finishClose(restoreFocus);
         }
+      } else if (navigation.matches(":popover-open")) {
+        navigation.hidePopover();
+        sync(false);
+        if (restoreFocus) button.focus({ preventScroll: true });
+      }
+    };
+    const openModal = () => {
+      savedScroll = window.scrollY;
+      placeholder.style.height = `${header.getBoundingClientRect().height}px`;
+      header.before(placeholder);
+      root.style.setProperty("--navigation-scroll", `${-savedScroll}px`);
+      root.setAttribute("data-navigation-modal", "");
+      navigation.removeAttribute("popover");
+      button.removeAttribute("popovertarget");
+      button.setAttribute("aria-controls", "navigation-dialog");
+      button.setAttribute("aria-haspopup", "dialog");
+      dialog.append(header, navigation);
+      dialog.showModal();
+      // Establish the bars' initial geometry after moving into the top layer.
+      button.getBoundingClientRect();
+      sync(true);
+      if (!reducedMotion.matches) {
+        opening = navigation.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: "ease-out" });
+      }
+      links[0]?.focus({ preventScroll: true });
+    };
 
-        scrolled = nextScrolled;
-        header.toggleAttribute("data-scrolled", scrolled);
-      };
-
-      window.addEventListener("scroll", syncScrollState, { passive: true });
-      window.addEventListener("pageshow", syncScrollState);
-      syncScrollState();
-    }
-
-    if (menuButton !== null && navigation !== null) {
-      const links = Array.from(navigation.querySelectorAll(".menu-link"));
-
-      navigation.addEventListener("toggle", (event) => {
-        const open = event.newState === "open";
-        const label = open ? "Close navigation" : "Open navigation";
-        menuButton.setAttribute("aria-label", label);
-        menuButton.setAttribute("title", label);
-        if (open) {
-          links[0]?.focus();
-        }
-      });
-
-      navigation.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          navigation.hidePopover();
-          menuButton.focus();
-          return;
-        }
-
-        const current = links.indexOf(document.activeElement);
-        if (current === -1) {
-          return;
-        }
-
-        let next = null;
-        switch (event.key) {
-          case "ArrowDown":
-            next = (current + 1) % links.length;
-            break;
-          case "ArrowUp":
-            next = (current - 1 + links.length) % links.length;
-            break;
-          case "Home":
-            next = 0;
-            break;
-          case "End":
-            next = links.length - 1;
-            break;
-          default:
-            return;
-        }
-
+    button.addEventListener("click", (event) => {
+      if (!compact.matches) return;
+      event.preventDefault();
+      if (closing) {
+        closing.cancel();
+        closing = null;
+        sync(true);
+      } else if (dialog.open) {
+        close();
+      } else {
+        openModal();
+      }
+    });
+    navigation.addEventListener("beforetoggle", (event) => {
+      if (dialog.open) return;
+      sync(event.newState === "open");
+    });
+    navigation.addEventListener("toggle", () => {
+      if (dialog.open) return;
+      const open = navigation.matches(":popover-open");
+      sync(open);
+      if (open) {
+        position();
+        links[0]?.focus({ preventScroll: true });
+      }
+    });
+    navigation.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !dialog.open) {
         event.preventDefault();
-        links[next]?.focus();
-      });
-    }
+        close();
+        return;
+      }
+      const current = links.indexOf(document.activeElement);
+      if (current === -1 || event.altKey || event.ctrlKey || event.metaKey) return;
+      const next = { ArrowDown: (current + 1) % links.length,
+        ArrowUp: (current - 1 + links.length) % links.length,
+        Home: 0, End: links.length - 1 }[event.key];
+      if (next === undefined) return;
+      event.preventDefault();
+      links[next]?.focus();
+    });
+    dialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      close();
+    });
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key !== "Tab") return;
+      // Keep the boundary keys inside the modal instead of visiting browser chrome.
+      const controls = Array.from(dialog.querySelectorAll("button, a[href]"))
+        .filter((control) => !control.disabled && control.getClientRects().length > 0);
+      const first = controls[0];
+      const last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    });
+    dialog.addEventListener("close", () => {
+      if (!dialog.open && placeholder.isConnected) finishClose(true);
+    });
+    document.addEventListener("click", (event) => {
+      if (!event.defaultPrevented && event.target.closest?.("a") &&
+          (navigation.contains(event.target) || dialog.contains(event.target))) {
+        close(false, false);
+      }
+    });
+    compact.addEventListener("change", () => close(true, false));
+    reducedMotion.addEventListener("change", () => {
+      if (reducedMotion.matches) {
+        opening?.cancel();
+        opening = null;
+        if (closing) finishClose(true);
+      }
+    });
+    window.addEventListener("pagehide", () => close(false, false));
+    window.addEventListener("pageshow", () => close(false, false));
+    window.addEventListener("beforeprint", () => close(false, false));
+    window.addEventListener("resize", schedulePosition, { passive: true });
+    window.addEventListener("scroll", schedulePosition, { passive: true });
+    sync(false);
+  };
 
+  const initializeTheme = () => {
+    const themeButton = document.querySelector("[data-theme-toggle]");
     const apply = (theme, persist) => {
       if (root.dataset.theme !== theme) {
         root.dataset.themeChanging = "true";
@@ -119,7 +249,8 @@
         try {
           storage.setItem(storageKey, theme);
         } catch {
-          // The selected theme still applies for this page.
+          storage = null;
+          // Keep this page’s choice, including when restored from the back/forward cache.
         }
       }
     };
@@ -143,10 +274,28 @@
       preference = stored === "light" || stored === "dark" ? stored : null;
       apply(preference ?? systemTheme(), false);
     });
+    window.addEventListener("pageshow", (event) => {
+      if (!event.persisted) return;
+      if (storage !== null) {
+        try {
+          const stored = storage.getItem(storageKey);
+          preference = stored === "light" || stored === "dark" ? stored : null;
+        } catch {
+          // Retain the in-memory choice when storage becomes unavailable.
+        }
+      }
+      apply(preference ?? systemTheme(), false);
+    });
     themeButton?.addEventListener("click", () => {
       preference = root.dataset.theme === "dark" ? "light" : "dark";
       apply(preference, true);
     });
+  };
+
+  const initialize = () => {
+    initializeTheme();
+    initializeHeader();
+    initializeNavigation();
   };
 
   if (document.readyState === "loading") {
