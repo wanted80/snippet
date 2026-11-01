@@ -52,6 +52,8 @@ it('computes component tokens and independent glass on real publications', funct
                 --color-navigation-item-background: light-dark(#ddddff, #223355);
                 --opacity-header-background: 50%;
                 --opacity-navigation-background: 100%;
+                --opacity-header-button-background: 100%;
+                --opacity-navigation-item-background: 100%;
                 --shadow-header: none;
                 --shadow-menu: none;
                 --shadow-content: none;
@@ -76,8 +78,8 @@ it('computes component tokens and independent glass on real publications', funct
     $browser->assertScript('document.querySelector("dialog").matches(":modal")', $mobile);
     $this->assertSrgb($browser, '.site-header', $theme === 'light' ? [0.866667, 0.933333, 1, 0.5] : [0.133333, 0.2, 0.266667, 0.5]);
     $this->assertSrgb($browser, '.site-navigation', $theme === 'light' ? [0.933333, 0.933333, 1, 1] : [0.0666667, 0.133333, 0.2, 1]);
-    $browser->assertScript('getComputedStyle(document.querySelector(".menu-toggle")).backgroundColor', $theme === 'light' ? 'rgb(204, 221, 238)' : 'rgb(51, 68, 85)');
-    $browser->assertScript('getComputedStyle(document.querySelector(".menu-link:not([aria-current])")).backgroundColor', $theme === 'light' ? 'rgb(221, 221, 255)' : 'rgb(34, 51, 85)');
+    $this->assertSrgb($browser, '.menu-toggle', $theme === 'light' ? [0.8, 0.866667, 0.933333, 1] : [0.2, 0.266667, 0.333333, 1]);
+    $this->assertSrgb($browser, '.menu-link:not([aria-current])', $theme === 'light' ? [0.866667, 0.866667, 1, 1] : [0.133333, 0.2, 0.333333, 1]);
     $browser->assertScript('getComputedStyle(document.querySelector("[aria-current=page]")).color', $theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(0, 0, 0)');
     $browser->assertScript('[".site-header", ".site-navigation", ".site-main"].map(s => getComputedStyle(document.querySelector(s)).boxShadow)', ['none', 'none', 'none']);
     $browser->assertScript('[".menu-toggle", ".menu-link", ".site-navigation", ".prose pre", ".site-main"].map(s => getComputedStyle(document.querySelector(s)).borderTopLeftRadius)', ['4px', '4px', '20px', '20px', $mobile ? '0px' : '20px']);
@@ -126,13 +128,15 @@ it('computes component tokens and independent glass on real publications', funct
     if ($mobile) {
         $this->press($page, '.theme-toggle');
         $browser->assertScript('document.querySelector(".theme-toggle").matches(":active")');
-        $browser->assertScript('getComputedStyle(document.querySelector(".theme-toggle")).backgroundColor', $theme === 'light' ? 'rgb(204, 221, 238)' : 'rgb(51, 68, 85)');
+        $this->assertSrgb($browser, '.theme-toggle', $theme === 'light' ? [0.8, 0.866667, 0.933333, 1] : [0.2, 0.266667, 0.333333, 1]);
+        $browser->assertScript('getComputedStyle(document.querySelector(".theme-toggle")).backdropFilter', 'none');
         $this->release($page);
         $page->locator('.theme-toggle')->tap();
         $browser->assertScript('document.documentElement.dataset.theme', $theme === 'light' ? 'dark' : 'light');
     } else {
         $browser->hover('.theme-toggle');
-        $browser->assertScript('getComputedStyle(document.querySelector(".theme-toggle")).backgroundColor', $theme === 'light' ? 'rgb(204, 221, 238)' : 'rgb(51, 68, 85)');
+        $this->assertSrgb($browser, '.theme-toggle', $theme === 'light' ? [0.8, 0.866667, 0.933333, 1] : [0.2, 0.266667, 0.333333, 1]);
+        $browser->assertScript('getComputedStyle(document.querySelector(".theme-toggle")).backdropFilter', 'none');
         $browser->hover('.tag-grid a');
         $browser->assertScript('getComputedStyle(document.querySelector(".tag-grid a")).color', $theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(0, 0, 0)');
         $browser->assertScript('getComputedStyle(document.querySelector(".tag-count")).backgroundColor', $theme === 'light' ? 'rgb(238, 238, 238)' : 'rgb(32, 32, 32)');
@@ -175,6 +179,10 @@ it('preserves theme selection motion and opaque fallback with author overrides',
         $browser->assertScript('[".site-header", ".site-navigation", ".site-main"].every(s => getComputedStyle(document.querySelector(s)).boxShadow !== "none")');
     }
     $browser->assertScript('getComputedStyle(document.querySelector(".site-navigation")).backdropFilter', 'saturate(1.4) blur(16px)');
+    $browser->assertScript('[".menu-toggle", ".menu-link"].map(s => getComputedStyle(document.querySelector(s)).backdropFilter)', ['none', 'none']);
+    $this->assertSrgb($browser, '.menu-link', $customized
+        ? ($theme === 'light' ? [0.929412, 0.94902, 0.980392, 0.9] : [0.105882, 0.160784, 0.243137, 0.9])
+        : ($theme === 'light' ? [0.933333, 0.890196, 0.847059, 0.9] : [0.0901961, 0.113725, 0.133333, 0.9]));
     $browser->click('.theme-toggle');
     $browser->assertScript('document.documentElement.dataset.theme', $theme === 'light' ? 'dark' : 'light');
     $browser->assertScript('localStorage.getItem("snippet-theme")', $theme === 'light' ? 'dark' : 'light');
@@ -215,6 +223,7 @@ it('preserves theme selection motion and opaque fallback with author overrides',
     expect($removed)->toBe(2);
     $browser->script('() => Promise.all(document.getAnimations().map(animation => animation.finished))');
     $browser->assertScript('[".site-header", ".site-navigation"].map(s => getComputedStyle(document.querySelector(s)).backdropFilter)', ['none', 'none']);
+    $browser->assertScript('[".menu-toggle", ".menu-link"].map(s => getComputedStyle(document.querySelector(s)).backdropFilter)', ['none', 'none']);
     if ($customized) {
         $browser->assertScript('getComputedStyle(document.querySelector(".site-header")).backgroundColor', $theme === 'light' ? 'rgb(221, 238, 255)' : 'rgb(34, 51, 68)');
         $browser->assertScript('getComputedStyle(document.querySelector(".site-navigation")).backgroundColor', $theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(17, 24, 39)');
@@ -459,8 +468,34 @@ it('honors the native reduced-transparency preference', function (bool $mobile, 
     $browser->click('.menu-toggle');
     $this->reducedTransparency($page);
     $browser->assertScript('matchMedia("(prefers-reduced-transparency: reduce)").matches');
+    $browser->assertScript('[".menu-toggle", ".menu-link"].map(s => getComputedStyle(document.querySelector(s)).backdropFilter)', ['none', 'none']);
+    $browser->assertScript('getComputedStyle(document.querySelector(".menu-toggle")).backgroundColor', $theme === 'light' ? 'rgb(238, 227, 216)' : 'rgb(23, 29, 34)');
+    $browser->assertScript('getComputedStyle(document.querySelector(".menu-link")).backgroundColor', $theme === 'light' ? 'rgb(238, 227, 216)' : 'rgb(23, 29, 34)');
     $browser->assertScript('getComputedStyle(document.querySelector(".site-header")).backgroundColor', $theme === 'light' ? 'rgb(221, 238, 255)' : 'rgb(34, 51, 68)');
     $browser->assertScript('getComputedStyle(document.querySelector(".site-navigation")).backgroundColor', $theme === 'light' ? 'rgb(238, 238, 255)' : 'rgb(17, 34, 51)');
     $browser->assertScript('[".site-header", ".site-navigation"].map(s => getComputedStyle(document.querySelector(s)).backdropFilter)', ['none', 'none']);
 })->with('theme screens')->with('theme palettes')
     ->skip(fn(): bool => Playwright::defaultBrowserType() !== BrowserType::CHROME, 'Playwright exposes native reduced-transparency emulation only through Chromium CDP.');
+
+it('keeps translucent controls readable without nesting backdrop filters', function (bool $mobile, string $theme): void {
+    $url = $this->publication() . '/about/';
+    $pending = visit($url, ['viewport' => ['width' => $mobile ? 390 : 1280, 'height' => 800], 'hasTouch' => $mobile, 'colorScheme' => $theme, 'reducedMotion' => 'reduce']);
+    $page = $pending->__call('page', []);
+    assert($page instanceof Page);
+    $browser = new Webpage($page, $url);
+    $browser->script('scrollTo(0, 400)');
+
+    $page->waitForSelector('.site-header[data-scrolled]');
+    $browser->click('.menu-toggle');
+    $helper = file_get_contents(__DIR__ . '/contrast.js');
+    assert(is_string($helper));
+    $browser->script($helper);
+    $browser->assertScript('[".site-header", ".site-navigation"].map(s => getComputedStyle(document.querySelector(s)).backdropFilter)', ['saturate(1.4) blur(16px)', 'saturate(1.4) blur(16px)']);
+    foreach (['.menu-toggle', '.menu-link:not([aria-current])'] as $selector) {
+        $this->assertSrgb($browser, $selector, $theme === 'light' ? [0.933333, 0.890196, 0.847059, 0.9] : [0.0901961, 0.113725, 0.133333, 0.9]);
+        $browser->assertScript('getComputedStyle(document.querySelector(' . json_encode($selector, flags: JSON_THROW_ON_ERROR) . ')).backdropFilter', 'none');
+    }
+    // These extremes bound every sRGB backdrop, independently of page content and blur.
+    $browser->assertScript('[".menu-toggle", ".menu-link:not([aria-current])", "[aria-current=page]"].every(s => [[0, 0, 0], [1, 1, 1]].every(bg => themeContrast(s, "color", s, "backgroundColor", bg) >= 4.5))');
+    $browser->assertScript('getComputedStyle(document.querySelector("[aria-current=page]")).backdropFilter', 'none');
+})->with('theme screens')->with('theme palettes');

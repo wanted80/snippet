@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 return [
     'title' => 'Welcome to Snippet',
-    'description' => 'An introduction to writing, validating, and publishing a Snippet site with GitHub Pages.',
+    'description' => 'A practical guide to your own Markdown website, from a content repository to static hosting.',
     'date' => '2026-08-26',
     'tags' => [
         'Snippet',
-        'GitHub Pages',
+        'Getting started',
         'Static sites',
     ],
     'cover' => true,

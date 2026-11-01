@@ -1,12 +1,17 @@
-# Why this starter exists
+# About Snippet
 
+Snippet is a small personal publishing system built for learning, curiosity, experimentation, and fun. Its guiding idea is that the content is the product, the builder is an implementation detail, and the generated website is disposable.
 
-Snippet is a small personal publishing system built around a plain idea: the content should outlast any particular implementation. Articles and pages live in self-contained directories, their history stays in Git, and a dependency-free PHP command turns them into static files. Production needs no application server, database, account system, or background process.
+The author created it to publish a personal website through GitHub automation and to explore building software with AI as a collaborator. The project favors readable code, deterministic builds, semantic HTML, and plain CSS. Its PHP publishing engine uses no third-party runtime packages.
 
-This repository is both a usable starter and a learning project. Its code favors explicit types, deterministic ordering, narrow security boundaries, and ordinary standard-library tools. The generated `public/` directory is disposable; the Markdown, metadata, templates, and assets are the source worth protecting. Builds validate everything first, render into a temporary directory, and replace an existing publication only after success.
+## This website is the example
 
-The example content is intentionally varied. Short notes test archive-card rhythm, while the welcome article provides a long reading page with headings, lists, links, code, and local assets. The [Pages directory](/pages/) remains a complete map of permanent pages even when only a few are promoted into the primary navigation.
+The articles here explain how to use Snippet. They are ordinary Markdown content, published with the same engine and theme available in the Docker image. The [welcome guide](/articles/welcome/) is a map of the documentation, and [Start your own site](/articles/start-your-site/) takes you from an empty directory to a first build.
 
-Use this starter by making it personal. Replace these examples with writing you want to keep, change the site identity in `site/config.php`, and adjust the documented CSS tokens before reaching for new machinery. A private downstream repository is a convenient home for personal material while builder improvements continue to arrive from the public project.
+Your own site starts with empty content collections and generic configuration. Initialization never copies these demo articles. Keep your writing in your own public or private repository, then let the versioned image build it. You do not need to maintain a fork of the engine.
 
-Snippet is not trying to become a general-purpose content platform. It is deliberately for one author, one catalog, and a modest static website. That limitation keeps the interesting parts—language, structure, typography, and careful publishing—close enough to understand.
+## Keep the durable things simple
+
+Markdown, metadata, configuration, and assets belong to you. The builder validates them before publishing and preserves the last valid output when a build fails. Your static host serves only the generated files.
+
+Visit the [source repository](https://github.com/wanted80/snippet), read the [installation guide](https://github.com/wanted80/snippet/blob/main/INSTALL.md), or explore the [article index](/articles/). Snippet is released under the [MIT license](https://github.com/wanted80/snippet/blob/main/LICENSE).

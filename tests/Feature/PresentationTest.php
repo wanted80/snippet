@@ -143,6 +143,7 @@ it('preserves the public theme tokens, layers, and class hooks across generated 
         '--color-header-button-background', '--color-navigation-item-background',
         '--color-on-accent', '--opacity-header-background', '--opacity-navigation-background',
         '--shadow-header', '--shadow-menu', '--shadow-content', '--radius-control', '--radius-panel',
+        '--opacity-header-button-background', '--opacity-navigation-item-background',
     ] as $token) {
         expect($css)->toContain($token . ':');
     }

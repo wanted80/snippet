@@ -42,6 +42,8 @@ it('exposes exactly the documented theme tokens hooks and layers with canonical 
             '--shadow-header' => '0 0.25rem 0.9rem light-dark(rgb(0 0 0 / 10%), rgb(0 0 0 / 22%))',
             '--shadow-menu' => '0 1rem 2.5rem light-dark(rgb(0 0 0 / 18%), rgb(0 0 0 / 38%))',
             '--shadow-content' => '-1rem 0 2rem -1.35rem light-dark(rgb(0 0 0 / 24%), rgb(0 0 0 / 42%)), 1rem 0 2rem -1.35rem light-dark(rgb(0 0 0 / 24%), rgb(0 0 0 / 42%))',
+            '--opacity-header-button-background' => '90%',
+            '--opacity-navigation-item-background' => '90%',
         ])
         ->and($colors['--color-header-background'])->toBe('var(--color-surface)')
         ->and($colors['--color-on-accent'])->toBe('var(--color-background)')
