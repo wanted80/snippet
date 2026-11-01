@@ -15,7 +15,7 @@ cd my-site
 snippet() {
   docker run --rm --user "$(id -u):$(id -g)" \
     --volume "$PWD:/workspace" \
-    ghcr.io/wanted80/snippet:v4.4.0 "$@" # x-release-please-version
+    ghcr.io/wanted80/snippet:v4.5.0 "$@" # x-release-please-version
 }
 
 snippet init

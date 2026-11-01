@@ -11,7 +11,7 @@ permissions:
   packages: read
 
 env:
-  SNIPPET_IMAGE: ghcr.io/wanted80/snippet:v4.4.0 # x-release-please-version
+  SNIPPET_IMAGE: ghcr.io/wanted80/snippet:v4.5.0 # x-release-please-version
 
 jobs:
   build:

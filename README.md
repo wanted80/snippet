@@ -46,7 +46,7 @@ cd my-site
 snippet() {
   docker run --rm --user "$(id -u):$(id -g)" \
     --volume "$PWD:/workspace" \
-    ghcr.io/wanted80/snippet:v4.4.0 "$@" # x-release-please-version
+    ghcr.io/wanted80/snippet:v4.5.0 "$@" # x-release-please-version
 }
 
 snippet init
@@ -69,7 +69,7 @@ Your website is now in `public/`. To preview it with live reload:
 ```bash
 docker run --rm --init --user "$(id -u):$(id -g)" \
   --publish 127.0.0.1:8080:8080 --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v4.4.0 preview --host=0.0.0.0 --port=8080 # x-release-please-version
+  ghcr.io/wanted80/snippet:v4.5.0 preview --host=0.0.0.0 --port=8080 # x-release-please-version
 ```
 
 Open `http://127.0.0.1:8080`. Edit, save, and see the browser refresh.
@@ -264,7 +264,7 @@ Content-only repositories use the equivalent builder-image command:
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v4.4.0 new article first-post # x-release-please-version
+  ghcr.io/wanted80/snippet:v4.5.0 new article first-post # x-release-please-version
 ```
 
 An article without `--date` uses the current UTC date. The command creates an empty Markdown file and a `meta.php` with empty title and description fields; articles also receive the selected date and an empty tag list. The result is intentionally incomplete, so finish both files before validating, building, or previewing. Draft creation checks that the relevant content collection is a regular non-symlink directory, does not validate the existing catalog or change `public/`, and never replaces an existing content directory. Run `snippet init` first when using an empty content-only workspace. Contributors can also run the canonical command after entering `make docker-shell`; there is deliberately no separate Make target.
