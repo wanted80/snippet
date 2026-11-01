@@ -43,7 +43,7 @@ help:
 	@echo '  make docker-preview PREVIEW_PORT=9443'
 	@echo '  make docker-image PULL=1 NO_CACHE=1'
 	@echo
-	@echo 'PULL=1 refreshes base images (and Caddy for preview); NO_CACHE=1 bypasses'
+	@echo 'PULL=1 fetches pinned base images (and Caddy for preview); NO_CACHE=1 bypasses'
 	@echo 'the application image build cache. Preview removes orphan containers by'
 	@echo 'default; pass REMOVE_ORPHANS=0 to retain them.'
 

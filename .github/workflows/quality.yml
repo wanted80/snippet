@@ -53,7 +53,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '0'
-          version: v0.70.0
+          version: v0.76.1
           cache: false
 
       - name: Validate and build the composed demo site

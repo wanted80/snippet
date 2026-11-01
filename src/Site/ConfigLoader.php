@@ -30,7 +30,7 @@ final readonly class ConfigLoader
 
     public const array HOME_FIELDS = ['articles', 'tags'];
 
-    public const array PROFILE_ICONS = ['github', 'mastodon', 'bluesky', 'linkedin', 'instagram', 'youtube', 'x', 'generic'];
+    public const array PROFILE_ICONS = ['github', 'mastodon', 'bluesky', 'linkedin', 'instagram', 'youtube', 'x', '/dev/null', 'generic'];
 
     public const string LANGUAGE_PATTERN = '/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/D';
 

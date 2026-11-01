@@ -62,21 +62,14 @@ final readonly class ReferenceValidator
         }
 
         $scheme = $uri->getScheme();
+        $baseSegments = [];
         if ($scheme !== null) {
             if (!$this->sameOrigin($uri, $scheme, $config->url)) {
                 return null;
             }
-            $path = '/' . mb_ltrim($uri->getRawPath(), '/', '8bit');
-            // A root deployment path would only enter this block and remove a zero-length prefix.
-            // @pest-mutate-ignore: EmptyStringToNotEmpty
+            $path = $uri->getRawPath();
             if ($config->basePath !== '') {
-                if ($path === $config->basePath) {
-                    $path = '/';
-                } elseif (str_starts_with($path, $config->basePath . '/')) {
-                    $path = mb_substr($path, mb_strlen($config->basePath, '8bit'), null, '8bit');
-                } else {
-                    return null;
-                }
+                $baseSegments = array_map(rawurldecode(...), explode('/', mb_ltrim($config->basePath, '/', '8bit')));
             }
             $absolute = true;
         } else {
@@ -92,7 +85,8 @@ final readonly class ReferenceValidator
                 continue;
             }
             if ($component === '..') {
-                if ($segments === []) {
+                // Once inside this publication, traversal cannot escape its deployment root.
+                if ($segments === [] || $segments === $baseSegments) {
                     throw new ContentException("Internal link target '{$target}' in '{$source}' at line {$line} traverses above the site root.");
                 }
                 array_pop($segments);
@@ -100,6 +94,14 @@ final readonly class ReferenceValidator
             }
 
             $segments[] = $component;
+        }
+
+        // Normalize the complete absolute path before deciding whether it belongs to this publication.
+        if ($baseSegments !== []) {
+            if (array_slice($segments, 0, count($baseSegments)) !== $baseSegments) {
+                return null;
+            }
+            $segments = array_slice($segments, count($baseSegments));
         }
 
         // PublicationInventory canonicalizes every complete path before lookup as the matching trust boundary.

@@ -11,7 +11,7 @@ Keep the author's language, voice, and existing work. Edit source files under
 `content/` and `site/`; `public/` is generated output. Validate and build after
 source changes, and report any remaining errors or warnings.
 
-Optional ordered `profiles` links in site configuration require an HTTPS URL and at least a label or icon. Omitted labels produce icon-only links with the URL as their accessible name; supported icon names are `github`, `mastodon`, `bluesky`, `linkedin`, `instagram`, `youtube`, `x`, and `generic`.
+Optional ordered `profiles` links in site configuration require an HTTPS URL and at least a label or icon. Omitted labels produce icon-only links with the URL as their accessible name; supported icon names are `github`, `mastodon`, `bluesky`, `linkedin`, `instagram`, `youtube`, `x`, `/dev/null`, and `generic`.
 
 An optional `csp` array adds trusted HTTPS origins to `script-src`, `connect-src`, `style-src`, `img-src`, or `font-src`. Each directive accepts an ordered list of at most 32 origins without paths, trailing slashes, credentials, queries, fragments, or wildcards. Load external scripts from `site/site.js`; same-origin resources remain allowed and inline scripts remain blocked.
 

@@ -17,8 +17,11 @@ final readonly class ProfileIcon
             'instagram' => 'M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3Zm5 3a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm6-4a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z',
             'youtube' => 'M4 5h16c3 0 3 14 0 14H4C1 19 1 5 4 5Zm6 3v8l7-4Z',
             'x' => 'M3 3h5l5 7 6-7h2l-7 8 8 10h-5l-6-8-7 8H2l8-9Zm3 2 12 14h2L8 5Z',
+            // Official monochrome mark: https://dev-null.sh/images/brand/dev-null-mark-black.svg
+            '/dev/null' => 'M2 42h10L26 6H16Z M17.81 43.5h13.22L46.19 4.5H32.97ZM22.19 40.5l12.84-33h6.78l-12.84 33Z',
             default => 'M10 4h10v10h-2V7l-9 9-1-1 9-9h-7ZM4 8h4v2H6v10h10v-2h2v4H4Z',
         };
-        return '<svg class="profile-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill-rule="evenodd" d="' . $path . '"></path></svg>';
+        $viewBox = $name === '/dev/null' ? '1.6 1.5 45 45' : '0 0 24 24';
+        return '<svg class="profile-icon" viewBox="' . $viewBox . '" aria-hidden="true" focusable="false"><path fill-rule="evenodd" d="' . $path . '"></path></svg>';
     }
 }

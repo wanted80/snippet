@@ -1,6 +1,6 @@
-FROM composer:2 AS composer
+FROM composer:2@sha256:4ed71c38c6d788eb4e4e3747b5332f5b40d5b5a6fcadd5062a1a70986a118e0a AS composer
 
-FROM php:8.5-cli AS php-base
+FROM php:8.5-cli@sha256:9236fd373d3bcda0659cf94838a744bd79791419292958963f8c6b34a0071554 AS php-base
 
 ARG LOCAL_UID=1000
 ARG LOCAL_GID=1000
