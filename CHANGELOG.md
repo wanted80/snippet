@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.0](https://github.com/wanted80/snippet/compare/v4.3.0...v4.4.0) (2026-11-01)
+
+
+### Features
+
+* add responsive modal navigation and cross-browser coverage ([#73](https://github.com/wanted80/snippet/issues/73)) ([ff36557](https://github.com/wanted80/snippet/commit/ff365572bf34c6e1aa5b103fff5316b7a8f65751))
+
 ## [4.3.0](https://github.com/wanted80/snippet/compare/v4.2.0...v4.3.0) (2026-11-01)
 
 
