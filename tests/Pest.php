@@ -33,8 +33,6 @@ pest()->beforeEach(function (): void {
     PublisherFaults::reset();
 })->in('Feature', 'Unit', 'Browser');
 
-pest()->browser()->inChrome();
-
 (static function (): void {
     // Browser 5.1.2 removes this directory unconditionally during discovery.
     // PHPUnit 13.4 records its missing-directory warning even when suppressed.

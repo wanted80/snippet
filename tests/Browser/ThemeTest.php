@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use Pest\Browser\Api\Webpage;
+use Pest\Browser\Enums\BrowserType;
 use Pest\Browser\Playwright\Page;
+use Pest\Browser\Playwright\Playwright;
 
 dataset('theme screens', ['desktop' => false, 'mobile' => true]);
 dataset('theme palettes', ['light' => 'light', 'dark' => 'dark']);
@@ -30,33 +32,6 @@ it('preserves escaped descendant selectors through publication', function (): vo
         JS);
     $browser->assertScript('getComputedStyle(document.querySelector("#descendant")).color', 'rgb(255, 0, 0)');
     $browser->assertScript('getComputedStyle(document.querySelector("#same-element")).color === getComputedStyle(document.body).color');
-});
-
-it('supports navigation keyboard movement wrapping and escape focus restoration', function (): void {
-    $url = $this->publication();
-    $pending = visit($url);
-    $page = $pending->__call('page', []);
-    assert($page instanceof Page);
-    $browser = new Webpage($page, $url);
-    $browser->click('.menu-toggle');
-
-    $page->waitForSelector('.menu-link:focus');
-    $browser->assertScript('document.activeElement === document.querySelector(".menu-link")');
-    $browser->assertScript('document.querySelector(".menu-toggle").getAttribute("aria-label")', 'Close navigation');
-
-    foreach ([['ArrowDown', 1], ['End', 3], ['ArrowDown', 0], ['ArrowUp', 3], ['Home', 0]] as [$key, $index]) {
-        $page->keyDown($key);
-        $page->keyUp($key);
-        $browser->assertScript('Array.from(document.querySelectorAll(".menu-link")).indexOf(document.activeElement)', $index);
-    }
-
-    $page->keyDown('Escape');
-    $page->keyUp('Escape');
-    $page->waitForSelector('.menu-toggle[aria-label="Open navigation"]:focus');
-
-    $browser->assertScript('document.querySelector(".site-navigation").matches(":popover-open")', false);
-    $browser->assertScript('document.activeElement === document.querySelector(".menu-toggle")');
-    $browser->assertScript('document.querySelector(".menu-toggle").getAttribute("aria-label")', 'Open navigation');
 });
 
 it('computes component tokens and independent glass on real publications', function (bool $mobile, string $theme): void {
@@ -86,7 +61,7 @@ it('computes component tokens and independent glass on real publications', funct
         }
         CSS);
     $url .= '/about/';
-    $browser = visit($url, ['viewport' => ['width' => $mobile ? 390 : 1280, 'height' => 800], 'isMobile' => $mobile, 'hasTouch' => $mobile, 'colorScheme' => $theme, 'reducedMotion' => 'reduce']);
+    $browser = visit($url, ['viewport' => ['width' => $mobile ? 390 : 1280, 'height' => 800], 'hasTouch' => $mobile, 'colorScheme' => $theme, 'reducedMotion' => 'reduce']);
     $page = $browser->__call('page', []);
     assert($page instanceof Page);
     // Direct Pest assertions avoid the automatic failure-screenshot wrapper.
@@ -97,9 +72,10 @@ it('computes component tokens and independent glass on real publications', funct
     $browser->script('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     $browser->assertScript('document.querySelector(".site-header").hasAttribute("data-scrolled")');
     $browser->click('.menu-toggle');
-    $browser->assertScript('document.querySelector(".site-navigation").matches(":popover-open")');
-    $browser->assertScript('getComputedStyle(document.querySelector(".site-header")).backgroundColor', $theme === 'light' ? 'color(srgb 0.866667 0.933333 1 / 0.5)' : 'color(srgb 0.133333 0.2 0.266667 / 0.5)');
-    $browser->assertScript('getComputedStyle(document.querySelector(".site-navigation")).backgroundColor', $theme === 'light' ? 'color(srgb 0.933333 0.933333 1)' : 'color(srgb 0.0666667 0.133333 0.2)');
+    $browser->assertScript('document.querySelector(".site-navigation").matches(":popover-open")', !$mobile);
+    $browser->assertScript('document.querySelector("dialog").matches(":modal")', $mobile);
+    $this->assertSrgb($browser, '.site-header', $theme === 'light' ? [0.866667, 0.933333, 1, 0.5] : [0.133333, 0.2, 0.266667, 0.5]);
+    $this->assertSrgb($browser, '.site-navigation', $theme === 'light' ? [0.933333, 0.933333, 1, 1] : [0.0666667, 0.133333, 0.2, 1]);
     $browser->assertScript('getComputedStyle(document.querySelector(".menu-toggle")).backgroundColor', $theme === 'light' ? 'rgb(204, 221, 238)' : 'rgb(51, 68, 85)');
     $browser->assertScript('getComputedStyle(document.querySelector(".menu-link:not([aria-current])")).backgroundColor', $theme === 'light' ? 'rgb(221, 221, 255)' : 'rgb(34, 51, 85)');
     $browser->assertScript('getComputedStyle(document.querySelector("[aria-current=page]")).color', $theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(0, 0, 0)');
@@ -124,34 +100,36 @@ it('computes component tokens and independent glass on real publications', funct
     $browser->assertScript('themeContrast(".menu-link:not([aria-current])", "outlineColor", ".site-navigation", "backgroundColor") >= 3');
     $browser->assertScript('getComputedStyle(document.querySelector(".skip-link")).color', $theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(0, 0, 0)');
     if ($mobile) {
-        // Capture the native tap's active style before release clears :active.
-        $browser->script('document.querySelector(".menu-link:not([aria-current])").addEventListener("click", event => { event.preventDefault(); const s = getComputedStyle(event.currentTarget); window.touchStyle = [s.backgroundColor, s.color, event.currentTarget.matches(":active")]; }, {once: true})');
+        $this->press($page, '.menu-link[href="/articles/"]');
+        $browser->assertScript('document.querySelector(".menu-link:not([aria-current])").matches(":active")');
+        $browser->assertScript('getComputedStyle(document.querySelector(".menu-link:not([aria-current])")).backgroundColor', $theme === 'light' ? 'rgb(0, 51, 153)' : 'rgb(170, 204, 255)');
+        $browser->assertScript('getComputedStyle(document.querySelector(".menu-link:not([aria-current])")).color', $theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(0, 0, 0)');
+        $this->release($page);
+        $browser->script('document.querySelector(".menu-link:not([aria-current])").addEventListener("click", event => { event.preventDefault(); window.linkTapped = true; }, {once: true})');
         $page->locator('.menu-link[href="/articles/"]')->tap();
-        $browser->assertScript('window.touchStyle', [$theme === 'light' ? 'rgb(0, 51, 153)' : 'rgb(170, 204, 255)', $theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(0, 0, 0)', true]);
+        $browser->assertScript('window.linkTapped');
     } else {
         $browser->hover('.menu-link[href="/articles/"]');
         $browser->assertScript('getComputedStyle(document.querySelector(".menu-link:not([aria-current])")).backgroundColor', $theme === 'light' ? 'rgb(0, 51, 153)' : 'rgb(170, 204, 255)');
         $browser->assertScript('getComputedStyle(document.querySelector(".menu-link:not([aria-current])")).color', $theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(0, 0, 0)');
     }
-    $this->media($page, features: [['name' => 'prefers-reduced-transparency', 'value' => 'reduce'], ['name' => 'prefers-reduced-motion', 'value' => 'reduce']]);
-    $browser->assertScript('matchMedia("(prefers-reduced-transparency: reduce)").matches');
-    $browser->assertScript('getComputedStyle(document.querySelector(".site-header")).backgroundColor', $theme === 'light' ? 'rgb(221, 238, 255)' : 'rgb(34, 51, 68)');
-    $browser->assertScript('getComputedStyle(document.querySelector(".site-navigation")).backgroundColor', $theme === 'light' ? 'rgb(238, 238, 255)' : 'rgb(17, 34, 51)');
-    $browser->assertScript('[".site-header", ".site-navigation"].map(s => getComputedStyle(document.querySelector(s)).backdropFilter)', ['none', 'none']);
     $this->media($page, 'print');
     $browser->assertScript('matchMedia("print").matches');
     $browser->assertScript('getComputedStyle(document.body).color', 'rgb(17, 17, 17)');
     $browser->assertScript('getComputedStyle(document.querySelector(".site-navigation")).display', 'none');
     $browser->assertScript('getComputedStyle(document.querySelector(".site-main")).boxShadow', 'none');
     $browser->assertScript('getComputedStyle(document.body, "::selection").color', 'rgb(255, 255, 255)');
-    $this->media($page, features: [['name' => 'prefers-reduced-motion', 'value' => 'reduce']]);
+    $this->media($page);
     $page->goto(str_replace('/about/', '/', $url));
     $browser->assertScript('getComputedStyle(document.querySelector(".tag-count")).color', $theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(0, 0, 0)');
     $browser->assertScript('getComputedStyle(document.body, "::selection").color', $theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(0, 0, 0)');
     if ($mobile) {
-        $browser->script('document.querySelector(".theme-toggle").addEventListener("click", event => { event.stopImmediatePropagation(); const s = getComputedStyle(event.currentTarget); window.touchStyle = [s.backgroundColor, event.currentTarget.matches(":active")]; }, {once: true, capture: true})');
+        $this->press($page, '.theme-toggle');
+        $browser->assertScript('document.querySelector(".theme-toggle").matches(":active")');
+        $browser->assertScript('getComputedStyle(document.querySelector(".theme-toggle")).backgroundColor', $theme === 'light' ? 'rgb(204, 221, 238)' : 'rgb(51, 68, 85)');
+        $this->release($page);
         $page->locator('.theme-toggle')->tap();
-        $browser->assertScript('window.touchStyle', [$theme === 'light' ? 'rgb(204, 221, 238)' : 'rgb(51, 68, 85)', true]);
+        $browser->assertScript('document.documentElement.dataset.theme', $theme === 'light' ? 'dark' : 'light');
     } else {
         $browser->hover('.theme-toggle');
         $browser->assertScript('getComputedStyle(document.querySelector(".theme-toggle")).backgroundColor', $theme === 'light' ? 'rgb(204, 221, 238)' : 'rgb(51, 68, 85)');
@@ -188,11 +166,11 @@ it('preserves theme selection motion and opaque fallback with author overrides',
     $browser->click('.menu-toggle');
     $browser->script('() => Promise.all(document.getAnimations().map(animation => animation.finished))');
     if ($customized) {
-        $browser->assertScript('getComputedStyle(document.querySelector(".site-header")).backgroundColor', $theme === 'light' ? 'color(srgb 0.866667 0.933333 1 / 0.82)' : 'color(srgb 0.133333 0.2 0.266667 / 0.82)');
-        $browser->assertScript('getComputedStyle(document.querySelector(".site-navigation")).backgroundColor', $theme === 'light' ? 'color(srgb 1 1 1 / 0.82)' : 'color(srgb 0.0666667 0.0941176 0.152941 / 0.82)');
+        $this->assertSrgb($browser, '.site-header', $theme === 'light' ? [0.866667, 0.933333, 1, 0.82] : [0.133333, 0.2, 0.266667, 0.82]);
+        $this->assertSrgb($browser, '.site-navigation', $theme === 'light' ? [1, 1, 1, 0.82] : [0.0666667, 0.0941176, 0.152941, 0.82]);
         $browser->assertScript('[".site-header", ".site-navigation", ".site-main"].map(s => getComputedStyle(document.querySelector(s)).boxShadow)', ['none', 'none', 'none']);
     } else {
-        $browser->assertScript('getComputedStyle(document.querySelector(".site-header")).backgroundColor', $theme === 'light' ? 'color(srgb 1 0.980392 0.94902 / 0.82)' : 'color(srgb 0.054902 0.0666667 0.0784314 / 0.82)');
+        $this->assertSrgb($browser, '.site-header', $theme === 'light' ? [1, 0.980392, 0.94902, 0.82] : [0.054902, 0.0666667, 0.0784314, 0.82]);
         $browser->assertScript('getComputedStyle(document.querySelector(".site-navigation")).backgroundColor === getComputedStyle(document.querySelector(".site-header")).backgroundColor');
         $browser->assertScript('[".site-header", ".site-navigation", ".site-main"].every(s => getComputedStyle(document.querySelector(s)).boxShadow !== "none")');
     }
@@ -258,7 +236,7 @@ it('lets override layer class rules win against responsive glass and interaction
             .site-main { border-radius: 9px; }
         }
         CSS);
-    $pending = visit($url, ['viewport' => ['width' => $mobile ? 390 : 1280, 'height' => 800], 'isMobile' => $mobile, 'hasTouch' => $mobile, 'reducedMotion' => 'reduce']);
+    $pending = visit($url, ['viewport' => ['width' => $mobile ? 390 : 1280, 'height' => 800], 'hasTouch' => $mobile, 'reducedMotion' => 'reduce']);
     $page = $pending->__call('page', []);
     assert($page instanceof Page);
     $browser = new Webpage($page, $url);
@@ -266,9 +244,8 @@ it('lets override layer class rules win against responsive glass and interaction
     $browser->script('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     $browser->click('.menu-toggle');
     if ($mobile) {
-        $browser->script('document.querySelector(".menu-link").addEventListener("click", event => { event.preventDefault(); window.activeOverride = [getComputedStyle(event.currentTarget).backgroundColor, event.currentTarget.matches(":active")]; }, {once: true})');
-        $page->locator('.menu-link[href="/articles/"]')->tap();
-        $browser->assertScript('window.activeOverride', ['rgb(70, 80, 90)', true]);
+        $this->press($page, '.menu-link[href="/articles/"]');
+        $browser->assertScript('document.querySelector(".menu-link").matches(":active")');
     } else {
         $browser->hover('.menu-link[href="/articles/"]');
     }
@@ -276,6 +253,9 @@ it('lets override layer class rules win against responsive glass and interaction
     $browser->assertScript('[".menu-toggle", ".menu-link"].map(s => getComputedStyle(document.querySelector(s)).backgroundColor)', ['rgb(70, 80, 90)', 'rgb(70, 80, 90)']);
     $browser->assertScript('getComputedStyle(document.querySelector(".site-main")).borderRadius', '9px');
     $browser->assertScript('getComputedStyle(document.querySelector(".menu-link")).transitionDuration', '0s');
+    if ($mobile) {
+        $this->release($page);
+    }
 })->with('theme screens');
 
 it('synchronizes browser color before DOM readiness and after theme changes', function (string $theme, bool $customized): void {
@@ -302,3 +282,185 @@ it('synchronizes browser color before DOM readiness and after theme changes', fu
     $page->reload();
     $browser->assertScript('window.initialThemeColor', ['state' => 'interactive', 'color' => $theme === 'light' ? $dark : $light, 'background' => $theme === 'light' ? $dark : $light]);
 })->with('theme palettes')->with([false, true]);
+
+it('uses a modal through 1024 pixels and restores focus and scroll on dismissal', function (int $width): void {
+    $url = $this->publication();
+    $pending = visit($url, ['viewport' => ['width' => $width, 'height' => 700], 'reducedMotion' => 'reduce']);
+    $page = $pending->__call('page', []);
+    assert($page instanceof Page);
+    $browser = new Webpage($page, $url);
+    $browser->script('scrollTo(0, 350)');
+    $browser->click('.menu-toggle');
+    $browser->assertScript('document.querySelector(".menu-toggle").getAttribute("aria-expanded")', 'true');
+    $browser->assertScript('document.querySelector(".menu-toggle").getAttribute("aria-label")', 'Close navigation');
+
+    $page->waitForSelector('.menu-link:focus');
+    $browser->assertScript('document.activeElement === document.querySelector(".menu-link")');
+    $browser->assertScript('document.querySelector("dialog").matches(":modal")', $width <= 1024);
+    foreach ([['ArrowDown', 1], ['End', 3], ['ArrowDown', 0], ['ArrowUp', 3], ['Home', 0]] as [$key, $index]) {
+        $page->keyDown($key);
+        $page->keyUp($key);
+        $browser->assertScript('Array.from(document.querySelectorAll(".menu-link")).indexOf(document.activeElement)', $index);
+    }
+
+    if ($width <= 1024) {
+        $browser->assertScript('document.querySelector("dialog").contains(document.querySelector(".site-header"))');
+        $browser->assertScript('Math.abs(document.querySelector("dialog").getBoundingClientRect().height - innerHeight) < 1');
+        $browser->script('document.querySelector(".site-main a").focus()');
+        $browser->assertScript('document.querySelector("dialog").contains(document.activeElement)');
+        $browser->click('.theme-toggle');
+        $browser->assertScript('document.querySelector("dialog").matches(":modal")');
+        $browser->script('document.querySelector(".menu-link:last-child").focus()');
+        $page->keyDown('Tab');
+        $page->keyUp('Tab');
+        $browser->assertScript('document.activeElement === document.querySelector(".menu-toggle")');
+        $page->keyDown('Shift');
+        $page->keyDown('Tab');
+        $page->keyUp('Tab');
+        $page->keyUp('Shift');
+        $browser->assertScript('document.activeElement === document.querySelector(".menu-link:last-child")');
+    }
+    $page->keyDown('Escape');
+    $page->keyUp('Escape');
+    $page->waitForSelector('.menu-toggle[aria-expanded="false"]:focus');
+
+    $browser->assertScript('document.querySelector(".site-header").parentElement === document.body');
+    $browser->assertScript('document.querySelector("dialog").open', false);
+    $browser->assertScript('document.querySelector(".site-navigation").matches(":popover-open")', false);
+    $browser->assertScript('document.querySelector(".menu-toggle").getAttribute("aria-label")', 'Open navigation');
+    $browser->assertScript('document.documentElement.hasAttribute("data-navigation-modal")', false);
+    $browser->assertScript('scrollY', 350);
+})->with([390, 768, 1024, 1025, 1440]);
+
+it('cleans up interrupted transitions and page restoration', function (): void {
+    $url = $this->publication();
+    $pending = visit($url, ['viewport' => ['width' => 390, 'height' => 700]]);
+    $page = $pending->__call('page', []);
+    assert($page instanceof Page);
+    $browser = new Webpage($page, $url);
+    $browser->script('() => { const b = document.querySelector(".menu-toggle"); b.click(); b.click(); b.click(); }');
+    $browser->assertScript('document.querySelector("dialog").matches(":modal")');
+    $browser->script('dispatchEvent(new PageTransitionEvent("pagehide", {persisted: true})); dispatchEvent(new PageTransitionEvent("pageshow", {persisted: true}))');
+    $browser->assertScript('document.querySelector("dialog").open', false);
+    $browser->assertScript('document.querySelectorAll(".site-header").length', 1);
+    $browser->assertScript('document.querySelectorAll("#site-navigation").length', 1);
+    $browser->assertScript('document.documentElement.hasAttribute("data-navigation-modal")', false);
+    $browser->click('.menu-toggle');
+    $browser->click('.menu-link[href="/about/"]');
+    $browser->assertPathIs('/about/');
+    $browser->assertScript('document.querySelector("dialog").open', false);
+});
+
+it('preserves native navigation when JavaScript is disabled', function (int $width): void {
+    $url = $this->publication();
+    $pending = visit($url, ['javaScriptEnabled' => false, 'viewport' => ['width' => $width, 'height' => 700]]);
+    $page = $pending->__call('page', []);
+    assert($page instanceof Page);
+    $browser = new Webpage($page, $url);
+    $browser->click('.menu-toggle');
+    $browser->click('.menu-link[href="/about/"]');
+    $browser->assertPathIs('/about/');
+})->with([390, 1280]);
+
+it('closes cleanly when crossing the responsive boundary in either direction', function (): void {
+    $url = $this->publication();
+    $pending = visit($url, ['viewport' => ['width' => 1024, 'height' => 700]]);
+    $page = $pending->__call('page', []);
+    assert($page instanceof Page);
+    $browser = new Webpage($page, $url);
+    foreach ([1025, 1024] as $width) {
+        $browser->click('.menu-toggle');
+        $page->setViewportSize($width, 700);
+        $page->waitForSelector('.menu-toggle[aria-expanded="false"]');
+        $browser->assertScript('document.querySelector("dialog").open', false);
+        $browser->assertScript('document.querySelector(".site-navigation").matches(":popover-open")', false);
+        $browser->assertScript('document.documentElement.hasAttribute("data-navigation-modal")', false);
+    }
+});
+
+it('keeps long links scrollable on a short screen and restores after the animated close', function (): void {
+    $url = $this->publication();
+    $pending = visit($url, ['viewport' => ['width' => 600, 'height' => 280], 'reducedMotion' => 'no-preference']);
+    $page = $pending->__call('page', []);
+    assert($page instanceof Page);
+    $browser = new Webpage($page, $url);
+    $browser->script('document.querySelector(".menu-link").textContent = "Long navigation label ".repeat(15)');
+    $browser->click('.menu-toggle');
+    $browser->assertScript('document.documentElement.scrollWidth <= innerWidth');
+    $browser->assertScript('document.querySelector(".site-navigation").scrollHeight > document.querySelector(".site-navigation").clientHeight');
+    $browser->script('document.querySelector(".menu-link:last-child").focus()');
+    $browser->assertScript('document.querySelector(".site-navigation").scrollTop > 0');
+    $browser->click('.menu-toggle');
+
+    $page->waitForSelector('body > .site-header');
+    $browser->assertScript('document.querySelector("dialog").open', false);
+    $browser->assertScript('document.activeElement === document.querySelector(".menu-toggle")');
+});
+
+it('dismisses the desktop popover without stealing focus from an outside control', function (): void {
+    $url = $this->publication();
+    $pending = visit($url, ['viewport' => ['width' => 1280, 'height' => 700], 'reducedMotion' => 'reduce']);
+    $page = $pending->__call('page', []);
+    assert($page instanceof Page);
+    $browser = new Webpage($page, $url);
+    $browser->click('.menu-toggle');
+
+    $page->waitForSelector('.menu-link:focus');
+    $browser->script('document.querySelector(".theme-toggle").focus()');
+    $browser->click('.theme-toggle');
+
+    $page->waitForSelector('.menu-toggle[aria-expanded="false"]');
+    $browser->assertScript('document.activeElement === document.querySelector(".theme-toggle")');
+});
+
+it('morphs the same strokes and honors reduced motion', function (int $width, bool $reduced): void {
+    $url = $this->publication();
+    $pending = visit($url, ['viewport' => ['width' => $width, 'height' => 700], 'reducedMotion' => $reduced ? 'reduce' : 'no-preference']);
+    $page = $pending->__call('page', []);
+    assert($page instanceof Page);
+    $browser = new Webpage($page, $url);
+    $animated = $browser->script(<<<'JS'
+        async () => {
+            const bar = document.querySelector(".menu-bar-top");
+            getComputedStyle(bar).transform;
+            document.querySelector(".menu-toggle").click();
+            const animations = bar.getAnimations();
+            await Promise.all(animations.map(animation => animation.finished));
+            return animations.length > 0;
+        }
+        JS);
+    expect($animated)->toBe(!$reduced);
+    $browser->assertScript('new DOMMatrix(getComputedStyle(document.querySelector(".menu-bar-top")).transform).b > 0.7');
+    $browser->assertScript('getComputedStyle(document.querySelector(".menu-bar-middle")).opacity', '0');
+    $browser->click('.menu-toggle');
+    $browser->script('() => Promise.allSettled(document.getAnimations().map(animation => animation.finished))');
+    $browser->assertScript('getComputedStyle(document.querySelector(".menu-bar-middle")).opacity', '1');
+    $browser->assertScript('document.querySelector("dialog").open', false);
+})->with([390, 1280])->with([false, true]);
+
+it('honors the native reduced-transparency preference', function (bool $mobile, string $theme): void {
+    $url = $this->publication(<<<'CSS'
+        @layer overrides {
+            :root {
+                --color-header-background: light-dark(#ddeeff, #223344);
+                --color-navigation-background: light-dark(#eeeeff, #112233);
+                --opacity-header-background: 50%;
+                --opacity-navigation-background: 100%;
+            }
+        }
+        CSS);
+    $pending = visit($url, ['viewport' => ['width' => $mobile ? 390 : 1280, 'height' => 800], 'hasTouch' => $mobile, 'colorScheme' => $theme, 'reducedMotion' => 'reduce']);
+    $page = $pending->__call('page', []);
+    assert($page instanceof Page);
+    $browser = new Webpage($page, $url);
+    $browser->script('scrollTo(0, 400)');
+
+    $page->waitForSelector('.site-header[data-scrolled]');
+    $browser->click('.menu-toggle');
+    $this->reducedTransparency($page);
+    $browser->assertScript('matchMedia("(prefers-reduced-transparency: reduce)").matches');
+    $browser->assertScript('getComputedStyle(document.querySelector(".site-header")).backgroundColor', $theme === 'light' ? 'rgb(221, 238, 255)' : 'rgb(34, 51, 68)');
+    $browser->assertScript('getComputedStyle(document.querySelector(".site-navigation")).backgroundColor', $theme === 'light' ? 'rgb(238, 238, 255)' : 'rgb(17, 34, 51)');
+    $browser->assertScript('[".site-header", ".site-navigation"].map(s => getComputedStyle(document.querySelector(s)).backdropFilter)', ['none', 'none']);
+})->with('theme screens')->with('theme palettes')
+    ->skip(fn(): bool => Playwright::defaultBrowserType() !== BrowserType::CHROME, 'Playwright exposes native reduced-transparency emulation only through Chromium CDP.');

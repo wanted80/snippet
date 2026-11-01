@@ -84,7 +84,7 @@ ENV SHELL=/usr/bin/zsh \
 COPY package.json package-lock.json ./
 COPY docker/development/install-node-dependencies.sh docker/development/install-node-dependencies.sh
 RUN sh docker/development/install-node-dependencies.sh \
-    && npx --no-install playwright install --with-deps chromium \
+    && npx --no-install playwright install --with-deps chromium firefox webkit \
     && chmod -R a+rX /opt/snippet-browser /app/node_modules \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

@@ -5,7 +5,7 @@ import { runInNewContext } from 'node:vm';
 
 const script = readFileSync(process.env.SNIPPET_THEME_SCRIPT ?? new URL('../../resources/theme.js', import.meta.url), 'utf8');
 
-function page({ stored = null, controls = true, metadata = true, blockedStorage = false, light = false, loading = false } = {}) {
+function page({ stored = null, controls = true, metadata = true, blockedStorage = false, blockedWrites = false, light = false, loading = false } = {}) {
     const root = { dataset: {} };
     const button = new EventTarget();
     const color = { content: null, setAttribute(name, value) { this[name] = value; } };
@@ -18,7 +18,7 @@ function page({ stored = null, controls = true, metadata = true, blockedStorage 
             if (blockedStorage) throw new Error('Storage is unavailable');
             return this.value;
         },
-        setItem(key, value) { this.value = value; },
+        setItem(key, value) { if (blockedWrites) throw new Error('Quota exceeded'); this.value = value; },
     };
     const window = new EventTarget();
     window.matchMedia = () => media;
@@ -26,10 +26,11 @@ function page({ stored = null, controls = true, metadata = true, blockedStorage 
     window.getComputedStyle = () => ({ backgroundColor: backgrounds[root.dataset.theme] });
     const frames = [];
     window.requestAnimationFrame = callback => frames.push(callback);
+    const ready = new EventTarget();
     const document = {
         documentElement: root,
         readyState: loading ? 'loading' : 'complete',
-        addEventListener() {},
+        addEventListener: ready.addEventListener.bind(ready),
         querySelector(selector) {
             if (selector === '[data-theme-toggle]') return controls ? button : null;
             if (selector === 'meta[name="theme-color"]') return metadata ? color : null;
@@ -40,6 +41,11 @@ function page({ stored = null, controls = true, metadata = true, blockedStorage 
 
     return {
         root, button, color, storage,
+        ready() { ready.dispatchEvent(new Event('DOMContentLoaded')); },
+        restore() { window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true })); },
+        storageEvent(key, newValue, storageArea = storage) {
+            window.dispatchEvent(Object.assign(new Event('storage'), { storageArea, key, newValue }));
+        },
         system(light) {
             media.matches = light;
             media.dispatchEvent(Object.assign(new Event('change'), { matches: light }));
@@ -110,4 +116,39 @@ test('computed colors follow system changes and cleared manual preferences', () 
     assert.equal(view.color.content, 'rgb(10, 20, 30)');
     view.clearPreference();
     assert.equal(view.color.content, 'rgb(250, 240, 230)');
+});
+
+test('initializes deferred controls once after DOM readiness', () => {
+    const view = page({ loading: true });
+    view.ready();
+    view.ready();
+    view.button.dispatchEvent(new Event('click'));
+    assert.equal(view.root.dataset.theme, 'light');
+});
+
+test('storage write failures preserve a manual choice in memory', () => {
+    const view = page({ blockedWrites: true });
+    view.button.dispatchEvent(new Event('click'));
+    view.system(false);
+    assert.equal(view.root.dataset.theme, 'light');
+    assert.equal(view.storage.value, null);
+    view.restore();
+    assert.equal(view.root.dataset.theme, 'light');
+});
+
+test('restored pages reread saved preferences and ignore unrelated storage events', () => {
+    const view = page();
+    view.storage.value = 'light';
+    view.restore();
+    assert.equal(view.root.dataset.theme, 'light');
+    view.storageEvent('unrelated', 'dark');
+    view.storageEvent('snippet-theme', 'dark', {});
+    assert.equal(view.root.dataset.theme, 'light');
+    view.storageEvent('snippet-theme', 'dark');
+    assert.equal(view.root.dataset.theme, 'dark');
+    view.storage.value = 'invalid';
+    view.restore();
+    assert.equal(view.root.dataset.theme, 'dark');
+    view.system(true);
+    assert.equal(view.root.dataset.theme, 'light');
 });

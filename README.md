@@ -379,9 +379,11 @@ The 13 HTML templates under the builder’s `resources/templates/` own the docum
 
 With JavaScript enabled, the browser interface theme color follows the resolved `--color-background`, including `site/site.css` overrides, on initial load and whenever the selected theme changes.
 
-The default theme follows the visitor's system light or dark preference until the menu's theme action is used. That choice is stored under `snippet-theme` and synchronized across open same-origin tabs when browser storage is available. The behavior lives in `resources/theme.js`, is copied unchanged to a fingerprinted `/assets/theme.<xxh3>.js` filename, and is permitted by the generated same-origin Content Security Policy without `unsafe-inline`.
+The default theme follows the visitor's system light or dark preference until the header’s theme control is used. That choice is stored under `snippet-theme` and synchronized across open same-origin tabs when browser storage is available. The behavior lives in `resources/theme.js`, is copied unchanged to a fingerprinted `/assets/theme.<xxh3>.js` filename, and is permitted by the generated same-origin Content Security Policy without `unsafe-inline`.
 
-The default theme uses native popovers and CSS `light-dark()` in current browsers. Palette pairs live together in the token layer, and `@layer overrides` can customize them for both themes. Print output uses a light, high-contrast palette independently of the selected screen theme.
+The default theme uses native popovers, modal dialogs, and CSS `light-dark()` in current browsers. Palette pairs live together in the token layer, and `@layer overrides` can customize them for both themes. Print output uses a light, high-contrast palette independently of the selected screen theme.
+
+Navigation stays compact above 1024 CSS pixels. At widths up to 1024px, JavaScript opens a fullscreen dialog containing the same header controls and navigation links. The background is inactive and cannot scroll; dismissing the dialog restores the previous reading position. Escape or the close button dismisses it. Crossing the breakpoint closes the menu. Bars smoothly become an X; reduced-motion preferences disable transitions. Without JavaScript, native-popover navigation remains available at every width. The theme’s internal dialog and state attributes are not a public customization API.
 
 The builder publishes its bundled `resources/theme.css` as `/assets/theme.<xxh3>.css`, then loads optional UTF-8 `site/site.css` from `/assets/site.<xxh3>.css`. Optional UTF-8 `site/site.js` is published to `/assets/site.<xxh3>.js` and loaded with `defer` after the built-in script. Each `<xxh3>` token is the complete 16-character lowercase digest of the exact published bytes: compacted CSS or unchanged JavaScript. Absent optional files produce neither tags nor output files. Files beneath `site/assets/`, the favicon, and content assets retain their stable paths. Put downstream CSS rules in the final layer:
 
@@ -543,14 +545,14 @@ The architectural decision for browser regression testing approves
 `pestphp/pest-plugin-browser` (Pest 5), its Composer development dependency
 closure, and the npm development dependency `playwright` (including
 `playwright-core`). Computed CSS, native popovers, media preferences, and cascade
-precedence require a real browser. Pest remains the runner; Chromium runs
-headlessly and serially against temporary publications over container-local
-HTTP. Tests require no external network and record no screenshots, videos, or
-traces.
+precedence require a real browser. Pest runs the same theme suite, including
+navigation, headlessly and serially in Chromium, Firefox, and WebKit against
+temporary publications over container-local HTTP. Tests require no external
+network and record no screenshots, videos, or traces.
 
 Composer and npm lock files pin development tooling. Only the Docker development
-stage installs Node dependencies, Chromium, and browser system libraries. npm
-modules live in an isolated `/app/node_modules` volume, and the browser cache is
+stage installs Node dependencies, Chromium, Firefox, WebKit, and browser system
+libraries. npm modules live in an isolated `/app/node_modules` volume, and the browser cache is
 readable by the development user. Production and release-builder stages remain
 browser-free. These tools do not become runtime dependencies or add publishing
 capabilities.
@@ -558,8 +560,20 @@ capabilities.
 The test harness uses direct Pest `Webpage` assertions to avoid the plugin's
 automatic failure screenshots. It adapts the pinned browser plugin's process
 command to `exec` Node so normal Pest shutdown also reaps the transport server.
-A small Chromium protocol adapter supplies media emulation absent from Pest's
-PHP page API. Review these test-only adapters when upgrading the plugin.
+A small adapter uses Playwright's shared protocol for native print/media emulation
+and held-pointer assertions absent from Pest's PHP page API. Computed sRGB colors
+are compared numerically with a 0.000001 channel tolerance, preserving alpha
+checks without requiring identical decimal serialization. Touch taps are checked
+separately from pressed styles, since engines clear `:active` at different points
+in the tap/click sequence.
+
+Playwright 1.64 does not expose portable reduced-transparency emulation. That
+native-preference test retains its Chromium CDP adapter and is explicitly skipped
+in Firefox and WebKit; opaque fallback, author overrides, printing, reduced motion,
+and all other theme/navigation checks run in every engine. The suite never
+rewrites preference rules or mocks `matchMedia` to claim native support. WebKit
+automation does not replace real Safari/iOS device checks. Review these test-only
+adapters when upgrading the plugin.
 
 Snippet follows Semantic Versioning. Pull requests are squash-merged with conventional titles, and Release Please maintains `CHANGELOG.md`, `vX.Y.Z` tags, and GitHub releases. Each stable release also publishes the official multi-platform builder image to GitHub Container Registry with maximum BuildKit provenance, an SPDX SBOM, and GitHub build provenance; the release workflow records its immutable digest. See [CONTRIBUTING.md](CONTRIBUTING.md) for title conventions and the full contributor workflow. Report vulnerabilities privately and verify builder releases as described in [SECURITY.md](SECURITY.md).
 

@@ -86,9 +86,17 @@
             "@app:test:types",
             "@app:lint",
             "@app:analyse",
-            "@app:content:validate"
+            "@app:content:validate",
+            "@app:test:browser:compat"
         ],
-        "app:test:browser": "php vendor/bin/pest tests/Browser --no-tia"
+        "app:test:browser": [
+            "php vendor/bin/pest tests/Browser --no-tia",
+            "@app:test:browser:compat"
+        ],
+        "app:test:browser:compat": [
+            "php vendor/bin/pest tests/Browser --no-tia --browser firefox",
+            "php vendor/bin/pest tests/Browser --no-tia --browser safari"
+        ]
     },
     "scripts-descriptions": {
         "app:content:validate": "Compose and validate the demo site",
@@ -102,7 +110,8 @@
         "app:lint": "Check formatting and automated refactoring",
         "app:fix": "Apply automated refactoring and formatting",
         "app:check": "Run the complete application quality gate",
-        "app:test:browser": "Run serial headless Chromium theme regression tests"
+        "app:test:browser": "Run the complete browser suite in Chromium, Firefox, and WebKit",
+        "app:test:browser:compat": "Run the complete browser suite in Firefox and WebKit"
     },
     "config": {
         "bump-after-update": true,

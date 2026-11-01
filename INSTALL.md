@@ -341,11 +341,14 @@ make demo-check
 ```
 
 `make docker-test-browser` (or `composer app:test:browser` inside development) runs
-serial headless Chromium computed-style tests through Pest. The normal suite and
-`app:check` include them. Build the development image and run `docker-install`
-first: Composer dependencies and locked npm modules are synchronized into isolated
-volumes, and Chromium with its system libraries is installed only in the
-development image. Tests use temporary publications and container-local HTTP,
+the same theme and navigation suite serially in Chromium, Firefox, and WebKit
+through Pest. The normal suite includes Chromium; `app:check` also runs the full
+suite in Firefox and WebKit. Native reduced-transparency emulation is the sole
+exception: Playwright exposes it only through Chromium CDP, so that capability
+test is explicitly skipped in the other engines. Build the development image and
+run `docker-install` first: Composer dependencies and locked npm modules are
+synchronized into isolated volumes, and the three browsers with their system
+libraries are installed only in the development image. Tests use temporary publications and container-local HTTP,
 need no external network, and record no screenshots, videos, or traces. Production
 and release-builder images contain no browser tooling. Rebuild the development
 image after changing the Playwright lock so its browser cache stays aligned.
@@ -425,7 +428,7 @@ Custom scripts should target documented class hooks, guard optional elements, an
 
 With JavaScript enabled, the browser interface theme color follows the resolved `--color-background`, including `site/site.css` overrides, on initial load and whenever the selected theme changes.
 
-The no-JavaScript site remains readable and navigable. Authored content, links, and native-popover navigation work normally; the system color preference applies, and the inactive manual theme control stays hidden.
+The no-JavaScript site remains readable and navigable. Authored content, links, and native-popover navigation work normally at every width. With JavaScript, navigation uses a fullscreen modal through 1024 CSS pixels and a compact popover above that breakpoint. Without JavaScript, the system color preference applies, and the inactive manual theme control stays hidden.
 
 Each `<xxh3>` token is the complete 16-character lowercase XXH3 digest. Files beneath `site/assets/` retain their relative names beneath `/assets/site/`; `site/favicon.svg` remains `/favicon.svg`; and content assets remain beside their generated page or article.
 
