@@ -7,7 +7,7 @@ From your site's directory:
 ```bash
 docker run --rm --init --user "$(id -u):$(id -g)" \
   --publish 127.0.0.1:8080:8080 --volume "$PWD:/workspace" \
-  ghcr.io/wanted80/snippet:v4.4.0 preview --host=0.0.0.0 --port=8080 # x-release-please-version
+  ghcr.io/wanted80/snippet:v4.5.0 preview --host=0.0.0.0 --port=8080 # x-release-please-version
 ```
 
 Open `http://127.0.0.1:8080`. The host port is restricted to your computer; `0.0.0.0` lets Docker reach the server inside its container. Stop it with Ctrl+C. If the port is busy, change the host mapping to `127.0.0.1:9000:8080` and open port 9000 instead.

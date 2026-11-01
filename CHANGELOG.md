@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.5.0](https://github.com/wanted80/snippet/compare/v4.4.0...v4.5.0) (2026-11-01)
+
+
+### Features
+
+* unify navigation surfaces and turn demo into project guides ([#75](https://github.com/wanted80/snippet/issues/75)) ([78819fb](https://github.com/wanted80/snippet/commit/78819fb5febd20a3f4af77a3eb36fd5054089473))
+
 ## [4.4.0](https://github.com/wanted80/snippet/compare/v4.3.0...v4.4.0) (2026-11-01)
 
 
