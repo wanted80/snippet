@@ -8,6 +8,7 @@ use Snippet\Site\ConfigLoader;
 
 it('renders ordered profiles and llms in the footer outside the simple navigation', function (): void {
     $profiles = array_map(static fn(string $icon): array => ['label' => ucfirst($icon), 'url' => 'https://example.test/' . $icon, 'icon' => $icon], ConfigLoader::PROFILE_ICONS);
+    $profiles[] = ['label' => '/dev/null', 'url' => 'https://dev-null.sh/@example', 'icon' => '/dev/null'];
     $profiles[] = ['label' => 'A & B', 'url' => 'https://example.test/?a=1&b=2'];
     $this->site(['profiles' => $profiles]);
     $this->item('about', ['title' => 'About', 'description' => 'About.', 'menu_order' => 1]);
@@ -19,7 +20,8 @@ it('renders ordered profiles and llms in the footer outside the simple navigatio
         ->not->toContain('menu-group')
         ->and(mb_strpos($html, 'class="profile-links"'))->toBeGreaterThan((int) mb_strpos($html, '<footer'))
         ->and(mb_strpos($html, 'rel="me"'))->toBeGreaterThan((int) mb_strpos($html, '<footer'))
-        ->and(mb_substr_count($html, 'class="profile-icon"'))->toBe(8)
+        ->and(mb_substr_count($html, 'class="profile-icon"'))->toBe(10)
+        ->and($html)->toContain('href="https://dev-null.sh/@example"', '>/dev/null</span>', 'viewBox="1.6 1.5 45 45"', 'd="M2 42h10L26 6H16Z M17.81 43.5h13.22L46.19 4.5H32.97ZM22.19 40.5l12.84-33h6.78l-12.84 33Z"')
         ->and(mb_strpos($html, 'Github'))->toBeLessThan((int) mb_strpos($html, 'Mastodon'))
         ->and(mb_strpos($html, '/llms.txt'))->toBeGreaterThan((int) mb_strpos($html, '<footer'));
 });
@@ -35,7 +37,7 @@ it('renders icon-only profiles with the destination as their accessible name', f
     assert(is_string($html));
     expect($html)->toContain('<a rel="me" href="https://example.test/profile?a=1&amp;b=2" aria-label="https://example.test/profile?a=1&amp;b=2"><svg')
         ->toContain('</svg></a>');
-})->with(ConfigLoader::PROFILE_ICONS);
+})->with(['github', 'mastodon', 'bluesky', 'linkedin', 'instagram', 'youtube', 'x', '/dev/null', 'generic']);
 
 it('rejects malformed profile configuration', function (mixed $profiles): void {
     $this->site(['profiles' => $profiles]);

@@ -239,16 +239,21 @@ it('rejects internal traversal above the site root', function (string $target): 
     'encoded dot segments' => '/%2e%2e/outside',
 ]);
 
-it('preserves the current publication when a build introduces a missing reference', function (): void {
+it('preserves the current publication when a build introduces a missing reference', function (string $target): void {
+    $this->site(['url' => 'https://example.test/snippet']);
     $path = $this->item('page', ['title' => 'Page', 'description' => 'D'], 'Valid.');
     $this->resources();
     expect(validatePublication($this->directory, 'build')[0])->toBe(0);
     $published = file_get_contents($this->directory . '/public/page/index.html');
-    file_put_contents($path . '/page.md', '[missing](/missing/)');
+    file_put_contents($path . '/page.md', "[missing]({$target})");
 
     expect(validatePublication($this->directory, 'build')[0])->toBe(1)
         ->and(file_get_contents($this->directory . '/public/page/index.html'))->toBe($published);
-});
+})->with([
+    'root-relative' => '/missing/',
+    'normalized absolute' => 'https://example.test/elsewhere/../snippet/missing/',
+    'encoded deployment segment' => 'https://example.test/%73nippet/missing/',
+]);
 
 it('validates portable and same-site links relative to a configured deployment path', function (): void {
     $this->site(['url' => 'https://example.test/snippet']);
@@ -272,8 +277,8 @@ MARKDOWN);
     expect(validatePublication($this->directory)[0])->toBe(0);
 });
 
-it('checks same-origin targets beneath the deployment path and ignores targets outside it', function (string $target, bool $valid): void {
-    $this->site(['url' => 'https://example.test/snippet']);
+it('checks normalized same-origin targets beneath the deployment path and ignores targets outside it', function (string $target, ?string $failure, string $basePath = '/snippet'): void {
+    $this->site(['url' => 'https://example.test' . $basePath]);
     $this->article('post', [
         'title' => 'Post',
         'description' => 'D',
@@ -284,17 +289,35 @@ it('checks same-origin targets beneath the deployment path and ignores targets o
 
     [$status, , $error] = validatePublication($this->directory);
 
-    if ($valid) {
+    if ($failure === null) {
         expect($status)->toBe(0)->and($error)->toBeEmpty();
         return;
     }
 
     expect($status)->toBe(1)
-        ->and($error)->toContain("Internal link target '{$target}' in 'content/articles/2026/01/01/post/article.md' at line 1");
+        ->and($error)->toBe("Validation failed: Internal link target '{$target}' in 'content/articles/2026/01/01/post/article.md' at line 1 {$failure}.\n");
 })->with([
-    'missing beneath base' => ['https://example.test/snippet/missing/', false],
-    'deployment root' => ['https://example.test/snippet', true],
-    'outside base' => ['https://example.test/outside-publication/missing/', true],
-    'base prefix collision' => ['https://example.test/snippet-other/missing/', true],
-    'base traversal' => ['https://example.test/snippet/%2e%2e/outside/', false],
+    'missing beneath base' => ['https://example.test/snippet/missing/', 'does not exist in the generated site'],
+    'dot segments before base' => ['https://example.test/elsewhere/../snippet/missing/', 'does not exist in the generated site'],
+    'encoded dot segments before base' => ['https://example.test/elsewhere/%2e%2E/snippet/missing/', 'does not exist in the generated site'],
+    'encoded base segment' => ['https://example.test/%73nippet/missing/?view=all#part', 'does not exist in the generated site'],
+    'existing page after normalization' => ['https://example.test/elsewhere/%2E%2e/%73nippet/articles/post/?view=all#part', null],
+    'deployment root' => ['https://example.test/snippet', null],
+    'normalized deployment root' => ['https://example.test/elsewhere/../snippet', null],
+    'encoded deployment root' => ['https://example.test/%73nippet', null],
+    'terminal dot at deployment root' => ['https://example.test/snippet/%2e', null],
+    'terminal parent at deployment root' => ['https://example.test/snippet/articles/..', null],
+    'outside base' => ['https://example.test/outside-publication/missing/', null],
+    'normalized outside base' => ['https://example.test/elsewhere/../outside-publication/missing/', null],
+    'base prefix collision' => ['https://example.test/snippet-other/missing/', null],
+    'base traversal' => ['https://example.test/snippet/%2e%2e/outside/', 'traverses above the site root'],
+    'encoded base traversal' => ['https://example.test/%73nippet/%2e%2e/outside/', 'traverses above the site root'],
+    'traversal after entering base' => ['https://example.test/elsewhere/../snippet/../outside/', 'traverses above the site root'],
+    'origin root traversal' => ['https://example.test/../snippet/articles/post/', 'traverses above the site root'],
+    'nested base' => ['https://example.test/elsewhere/../one/%74wo/missing/', 'does not exist in the generated site', '/one/two'],
+    'partial nested base' => ['https://example.test/one/missing/', null, '/one/two'],
+    'encoded separator outside nested base' => ['https://example.test/one%2Ftwo/missing/', null, '/one/two'],
+    'encoded configured base' => ['https://example.test/snippet/missing/', 'does not exist in the generated site', '/%73nippet'],
+    'Unicode configured base' => ['https://example.test/elsewhere/../caf%C3%A9/articles/post/', null, '/caf%c3%a9'],
+    'Unicode missing target' => ['https://example.test/elsewhere/../caf%C3%A9/missing/', 'does not exist in the generated site', '/caf%c3%a9'],
 ]);

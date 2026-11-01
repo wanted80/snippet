@@ -273,7 +273,7 @@ The supported Markdown subset is:
 
 Raw HTML, images, tables, nested lists, HTML-style attributes, and arbitrary extensions are not supported. Link labels must not be blank. Text, labels, URLs, and code are escaped so authored content cannot become executable markup.
 
-Validation checks every internal Markdown link against the complete generated route and copied-asset inventory. Authored root-relative links are portable site links: `/about/` renders beneath the configured deployment path, such as `/snippet/about/`. Item-relative links remain relative to their content route. Absolute HTTP(S) links on the configured origin are checked only when they are beneath the configured deployment path; same-origin links outside that path and external HTTP(S) links are outside this publication and are left unchecked. Resolution removes query strings and fragments, percent-decodes each path segment, normalizes `.` and `..`, and percent-encodes the normalized segments again before inventory matching. Raw `/tags/café/` and encoded `/tags/caf%C3%A9/` references are therefore equivalent. Encoded dot segments such as `%2e` and `%2e%2e` receive the same traversal checks, including rejection above the site root. Canonical directory routes and explicit generated `index.html` paths are accepted; errors identify the Markdown file and line. Fragment identifiers themselves are not checked.
+Validation checks every internal Markdown link against the complete generated route and copied-asset inventory. Authored root-relative links are portable site links: `/about/` renders beneath the configured deployment path, such as `/snippet/about/`. Item-relative links remain relative to their content route. Absolute HTTP(S) links on the configured origin are normalized before matching the deployment path, including equivalent percent-encoded segments. Targets beneath that path are checked; same-origin links outside that path and external HTTP(S) links are outside this publication and are left unchecked. Resolution removes query strings and fragments, percent-decodes each path segment, normalizes `.` and `..`, and percent-encodes the normalized segments again before inventory matching. Raw `/tags/café/` and encoded `/tags/caf%C3%A9/` references are therefore equivalent. Encoded dot segments such as `%2e` and `%2e%2e` receive the same traversal checks, including rejection above the site root. Canonical directory routes and explicit generated `index.html` paths are accepted; errors identify the Markdown file and line. Fragment identifiers themselves are not checked.
 
 ## Site customization
 
@@ -318,11 +318,12 @@ Publication always conservatively stream-minifies required `resources/theme.css`
 
 There is no minification setting. When upgrading a workspace that contains `build.minify`, remove the entire `build` entry from `site/config.php`; obsolete configuration fields are rejected.
 
-Optional `profiles` is an ordered list of up to 32 footer links. Each entry requires an HTTPS URL without credentials and at least a label or one of the bundled `github`, `mastodon`, `bluesky`, `linkedin`, `instagram`, `youtube`, `x`, or `generic` icons. An omitted label produces an icon-only link whose accessible name is the destination URL. The footer also links to `llms.txt`.
+Optional `profiles` is an ordered list of up to 32 footer links. Each entry requires an HTTPS URL without credentials and at least a label or one of the bundled `github`, `mastodon`, `bluesky`, `linkedin`, `instagram`, `youtube`, `x`, `/dev/null`, or `generic` icons. The `/dev/null` icon uses the official monochrome [/dev/null mark](https://dev-null.sh/brand). An omitted label produces an icon-only link whose accessible name is the destination URL. The footer also links to `llms.txt`.
 
 ```php
 'profiles' => [
     ['label' => 'GitHub', 'url' => 'https://github.com/example', 'icon' => 'github'],
+    ['label' => '/dev/null', 'url' => 'https://dev-null.sh/@example', 'icon' => '/dev/null'],
     ['url' => 'https://bsky.app/profile/example.org', 'icon' => 'bluesky'],
 ],
 ```

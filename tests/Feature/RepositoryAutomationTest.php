@@ -61,7 +61,7 @@ it('defines stable least-privilege continuous integration and deployment workflo
         "          severity: HIGH,CRITICAL\n",
         "          ignore-unfixed: true\n",
         "          exit-code: '0'\n",
-        "          version: v0.70.0\n",
+        "          version: v0.76.1\n",
         "          cache: false\n",
         'name: Validate and build the composed demo site',
         'run: make demo-check',

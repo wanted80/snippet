@@ -456,7 +456,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -508,7 +508,7 @@ For GitHub Pages, enable **Settings → Pages → Build and deployment → GitHu
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 ```
 
 Deploy only `public/`. Keep it ignored; do not create a generated-output branch. The build includes a root-level `404.html` that GitHub Pages automatically uses for missing routes; its links and assets retain the configured deployment path for project sites. Other static hosts can use the same file through their custom-error-page configuration. GitHub Pages owns HTTPS and does not provide project-controlled response headers. On configurable hosts, add `Content-Security-Policy: frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy: strict-origin-when-cross-origin` alongside Snippet's meta CSP.
@@ -557,4 +557,4 @@ Check Make command-line assignments, shell variables, and `.env` in that precede
 
 ### Dependencies or images are stale
 
-Synchronize the selected dependency volume with `make docker-install`. Refresh images or bypass the build cache with `PULL=1` and `NO_CACHE=1`. Dependency volumes are disposable, but identify their exact names with `docker volume ls` before removing one; never remove the Caddy data volume unless you intend to trust a newly generated local certificate authority.
+Synchronize the selected dependency volume with `make docker-install`. Fetch pinned images or bypass the build cache with `PULL=1` and `NO_CACHE=1`. The Dockerfiles and Caddy service pin image digests; moving to a newer upstream image requires updating its digest, normally through Dependabot. Dependency volumes are disposable, but identify their exact names with `docker volume ls` before removing one; never remove the Caddy data volume unless you intend to trust a newly generated local certificate authority.
