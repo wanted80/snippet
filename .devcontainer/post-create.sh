@@ -14,3 +14,4 @@ fi
 cd "${workspace}"
 composer install --no-interaction
 sh docker/development/install-node-dependencies.sh
+git config --local core.hooksPath .githooks

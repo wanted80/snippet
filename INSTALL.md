@@ -367,6 +367,8 @@ libraries are installed only in the development image. Tests use temporary publi
 need no external network, and record no screenshots, videos, or traces. Production
 and release-builder images contain no browser tooling. Rebuild the development
 image after changing the Playwright lock so its browser cache stays aligned.
+The development image uses a digest-pinned Node 26 toolchain; production and
+release-builder images contain no Node.js or npm.
 
 Docker image builds, `docker-install`, and devcontainer setup share the same npm
 synchronization check. They reuse installed modules when `package.json` and
@@ -375,6 +377,8 @@ present. Unchanged preview, build, and validation runs need no npm registry
 access. Missing dependencies or changed manifests trigger `npm ci` again.
 
 `docker-check` runs exact source line and type coverage, Pint, Rector, PHPStan, composed-demo validation, ShellCheck, JavaScript syntax validation, and dependency-free JavaScript behavior tests. Run the latter directly with `composer app:test:assets` when Node.js 20+ is available. `docker-audit` remains separate because advisory data needs the network. `builder-smoke` checks the release image, its empty-workspace initialization lifecycle, and hardened content-only preview behavior; `demo-check` composes root shared files with `demo/`, validates the complete existing site, and proves its production build succeeds.
+
+Contributors can enable the tracked pre-push hook with `make hooks-install`; devcontainer setup does this automatically. The hook runs `make pre-push-check`, stops a failed push, and shares the Quality workflow's checks. Host pushes also validate both Compose environments and run builder/demo smoke tests and the dependency audit. Devcontainer pushes run the application, shell, JavaScript, and audit checks directly; Compose and image checks still run on the host and in CI. The report-only Trivy scan runs only in CI. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 The optional `.env` controls local orchestration only. Its principal settings are:
 

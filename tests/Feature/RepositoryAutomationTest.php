@@ -259,6 +259,7 @@ it('keeps dependency automation complete and release-neutral', function (): void
 
     expect($dependabot)->toContain(
         'package-ecosystem: composer',
+        'package-ecosystem: npm',
         'package-ecosystem: github-actions',
         'package-ecosystem: docker',
         "    directories:\n      - /\n      - /docker/builder\n      - /docker/development\n",
@@ -271,6 +272,10 @@ it('exposes separate deterministic and network-dependent maintenance gates', fun
     $composer = file_get_contents($root . '/composer.json');
     $makefile = file_get_contents($root . '/Makefile');
     $builderSmoke = file_get_contents($root . '/docker/builder/smoke.sh');
+    $developmentDockerfile = file_get_contents($root . '/docker/development/Dockerfile');
+    assert(is_string($developmentDockerfile));
+    $qualityChecks = file_get_contents($root . '/docker/quality/check.sh');
+    assert(is_string($qualityChecks));
     assert(is_string($composer));
     assert(is_string($makefile));
     assert(is_string($builderSmoke));
@@ -287,8 +292,22 @@ it('exposes separate deterministic and network-dependent maintenance gates', fun
             "docker-audit:\n\t$(MAKE) ENVIRONMENT=development docker-install",
             "builder-smoke: builder-image\n\tsh docker/builder/smoke.sh \"$(BUILDER_IMAGE)\"",
             "demo-check: builder-image\n\tsh docker/demo/check.sh \"$(BUILDER_IMAGE)\"",
-            'shellcheck .devcontainer/post-create.sh docker/builder/smoke.sh docker/demo/check.sh docker/demo/validate.sh docker/demo/workspace.sh docker/development/entrypoint.sh docker/preview/trust-caddy-ca.sh docker/quality/mutations.sh',
+            'app sh docker/quality/check.sh',
+            'git config --local core.hooksPath .githooks',
+            '$(MAKE) docker-check builder-smoke demo-check docker-audit',
+            'sh docker/quality/check.sh && composer app:audit',
+        )
+        ->and($developmentDockerfile)->toMatch('~^FROM node:26-bookworm-slim@sha256:[0-9a-f]{64} AS node$~m')
+        ->and($developmentDockerfile)->toContain(
+            'COPY --from=node /usr/local/bin/node /usr/local/bin/node',
+            '/usr/local/bin/npm install --global @openai/codex',
+        )
+        ->and($qualityChecks)->toContain(
+            'composer app:check',
+            'shellcheck .githooks/pre-push .devcontainer/post-create.sh',
+            'sh tests/Shell/pre-push.sh',
             'node --check resources/theme.js',
+            'composer app:test:assets',
         )
         ->and($builderSmoke)->toContain(
             "test ! -e \"\${workspace}/public/assets/theme.css\"",
