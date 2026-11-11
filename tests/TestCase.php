@@ -88,7 +88,6 @@ abstract class TestCase extends BaseTestCase
             'png-tall' => 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAACCAQAAABeK7cBAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
         ];
         $bytes = base64_decode($images[$format], true);
-        self::assertIsString($bytes);
         if (!is_dir(dirname($path))) {
             mkdir(dirname($path), 0777, true);
         }

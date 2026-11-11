@@ -17,6 +17,16 @@ make docker-audit
 
 `docker-check` runs the exact line-coverage, type-coverage, formatting, refactoring, static-analysis, content-validation, shell, and JavaScript checks used by CI. `make docker-mutations` is the deliberately separate, resource-intensive target for the complete Pest suite: it bypasses focused mutation declarations, mutates every covered source class, and requires a 100% score. `docker-audit` queries Composer's advisory data separately because it requires network access. Application code must remain free of third-party runtime packages.
 
+Enable the tracked pre-push hook once per clone:
+
+```bash
+make hooks-install
+```
+
+Devcontainer setup enables it automatically. Every push runs `make pre-push-check` and stops on the first failure. On the host this validates both Compose environments, runs `docker-check`, smoke-tests the builder, builds the demo, and audits Composer dependencies, using the same targets as the Quality workflow. Docker must be running; the audit and dependency installation require network access. The workflow's report-only Trivy scan stays in CI.
+
+Inside the devcontainer the hook runs the same application, shell, and JavaScript checks directly, followed by the Composer audit. Run `make pre-push-check` on the host to include Compose and image checks, which require host Docker access. Checks validate the current working tree; commit the changes you intend to push and keep that tree aligned with them. The hook does not format or commit files. Git hooks are local safeguards; CI remains authoritative.
+
 Native PHP contributors may use `composer app:fix`, `composer app:analyse`, `composer app:check`, and `composer app:audit`; see [INSTALL.md](INSTALL.md) for requirements.
 
 ## Architecture map

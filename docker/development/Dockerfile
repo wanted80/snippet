@@ -1,6 +1,9 @@
-FROM composer:2@sha256:4ed71c38c6d788eb4e4e3747b5332f5b40d5b5a6fcadd5062a1a70986a118e0a AS composer
+FROM composer:2@sha256:ca11f643d7791ebdd90a34fc20caf11380d434007ae539a9ea75cd9212e13dca AS composer
 
-FROM php:8.5-cli@sha256:9236fd373d3bcda0659cf94838a744bd79791419292958963f8c6b34a0071554 AS php-base
+FROM node:26-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68 AS node
+RUN npm install --global npm@12.2.2
+
+FROM php:8.5-cli@sha256:50956f094e90a716d43bea28087d447555ad80510e386ab8c9c10d8c70d781a9 AS php-base
 
 ARG LOCAL_UID=1000
 ARG LOCAL_GID=1000
@@ -38,6 +41,11 @@ CMD ["bin/snippet", "validate"]
 
 FROM php-base AS development
 
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         bat \
@@ -51,8 +59,6 @@ RUN apt-get update \
         jq \
         less \
         lsof \
-        nodejs \
-        npm \
         openssh-client \
         procps \
         python3 \
@@ -70,10 +76,10 @@ RUN apt-get update \
     && printf '%s\n' 'pcov.enabled=0' > /usr/local/etc/php/conf.d/zz-pcov.ini \
     && npm install --global @openai/codex \
     && usermod --shell /usr/bin/zsh snippet \
-    && printf '%s\n' 'snippet ALL=(root) NOPASSWD: /usr/bin/chown -R snippet\:snippet /app/vendor, /usr/bin/chown -R snippet\:snippet /app/node_modules, /usr/bin/npm install --global @openai/codex, /usr/local/bin/snippet-devcontainer-entrypoint' > /etc/sudoers.d/snippet \
+    && printf '%s\n' 'snippet ALL=(root) NOPASSWD: /usr/bin/chown -R snippet\:snippet /app/vendor, /usr/bin/chown -R snippet\:snippet /app/node_modules, /usr/local/bin/npm install --global @openai/codex, /usr/local/bin/snippet-devcontainer-entrypoint' > /etc/sudoers.d/snippet \
     && chmod 0440 /etc/sudoers.d/snippet \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false ${PHPIZE_DEPS} \
-    && apt-get install -y --no-install-recommends file \
+    && apt-get install -y --no-install-recommends file libatomic1 make \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/pear
 

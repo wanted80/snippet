@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+cd "$(git rev-parse --show-toplevel)"
+# Do not pass Git's ref-update stream to Docker Compose or the test runner.
+exec make pre-push-check </dev/null
