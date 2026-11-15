@@ -250,7 +250,7 @@ Article directories must use a real, zero-padded calendar date that matches the 
 
 Page and article directory slugs are author-chosen lowercase ASCII letters and numbers separated by single hyphens. Titles are independent and may use any language: a page titled `日本語`, for example, can use the directory slug `nihongo`. Snippet never transliterates a title automatically because pronunciation and convention are language-dependent.
 
-Start a page or article with the minimal draft command in an initialized publication workspace:
+Start a page or article with a scaffold command in an initialized publication workspace:
 
 ```bash
 snippet new page contact
@@ -267,7 +267,7 @@ docker run --rm \
   ghcr.io/wanted80/snippet:v4.5.0 new article first-post # x-release-please-version
 ```
 
-An article without `--date` uses the current UTC date. The command creates an empty Markdown file and a `meta.php` with empty title and description fields; articles also receive the selected date and an empty tag list. The result is intentionally incomplete, so finish both files before validating, building, or previewing. Draft creation checks that the relevant content collection is a regular non-symlink directory, does not validate the existing catalog or change `public/`, and never replaces an existing content directory. Run `snippet init` first when using an empty content-only workspace. Contributors can also run the canonical command after entering `make docker-shell`; there is deliberately no separate Make target.
+An article without `--date` uses the current UTC date. The command creates an empty Markdown file and a `meta.php` with empty title and description fields; articles also receive the selected date and an empty tag list. The result is intentionally incomplete, so finish both files before validating, building, or previewing. Scaffold creation checks that the relevant content collection is a regular non-symlink directory, does not validate the existing catalog or change `public/`, and never replaces an existing content directory. Run `snippet init` first when using an empty content-only workspace. Contributors can also run the canonical command after entering `make docker-shell`; there is deliberately no separate Make target.
 
 Every `meta.php` starts with `declare(strict_types=1);` and returns one literal associative array. Article metadata has these required fields:
 
@@ -348,11 +348,7 @@ Validation checks every internal Markdown link against the complete generated ro
 
 Customize appearance in `site/site.css` using the [stable CSS API](#stable-css-api). Optional `site/site.js` adds local behavior and remains author-owned. Template overrides are not supported; a separate workspace’s `resources/` directory is not a publication input. Structural changes to the theme belong in the builder itself.
 
-## Repository and demo separation
-
-The root is the generator and reference implementation. `site/` supplies author-owned defaults and `resources/` supplies the installed theme and workspace instruction templates, while `demo/content/` preserves the project website's articles and pages. `snippet init` creates empty `content/articles/` and `content/pages/` collections, copies the generic `site/` defaults, and copies the author instructions from `resources/workspace/` into the workspace root. Demo configuration and content are never initialized. CI composes the demo into a temporary normal workspace, validates it, builds it, and deploys only the generated output.
-
-Container support is grouped by responsibility under `docker/`: `development/` owns the contributor image, `builder/` the published minimal image, `demo/` temporary demo composition, `preview/` local Caddy support, and `quality/` container-specific quality tooling. Shell sources retain their `.sh` extension in the repository even when an image installs them as an extensionless command.
+### Site configuration
 
 `site/config.php` defines the site's identity and homepage collections with one exact shape:
 
@@ -585,6 +581,12 @@ Content and site asset inventories enforce file, depth, and directory-entry ceil
 
 Configuration and metadata files are declarative PHP rather than executed code. They may contain only `declare(strict_types=1);` and one returned literal array. Calls, expressions, variables, interpolation, includes, duplicate keys, and output are rejected.
 
+## Repository and demo separation
+
+The root is the generator and reference implementation. `site/` supplies author-owned defaults and `resources/` supplies the installed theme and workspace instruction templates, while `demo/content/` preserves the project website's articles and pages. `snippet init` creates empty `content/articles/` and `content/pages/` collections, copies the generic `site/` defaults, and copies the author instructions from `resources/workspace/` into the workspace root. Demo configuration and content are never initialized. CI composes the demo into a temporary normal workspace, validates it, builds it, and deploys only the generated output.
+
+Container support is grouped by responsibility under `docker/`: `development/` owns the contributor image, `builder/` the published minimal image, `demo/` temporary demo composition, `preview/` local Caddy support, and `quality/` container-specific quality tooling. Shell sources retain their `.sh` extension in the repository even when an image installs them as an extensionless command.
+
 ## Output and architecture
 
 `bin/snippet build` loads one shared publication-input snapshot and validates its configuration, content catalog, article images, Markdown references, assets, and templates before rendering. `validate`, `build`, and every preview rebuild use this identical boundary. Content assets must be readable during validation. The builder writes a unique temporary sibling tree and replaces `public/` only after every page and asset succeeds. Published files use `0644` permissions and directories use `0755`, including nested asset directories, regardless of the process umask.
@@ -648,39 +650,10 @@ make docker-audit
 
 `docker-check` is deterministic and includes exact line and type coverage, Pint, Rector, PHPStan, content validation, ShellCheck, JavaScript syntax validation, and JavaScript behavior tests using Node’s built-in test runner. The resource-intensive `docker-mutations` target separately runs the complete Pest suite against every covered source class and requires a 100% mutation score. `docker-audit` is separate because the Composer advisory lookup requires network access.
 
-The architectural decision for browser regression testing approves
-`pestphp/pest-plugin-browser` (Pest 5), its Composer development dependency
-closure, and the npm development dependency `playwright` (including
-`playwright-core`). Computed CSS, native popovers, media preferences, and cascade
-precedence require a real browser. Pest runs the same theme suite, including
-navigation, headlessly and serially in Chromium, Firefox, and WebKit against
-temporary publications over container-local HTTP. Tests require no external
-network and record no screenshots, videos, or traces.
-
-Composer and npm lock files pin development tooling. Only the Docker development
-stage installs Node dependencies, Chromium, Firefox, WebKit, and browser system
-libraries. npm modules live in an isolated `/app/node_modules` volume, and the browser cache is
-readable by the development user. Production and release-builder stages remain
-browser-free. These tools do not become runtime dependencies or add publishing
-capabilities.
-
-The test harness uses direct Pest `Webpage` assertions to avoid the plugin's
-automatic failure screenshots. It adapts the pinned browser plugin's process
-command to `exec` Node so normal Pest shutdown also reaps the transport server.
-A small adapter uses Playwright's shared protocol for native print/media emulation
-and held-pointer assertions absent from Pest's PHP page API. Computed sRGB colors
-are compared numerically with a 0.000001 channel tolerance, preserving alpha
-checks without requiring identical decimal serialization. Touch taps are checked
-separately from pressed styles, since engines clear `:active` at different points
-in the tap/click sequence.
-
-Playwright 1.64 does not expose portable reduced-transparency emulation. That
-native-preference test retains its Chromium CDP adapter and is explicitly skipped
-in Firefox and WebKit; opaque fallback, author overrides, printing, reduced motion,
-and all other theme/navigation checks run in every engine. The suite never
-rewrites preference rules or mocks `matchMedia` to claim native support. WebKit
-automation does not replace real Safari/iOS device checks. Review these test-only
-adapters when upgrading the plugin.
+Browser regression tests check theme and navigation behavior in Chromium, Firefox,
+and WebKit against temporary publications. Browser tooling is development-only;
+see [browser regression testing](CONTRIBUTING.md#browser-regression-testing)
+for the dependency decision, test harness, and browser limitations.
 
 Snippet follows Semantic Versioning. Pull requests are squash-merged with conventional titles, and Release Please maintains `CHANGELOG.md`, `vX.Y.Z` tags, and GitHub releases. Each stable release also publishes the official multi-platform builder image to GitHub Container Registry with maximum BuildKit provenance, an SPDX SBOM, and GitHub build provenance; the release workflow records its immutable digest. See [CONTRIBUTING.md](CONTRIBUTING.md) for title conventions and the full contributor workflow. Report vulnerabilities privately and verify builder releases as described in [SECURITY.md](SECURITY.md).
 
