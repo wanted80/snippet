@@ -29,7 +29,7 @@ docker run --rm \
 
 `init` creates empty `content/articles/` and `content/pages/` collections and copies the generic `site/` defaults. It also adds `AGENTS.md` and `.agents/skills/snippet-authoring/SKILL.md` for authoring with coding agents. Existing files win, nothing is deleted, and `public/` is untouched. Templates, base CSS, theme JavaScript, and preview support stay in the image; no `resources/` directory is created in the workspace. Demo configuration and content are never included. Repeating `init` adds missing defaults and agent guidance without replacing existing files. To receive theme updates, update the pinned image and rebuild.
 
-Set the complete public HTTPS URL in `site/config.php`, then create the first page or article. Rerun the command with `init` replaced by `validate` to check the site without changing `public/`, or by `build` to create the static publication. The same image creates drafts:
+Set the complete public HTTPS URL in `site/config.php`, then create the first page or article. Rerun the command with `init` replaced by `validate` to check the site without changing `public/`, or by `build` to create the static publication. The same image creates incomplete source scaffolds:
 
 ```bash
 docker run --rm \
@@ -43,7 +43,7 @@ docker run --rm \
   ghcr.io/wanted80/snippet:v4.5.0 new article first-post # x-release-please-version
 ```
 
-The image exposes `--version`, `inspect`, `init`, `new page`, `new article`, `validate`, `build`, and the local-development `preview` command. Draft creation requires the relevant collection created by `init`, refuses symlinked or existing destinations, and leaves `public/` unchanged. The image omits Composer, development tools, and source outside those commands' runtime paths. `validate` reports the catalog and prospective asset count. `build` measures validation plus transactional publication and reports the actual promoted asset and file counts. Failures retain the existing `public/` directory.
+The image exposes `--version`, `inspect`, `init`, `new page`, `new article`, `validate`, `build`, and the local-development `preview` command. Scaffold creation requires the relevant collection created by `init`, refuses symlinked or existing destinations, and leaves `public/` unchanged. The image omits Composer, development tools, and source outside those commands' runtime paths. `validate` reports the catalog and prospective asset count. `build` measures validation plus transactional publication and reports the actual promoted asset and file counts. Failures retain the existing `public/` directory.
 
 Moving release aliases and `latest` are convenient for evaluation but unsuitable for reproducible publication. Pin a full release such as `v4.5.0` or an immutable image digest. <!-- x-release-please-version -->
 
@@ -56,15 +56,15 @@ then use the command sequence below. Your agent works on the source in your
 repository; Snippet supplies the inspectable contracts and validation tools.
 
 Use the builder image selected for your workspace so inspection describes that
-installed version. To test the current checkout, first run `make builder-image`.
-From your author workspace, use this shell helper:
+installed version. This example uses the pinned release; substitute your
+workspace's image if different. From your author workspace, use this shell helper:
 
 ```sh
 snippet() {
     docker run --rm --network none \
         --user "$(id -u):$(id -g)" \
         --mount "type=bind,source=$(pwd),destination=/workspace" \
-        snippet-builder:smoke "$@"
+        ghcr.io/wanted80/snippet:v4.5.0 "$@" # x-release-please-version
 }
 
 snippet --version --json
@@ -77,8 +77,8 @@ snippet new page about --json
 snippet new article first-post --date=2026-08-17 --json
 ```
 
-For a released installation, replace `snippet-builder:smoke` with an exact
-release tag or digest that includes the agent CLI.
+To test a local engine checkout instead, run `make builder-image` from that
+checkout, then replace the helper's image with `snippet-builder:smoke`.
 Initialization reports created and skipped files without overwriting author
 files. Content creation reports the actual two files and `incomplete: true`.
 Without `--date`, an article uses the current UTC date.
@@ -297,7 +297,7 @@ Run the canonical CLI from the publication workspace. The executable may live in
 /path/to/snippet/bin/snippet preview
 ```
 
-An article without `--date` uses the current UTC date. Draft creation deliberately produces incomplete metadata and Markdown, never replaces an existing content directory, and never changes `public/`. Complete the draft before validation.
+An article without `--date` uses the current UTC date. Scaffold creation deliberately produces incomplete metadata and Markdown, never replaces an existing content directory, and never changes `public/`. Complete both files before validation.
 
 Direct preview serves HTTP at `http://127.0.0.1:8080` by default, watches `content/` and `site/`, reloads fresh contributor runtime after changes beneath the installed builder’s `bin/` or `src/`, rebuilds after edits to its `resources/`, preserves the last valid output after an invalid edit, and reloads open pages after a successful rebuild. Use a different validated address when needed:
 
@@ -428,7 +428,7 @@ To load an external script from `site/site.js`, allow its HTTPS origin under
 `csp.connect-src`. The optional `csp` map also accepts `style-src`, `img-src`, and
 `font-src`; each adds up to 32 explicit HTTPS origins to the existing same-origin
 policy. Use origins without paths or trailing slashes. See the
-[configuration example](README.md#site-customization) for the complete setup.
+[configuration example](README.md#site-configuration) for the complete setup.
 
 Source paths beneath `resources/` refer to the installed builder, not the mounted workspace:
 
@@ -439,7 +439,7 @@ Source paths beneath `resources/` refer to the installed builder, not the mounte
 | `site/site.css` | `/assets/site.<xxh3>.css` | Optional site CSS; loaded after the built-in theme, always conservatively minified, then fingerprinted from the published bytes. |
 | `site/site.js` | `/assets/site.<xxh3>.js` | Optional local script; copied unchanged, fingerprinted, and loaded with `defer` after the built-in script. |
 
-CSS entry files are always compacted in direct builds, Docker, and preview. HTML is published as rendered and JavaScript is copied unchanged. There is no minification setting: remove the obsolete `build` entry from existing `site/config.php` files. See the [minification scope](README.md#site-customization) for details.
+CSS entry files are always compacted in direct builds, Docker, and preview. HTML is published as rendered and JavaScript is copied unchanged. There is no minification setting: remove the obsolete `build` entry from existing `site/config.php` files. See the [minification scope](README.md#site-configuration) for details.
 
 Both optional site files must be regular non-symlink UTF-8 files within the asset-size ceiling. If one is absent, Snippet emits neither its output file nor its HTML tag. Place rules in `@layer overrides`; use documented variables and classes rather than depending on the theme’s exact HTML structure. Patch and minor releases preserve this CSS contract. Breaking changes require a major release.
 

@@ -29,6 +29,42 @@ Inside the devcontainer the hook runs the same application, shell, and JavaScrip
 
 Native PHP contributors may use `composer app:fix`, `composer app:analyse`, `composer app:check`, and `composer app:audit`; see [INSTALL.md](INSTALL.md) for requirements.
 
+## Browser regression testing
+
+The architectural decision for browser regression testing approves
+`pestphp/pest-plugin-browser` (Pest 5), its Composer development dependency
+closure, and the npm development dependency `playwright` (including
+`playwright-core`). Computed CSS, native popovers, media preferences, and cascade
+precedence require a real browser. Pest runs the same theme suite, including
+navigation, headlessly and serially in Chromium, Firefox, and WebKit against
+temporary publications over container-local HTTP. Tests require no external
+network and record no screenshots, videos, or traces.
+
+Composer and npm lock files pin development tooling. Only the Docker development
+stage installs Node dependencies, Chromium, Firefox, WebKit, and browser system
+libraries. npm modules live in an isolated `/app/node_modules` volume, and the browser cache is
+readable by the development user. Production and release-builder stages remain
+browser-free. These tools do not become runtime dependencies or add publishing
+capabilities.
+
+The test harness uses direct Pest `Webpage` assertions to avoid the plugin's
+automatic failure screenshots. It adapts the pinned browser plugin's process
+command to `exec` Node so normal Pest shutdown also reaps the transport server.
+A small adapter uses Playwright's shared protocol for native print/media emulation
+and held-pointer assertions absent from Pest's PHP page API. Computed sRGB colors
+are compared numerically with a 0.000001 channel tolerance, preserving alpha
+checks without requiring identical decimal serialization. Touch taps are checked
+separately from pressed styles, since engines clear `:active` at different points
+in the tap/click sequence.
+
+Playwright 1.64 does not expose portable reduced-transparency emulation. That
+native-preference test retains its Chromium CDP adapter and is explicitly skipped
+in Firefox and WebKit; opaque fallback, author overrides, printing, reduced motion,
+and all other theme/navigation checks run in every engine. The suite never
+rewrites preference rules or mocks `matchMedia` to claim native support. WebKit
+automation does not replace real Safari/iOS device checks. Review these test-only
+adapters when upgrading the plugin.
+
 ## Architecture map
 
 The publication path is intentionally linear: `Application` dispatches the CLI, `PublicationInputLoader` creates one validated snapshot containing configuration, catalog, templates, and retained fingerprinted entry assets, `Publisher` transactionally promotes the complete output, and `HtmlRenderer` turns that same snapshot into pages. In short: `Application → PublicationInputLoader → validated inputs → Publisher → HtmlRenderer`.

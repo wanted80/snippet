@@ -1,299 +1,265 @@
-# Snippet
-
-Snippet is a small personal publishing system.
-
-It transforms self-contained content directories into a completely static website using a dependency-free PHP builder.
-
-The project exists for learning, curiosity, experimentation, and fun.
-
-It is built for one author.
-
-## Core Principles
-
-- The content is the product.
-- The builder is an implementation detail.
-- The generated website is disposable.
-- Technology serves the content.
-
-## Current system
-
-The current builder discovers and validates site configuration, content, metadata, templates, and assets; applies internal resource ceilings; orders the resulting catalog; resolves routes; parses the supported Markdown into a typed document model; and renders the complete static site.
-
-Publication validates first, builds in a unique temporary sibling directory, and replaces `public/` only after every page and asset succeeds. The preview command performs the same build, serves it locally, watches `content/` and `site/`, preserves the last valid publication after an invalid edit, and live-reloads open pages after a successful rebuild. Direct contributor preview also reloads fresh runtime code after changes beneath the installed engine’s `bin/` or `src/`, and rebuilds after edits to its `resources/`; the official image uses its immutable engine-owned router and watches only mounted publication inputs.
-
-Do not implement feeds, pagination, search, drafts, Markdown images, or additional content types unless explicitly requested.
-
-## Project goals
-
-- PHP 8.5+
-- PHP standard library first
-- Composer for the PHP requirement, PSR-4 autoloading, project scripts, and approved development-only quality tools
-- No third-party runtime packages
-- Static HTML output
-- Semantic HTML
-- Plain CSS
-- Deterministic builds
-- Small, readable code
-
-## Repository layout
-
-snippet/
-- .devcontainer/
-- docker/
-- AGENTS.md
-- INSTALL.md
-- LICENSE
-- Makefile
-- README.md
-- compose.yaml
-- compose.dev.yaml
-- composer.json
-- bin/
-- demo/
-- resources/
-- site/
-- src/
-- tests/
-- public/ (generated, disposable, and ignored)
-
-## Composer policy
-
-Composer is project infrastructure only. Architecture tests restrict runtime
-requirements to PHP and extensions; approved development tools are listed in
-`composer.json`. Every new external package requires an explicit architectural
-decision recorded in the repository before it is added.
-
-## Runtime and commands
-
-PHP exists only while validating, building, or previewing the site; production hosting contains no PHP runtime.
-
-The canonical direct CLI commands are:
-
-```text
-bin/snippet validate
-bin/snippet build
-bin/snippet preview [--host=<host>] [--port=<port>]
-bin/snippet new page <slug>
-bin/snippet new article <slug> [--date=YYYY-MM-DD]
-```
-
-`validate` reads and validates without changing `public/`. `build` transactionally publishes the static site to `public/`. `preview` builds, serves, watches, and live-reloads the site over direct HTTP at `127.0.0.1:8080` by default. Production hosting contains only the generated static files.
-
-Useful project commands should be exposed through Composer scripts when they exist, but the direct CLI command remains canonical.
-
-Docker with Make is the recommended user workflow. The root Compose and Make interfaces provide development and production images, an HTTPS preview through Caddy, isolated dependency volumes, and development-only quality targets. Keep their documented behavior aligned with `INSTALL.md`.
-
-## Content model
-
-Pages and articles occupy separate source collections in a normal initialized workspace. The repository's own public example stores the same shape beneath `demo/content/`:
-
-content/
-- pages/
-  - <slug>/
-    - page.md
-    - meta.php
-    - optional assets
-- articles/
-  - YYYY/MM/DD/<slug>/
-    - article.md
-    - meta.php
-    - optional assets
-
-The leaf directory is the content unit, and its name is the URL slug; validate it before generating output. Page and article directory slugs are author-chosen lowercase ASCII letters and numbers separated by single hyphens. Titles are independent and may use any language: a title such as `日本語` can use the directory slug `nihongo`. Never transliterate titles automatically because pronunciation and convention are language-dependent. Article year, month, and day directories must form a real calendar date in zero-padded `YYYY/MM/DD` form. The directory date must match the article's `date` metadata. The hierarchy organizes source content only and does not change public URLs.
-
-## `meta.php`
-
-Every `meta.php` must return the metadata shape required by its source collection:
-
-- starts with declare(strict_types=1);
-- returns one plain associative array
-- contains configuration only
-- has no side effects
-- produces no output
-
-Common fields:
-
-- `title`: non-empty string
-- `description`: non-empty string
-- articles require `date` (a real `YYYY-MM-DD` calendar date) and `tags` (an ordered list of trimmed, non-empty tag label strings)
-- articles may set boolean `cover` to `true`; it defaults to `false`, and an optional `alt` is allowed only when enabled
-- an enabled cover requires exactly one root-level `cover.jpg`, `cover.png`, or `cover.webp`; the builder verifies its detected format, derives its dimensions, and enforces the 32,768-pixel default dimension ceiling
-- explicit cover alt text is a trimmed non-empty string governed by the description-length limit; omission produces `alt=""`
-- pages reject `date`, `tags`, `cover`, and `alt`, and may define a positive integer `menu_order`
-
-The builder rejects missing or unknown fields, invalid values, and unexpected field types. It preserves tag order from the source and uses the content directory name as the slug. Page menu orders must be site-unique, and the number of menu pages is constrained by the internal navigation ceiling.
-
-Example:
-
-<?php
-declare(strict_types=1);
-
-return [
-    'title' => 'Example',
-    'description' => '...',
-    'date' => '2026-08-02',
-    'tags' => [
-        'PHP 8.5',
-    ],
-];
-
-Tag slugs are generated deterministically from UTF-8 labels by lowercasing them, replacing each run of characters other than Unicode letters, combining marks, and numbers with one hyphen, and trimming edge hyphens. The result must be non-empty and unique within an article. `Café` produces the Unicode slug and output directory `café`, and `日本語` remains `日本語`. Tag slugs remain Unicode in the content and output directory model, while each complete slug is UTF-8 percent-encoded as one RFC 3986 path segment whenever a URL is emitted; for example, `café` is emitted as `caf%C3%A9`.
-
-The builder parses the returned literal array without executing the file and converts it into internal readonly DTOs. Calls, expressions, variables, interpolation, includes, duplicate keys, and output are rejected.
-
-## Content types
-
-Supported:
-
-- article
-- page
-
-article -> /articles/<slug>/
-page -> /<slug>/
-
-## PHP style
-
-Mechanical rules live in `tests/Feature/ArchitectureTest.php`,
-`tests/Feature/PresetsTest.php`, `pint.json`, `rector.php`, and `phpstan.neon`.
-They enforce declaration conventions, dependency boundaries, prohibited syntax,
-and code style. Read these before changing PHP; keep justified declaration
-exceptions documented beside their architecture expectations.
-
-Use the simplest modern PHP 8.5+ construct that makes the contract clear.
-Prefer standard-library functionality over custom machinery. Choose enums,
-property hooks, asymmetric visibility, and other language features when they
-solve a concrete problem, not merely to demonstrate them. Mutable classes should
-keep fixed dependencies readonly. Use `#[\NoDiscard]` with an explanatory message
-when discarding the result defeats the operation; that decision needs judgment.
-
-### PHPDoc
-
-Use PHPDoc to add information the native declaration cannot express or a reader
-cannot infer locally. Document class responsibility, important invariants, trust
-and side-effect boundaries, collection shapes, template or alias types, expected
-ordering, and meaningful failure conditions. Public boundary methods should
-describe their contract and use `@throws` when failure is part of normal use.
-
-Do not add comments that only restate a class name, parameter name, native type,
-or implementation line. Keep precise PHPStan collection shapes such as
-`list<T>`, `non-empty-string`, and array shapes where they improve analysis.
-Update documentation together with behavior so it cannot silently drift.
-
-## Code quality
-
-- Treat CPU, network, and memory usage as requirements for every task and feature.
-- Prefer the simplest correct implementation that clearly expresses the behavior.
-- Write modern, idiomatic PHP and use current language features when they improve correctness or readability.
-- Keep code easy to read before making it clever, generic, or highly optimized.
-- Match the naming, structure, formatting, and error-handling conventions already present in the codebase.
-- Keep responsibilities small, but do not create abstractions without a concrete second use or clear improvement in clarity.
-- Avoid hidden state, surprising mutations, magic behavior, and unnecessary indirection.
-- Make invalid states and failure paths explicit; fail early with actionable errors.
-- Prefer composition of small, understandable functions and classes over deep inheritance or large multipurpose classes.
-- Preserve deterministic behavior and avoid relying on ambient global state.
-- Before finishing a change, review nearby code for consistency and remove unnecessary complexity introduced by the change.
-
-## Markdown
-
-Support only this small subset:
-
-- paragraphs separated by blank lines;
-- ATX headings from `#` through `###`;
-- unordered lists using `-` or `*`;
-- ordered lists using `1.`-style markers;
-- fenced code blocks using triple backticks, with an optional language name;
-- inline code using backticks;
-- emphasis using `*text*` and strong emphasis using `**text**`;
-- strikethrough using `~~text~~`;
-- links using `[label](https://example.com)`; and
-- thematic breaks.
-
-Do not support raw HTML, Markdown images, tables, nested lists, HTML-style attributes, or arbitrary Markdown extensions. Plain text, link labels, URLs, and code must be escaped correctly; generated HTML must not interpret content as markup.
-
-The first authored heading, when present, must be level one, and later headings must not skip levels. Link labels must not be blank. Validate root-relative, item-relative, and same-origin absolute links against a deterministic inventory of generated routes and copied assets. Ignore queries and fragments, percent-decode each path segment, normalize `.` and `..`, and percent-encode normalized segments before inventory matching. Raw `/tags/café/` and encoded `/tags/caf%C3%A9/` references are equivalent. Encoded dot segments such as `%2e` and `%2e%2e` receive the same traversal checks, including rejection above the root. Report missing targets with the Markdown path and line. External HTTP(S) targets and fragment identifiers remain unchecked.
-
-## Rendering and publication
-
-Always:
-
-- validate first
-- build in a temporary directory
-- replace `public/` only after success
-- make output independent of filesystem traversal order and current process state
-- fail with a useful error that identifies the content item and field when possible
-
-The build generates:
-
-- `/index.html`, featuring the newest article in full and configured collections of older articles and popular tags;
-- `/404.html`, containing the shared-layout not-found document for compatible static hosts;
-- `/articles/index.html`, `/pages/index.html`, and `/tags/index.html`;
-- `/articles/<slug>/index.html` for articles;
-- `/<slug>/index.html` for pages;
-- `/tags/<tag-slug>/index.html` for tag archives;
-- `/llms.txt`, containing the metadata-only language-model index; and
-- presentation assets beneath `/assets/`, plus content assets beside their generated item page.
-
-Articles are ordered by date descending and then slug ascending. Pages are ordered by title and then slug. Popular tags are ordered by article count descending, then label and slug ascending. All routes use the same validated configuration, metadata, document model, and templates. Templates, the default CSS, and theme JavaScript are immutable installed-engine inputs beneath its `resources/`; they are never copied by `init` or loaded from a separate author workspace. Initialization copies only `site/` defaults and creates empty content collections without overwriting author files. Authors own configuration, optional `site/site.css` and `site/site.js`, favicon, site assets, and content. Load optional site JavaScript with `defer` after the bundled theme script. Do not add template overrides. The documented CSS tokens, class hooks, and layer order are the public customization contract; breaking them requires a major release.
-
-An article's enabled cover is rendered through `resources/templates/article-figure.html` as `<figure class="article-figure">` on its canonical page and when featured in full on the homepage. Do not render it on archive cards or tag pages. Preserve its original bytes and root-relative article asset URL; do not add resizing, compression, responsive variants, lazy-loading policy, captions, or an image-processing dependency.
-
-Optional ordered `profiles` links have an HTTPS URL and at least a label or bundled icon. They appear in the footer; omitting the label displays only the icon with the URL as its accessible name. The `llms.txt` link also appears in the footer.
-
-Publication always conservatively minifies the theme and optional site CSS, preserving meaningful token boundaries and falling back to the original bytes for uncertain syntax. HTML is published as rendered and JavaScript is copied unchanged. There is no `build` configuration or minification toggle; fingerprint entry assets from their final published bytes.
-
-Preview responses may receive a live-reload helper, but that helper must never be written into published HTML. Docker's local Caddy certificate is a preview concern only; deployment consists solely of `public/`, and the selected static host owns public HTTPS.
-
-## Testing and verification
-
-Use Pest 5 for focused tests, Pint and Rector for formatting and refactoring checks, PHPStan at maximum level for static analysis, and PCOV for coverage. These are approved development-only dependencies; application code remains dependency-free.
-
-Every behavior change should add or update a focused test. `composer app:check` requires exactly 100% source line coverage, 100% type coverage, lint checks, static analysis, and content validation. If a command cannot run, report that explicitly.
-
-Tests must not depend on network access, wall-clock time, locale, or the existing generated `public/` directory.
-
-Tests use temporary content trees and must not use the repository's generated output. Repeated validation of identical input must produce byte-identical serialized DTO/document representations.
-
-## Development workflow
-
-Work inside the devcontainer and treat `pint.json`, `rector.php`, `phpstan.neon`, `phpunit.xml`, and the Composer scripts as project source. Read the relevant configuration before changing PHP or tests; do not replace or weaken it to make a check pass.
-
-For every coherent PHP change:
-
-1. Add or update the smallest focused Pest test first when behavior changes.
-2. Run that focused test while iterating, using Pest's `--filter`, `--dirty`, or test impact analysis where appropriate.
-3. Run `composer app:fix`, review the resulting Rector and Pint changes, and keep both tools convergent.
-4. Run `composer app:analyse`; resolve PHPStan findings in the code or precise types instead of suppressing them or adding a baseline.
-5. Run `composer app:check` before handing the change back. It is the authoritative final gate and must not be replaced by a focused test run.
-
-Use Pest 5 idiomatically rather than writing PHPUnit-style tests inside Pest files. Prefer datasets for behavioral matrices, descriptive expectations, before/after hooks for lifecycle, and `covers()` or `uses()` metadata when they clarify intent. Maintain the PHP and security architecture presets and add focused architecture expectations for new invariants.
-
-Actively use the relevant Pest 5 capabilities:
-
-- use test impact analysis, `--dirty`, filtering, parallel execution, and profiling to shorten feedback loops when the affected tests are safe for them;
-- use mutation testing for non-trivial validation and parsing behavior to find assertions that pass without proving the behavior;
-- use strict line coverage and type coverage for all source changes, retaining the required 100% thresholds;
-- use snapshots only for stable, sufficiently complex serialized structures where a snapshot is clearer than direct expectations;
-- use the Agent plugin's AI verification when creating or substantially rewriting Pest tests, and use Evals when the project gains behavior involving an LLM or agent;
-- keep the Pest PHPStan and Rector plugins enabled so Pest test syntax participates in static analysis and automated refactoring.
-
-Pest features are selected for the behavior under test, not added ceremonially. If a new Pest 5 feature or an installed plugin applies to a change, use it; if it does not apply, retain the normal focused-test and `composer app:check` workflow.
-
-## Engine freeze
-
-Content discovery, metadata, route resolution, Markdown parsing, image validation, internal-reference validation, rendering, transactional publication, preview fallback, and live reload now define the finished engine. Subsequent work is limited to layout, typography, responsive behavior, themes, and visual polish unless a later explicit product need reopens engine development.
-
-The generated 404 document and the existing Open Graph and Twitter/X metadata are explicit exceptions to this freeze. Do not add feeds, sitemaps, additional social configuration, JSON-LD, author or update metadata, image processing, Markdown images, search, pagination, drafts, plugins, deployment integrations, or additional content types without that explicit need.
-
-## Change boundaries
+# Snippet: agent guidance
+
+Snippet is a small personal publishing system for one author, built for learning,
+curiosity, experimentation, and fun. A dependency-free PHP builder transforms
+self-contained content directories into a static website.
+
+The content is the product. The builder is an implementation detail. Generated
+output is disposable, and technology serves the content.
+
+## Start here
+
+- Read the relevant source and tests before editing. Inspect `git status` and
+  preserve existing work; keep the change focused on the user's request.
+- This is the **engine repository**, not an initialized publication workspace.
+  The public example lives in `demo/`; do not create root `content/` to make
+  validation pass. Use `composer app:content:validate` for the composed demo.
+- Work inside the devcontainer for PHP and tests. From the host, use the Docker
+  Make targets in [CONTRIBUTING.md](CONTRIBUTING.md). Documentation edits do not
+  require starting containers or running the application suite.
+- Keep author-owned files and engine-owned resources distinct. This file guides
+  contributors; `resources/workspace/AGENTS.md` and the bundled authoring skill
+  guide users of initialized publications. Edit those only when the task affects
+  author guidance.
+- Before handing back work, review the diff, run the checks appropriate to the
+  change, and report what changed, what passed, and anything that could not run.
+  Never present an unavailable check as passing.
+
+## Scope and change boundaries
+
+The engine is frozen: content discovery, metadata, route resolution, Markdown
+parsing, image validation, internal-reference validation, rendering, transactional
+publication, preview fallback, and live reload define the finished engine.
+Subsequent work is limited to layout, typography, responsive behavior, themes,
+and visual polish unless an explicit product need reopens engine development.
+The generated 404 document and existing Open Graph and Twitter/X metadata are
+explicit exceptions.
 
 Unless explicitly requested:
 
-- don't add packages
-- don't change URLs
-- don't redesign the architecture
-- don't implement future features
-- don't perform unrelated refactoring
-- don't edit generated output as if it were source
-- don't delete or overwrite user content without explicit instruction
+- Do not add feeds, sitemaps, search, pagination, drafts, Markdown images, new
+  content types, image processing, plugins, deployment integrations, JSON-LD,
+  additional social configuration, or author/update metadata.
+- Do not add packages, change URLs, redesign the architecture, implement future
+  features, or perform unrelated refactoring.
+- Do not edit generated `public/` as source or delete or overwrite user content.
 
-When repository files conflict, use this order: direct user instruction, this file, then README and existing code. If an implementation decision is not covered here, prefer the smallest reversible choice and document it in the code or README when it affects users.
+Existing `new` commands create incomplete source scaffolds; they do not authorize
+adding a draft publication state. Preserve the existing author configuration and
+metadata contracts.
+
+When repository files conflict, follow direct user instructions, then this file,
+then README and existing code. Prefer the smallest reversible choice for an
+unspecified implementation detail; document it in code or README if it affects
+users.
+
+## Git
+
+- Commits should be atomic: include only one coherent change or fix, and do not mix unrelated work.
+- Commit messages should be succinct and describe the change being made.
+- Use Conventional Commits: `<type>(<optional scope>): <description>`.
+
+## Where to look
+
+| Task | Relevant sources |
+| --- | --- |
+| Contributor setup and commands | `CONTRIBUTING.md`, `INSTALL.md`, `Makefile`, `composer.json` |
+| Devcontainers | `.devcontainer/default/`, optional `.devcontainer/codex/` |
+| CLI and machine-readable contracts | `bin/snippet`, `src/Application.php`, `src/Cli/`, `src/Inspection/`, README's Agent CLI section |
+| Configuration and content | `src/Site/`, `src/Content/`, `src/Support/TrustedPhpLoader.php` |
+| Markdown and internal links | `src/Markdown/`, `src/Publishing/ReferenceValidator.php` |
+| Rendering, assets, and publication | `src/Rendering/`, `src/Publishing/` |
+| Theme and stable customization API | `resources/theme.css`, `resources/theme.js`, `resources/templates/`, README's Stable CSS API section |
+| Preview and reload | `src/Preview/`, `resources/preview-router.php` |
+| Initialization and author instructions | `src/Scaffolding/`, `resources/workspace/AGENTS.md`, `resources/workspace/.agents/skills/snippet-authoring/SKILL.md` |
+| Generic author defaults / project example | `site/` / `demo/content/` and `demo/site/config.php` |
+| Image, shell, CI, and release workflows | `docker/`, `.githooks/`, `.github/workflows/`, `CONTRIBUTING.md` |
+
+The publication path is `Application → PublicationInputLoader → validated inputs
+→ Publisher → HtmlRenderer`. Reuse the same validated snapshot across rendering
+and publication. Internal resource budgets live in `src/Site/Limits.php`; they
+are not author configuration or compatibility promises.
+
+## Commands and workspaces
+
+Run the direct CLI **from the publication workspace**; the executable may live
+in a separate engine checkout. Canonical commands include:
+
+```text
+/path/to/snippet/bin/snippet inspect capabilities --json
+/path/to/snippet/bin/snippet inspect theme --json
+/path/to/snippet/bin/snippet inspect config --json
+/path/to/snippet/bin/snippet inspect content --json
+/path/to/snippet/bin/snippet validate [--json]
+/path/to/snippet/bin/snippet build [--json]
+/path/to/snippet/bin/snippet preview [--host=<host>] [--port=<port>]
+/path/to/snippet/bin/snippet new page <slug> [--json]
+/path/to/snippet/bin/snippet new article <slug> [--date=YYYY-MM-DD] [--json]
+```
+
+Inspection reads installed contracts without needing a workspace. Query the
+relevant contract before guessing configuration fields, content rules, CSS
+tokens, or class hooks. `init` is available through the Docker entrypoint only.
+`new` never replaces an existing content directory and succeeds with incomplete
+Markdown and metadata; complete them before validation. An omitted article date
+uses UTC. `preview` has no JSON mode. JSON exit statuses are `0` for success, `1`
+for operation failure, and `2` for invalid usage; see [README.md](README.md#agent-cli)
+for the response contract.
+
+`validate` does not change `public/`. `build` publishes transactionally. Direct
+preview serves HTTP at `127.0.0.1:8080` by default. Contributor Docker preview uses
+Caddy and HTTPS; keep Make/Compose behavior aligned with [INSTALL.md](INSTALL.md).
+Run only one preview against a workspace because they share `public/`.
+Production hosting contains only generated static files, with no PHP runtime.
+
+## Verification workflow
+
+Read `composer.json`, `phpunit.xml`, `pint.json`, `rector.php`, `phpstan.neon`,
+`tests/Feature/ArchitectureTest.php`, and `tests/Feature/PresetsTest.php` before
+changing PHP or tests. These are project source; do not weaken rules, thresholds,
+or presets to make checks pass.
+
+For every coherent PHP change:
+
+1. For behavior changes, add or update the smallest focused Pest test first.
+2. Run it while iterating, for example
+   `composer app:test -- --filter='relevant test description'`. Use `--dirty`,
+   test impact analysis, parallel execution, or profiling where useful and safe.
+3. Run `composer app:fix`; review Rector and Pint changes and keep them convergent.
+4. Run `composer app:analyse`; fix findings in code or precise types, without
+   suppressions or a baseline.
+5. Run `composer app:check` before handoff. Focused tests do not replace this gate.
+
+From the host, use `make docker-fix`, `make docker-analyse`, and
+`make docker-check`. The shared `docker/quality/check.sh` runs `app:check` plus
+ShellCheck, shell behavior tests, JavaScript syntax validation, and
+`composer app:test:assets`. Run it inside development when shell or JavaScript
+changes need the full shared gate. Keep checks proportional: for documentation
+only, verify commands and links against source and run `git diff --check`.
+
+`app:check` requires exactly 100% source line coverage through PCOV, 100% type coverage, Pint,
+Rector, PHPStan at maximum level, demo validation, and Firefox/WebKit browser
+compatibility tests. The normal Pest suite includes Chromium.
+`composer app:test:browser` / `make docker-test-browser` runs all three browsers;
+use browser tests for computed styles, accessibility, and interactive behavior
+that require a real browser.
+
+`make builder-smoke` and `make demo-check` cover release-image and composed-demo
+build behavior. `composer app:audit` / `make docker-audit` is separate because
+advisory lookup needs network access. The full `make docker-mutations` gate is
+also separate and resource-intensive; it requires a 100% mutation score.
+See `make help` and [CONTRIBUTING.md](CONTRIBUTING.md) for the pre-push workflow
+and conventional PR titles. Do not bypass a failing hook to complete a push.
+
+Use Pest 5 idiomatically: datasets for behavioral matrices, lifecycle hooks, and
+`covers()` or `uses()` where they clarify intent. Add focused architecture
+expectations for new invariants. Use focused mutation testing
+for non-trivial validation/parsing changes. Use snapshots only for stable complex
+structures clearer than direct expectations. Use the Pest Agent plugin's AI
+verification when creating or substantially rewriting tests; Evals apply if the
+project gains LLM/agent behavior. Keep the Pest PHPStan and Rector plugins enabled.
+Select these features for the behavior under test, not ceremonially.
+
+Tests use temporary content trees, never repository `public/`. They must not
+depend on external network access, wall-clock time, or locale. Repeated validation
+of identical input must produce byte-identical serialized DTO/document models.
+
+## Implementation conventions
+
+- PHP 8.5+, standard library first, no third-party runtime packages. Composer
+  provides the PHP requirement, PSR-4 autoloading, scripts, and approved development
+  tools. Every new external package requires an explicit architectural decision
+  recorded in the repository before adding it.
+- Use small, readable, modern PHP with explicit invalid states and useful failures.
+  Match nearby naming, structure, formatting, and error handling. Fixed dependencies
+  in mutable classes stay readonly. Use enums, property hooks, asymmetric visibility,
+  and other language features when they clarify a concrete contract.
+- Use `#[\NoDiscard]` with an explanatory message when discarding a result defeats
+  the operation. Keep justified declaration exceptions documented beside their
+  architecture expectations.
+- Add PHPDoc for information native types cannot express: collection shapes,
+  ordering, invariants, trust and side-effect boundaries, and meaningful failures.
+  Public boundary methods describe their contract and normal-use `@throws`.
+  Avoid comments that merely restate names, types, or implementation lines.
+  Update documentation together with behavior.
+- Treat CPU, memory, and network usage as requirements. Preserve deterministic
+  behavior independent of traversal order and ambient process state.
+- Prefer composition and standard-library functions. Add abstractions only for a
+  concrete second use or clear improvement in clarity. Review nearby consistency
+  and remove complexity introduced by the change.
+
+## Content and validation invariants
+
+Full field and Markdown contracts are available through `inspect content --json`
+and `inspect config --json`. Preserve these boundaries:
+
+- Pages: `content/pages/<slug>/page.md` plus `meta.php` and optional assets.
+  Articles: `content/articles/YYYY/MM/DD/<slug>/article.md` plus `meta.php` and
+  optional assets. Dates are real, zero-padded calendar dates matching metadata;
+  they do not change public URLs. Leaf slugs use lowercase ASCII letters/numbers
+  separated by single hyphens. Titles may use any language; never transliterate.
+- Metadata and configuration begin with `declare(strict_types=1);` and return one
+  literal associative array. Parse without executing. Reject calls, expressions,
+  variables, interpolation, includes, duplicate keys, output, unknown/missing
+  fields, and invalid types or values. Convert validated data into readonly DTOs.
+- Articles require title, description, date, and ordered tags. Pages require title
+  and description, reject article fields, and may have a positive, site-unique
+  `menu_order`; navigation has an internal ceiling.
+- Tag slugs lowercase UTF-8 labels, replace runs outside Unicode letters, combining
+  marks, and numbers with one hyphen, then trim edge hyphens. Require non-empty,
+  article-unique slugs. Keep Unicode in the model and output directories; encode
+  each complete slug as one RFC 3986 URL segment (`café` → `caf%C3%A9`).
+- An enabled article cover requires exactly one root `cover.jpg`, `cover.png`, or
+  `cover.webp`, matching detected format and dimension limits (32,768 pixels by
+  default). Optional trimmed non-empty `alt` is allowed only with `cover=true`
+  and uses the description-length limit; omission renders `alt=""`.
+- Markdown supports paragraphs, ATX headings 1–3, flat ordered/unordered lists,
+  triple-backtick code fences, inline code, emphasis, strong, strikethrough, links,
+  and thematic breaks. Reject raw HTML, images, tables, nested lists, attributes,
+  and arbitrary extensions. Escape text, labels, URLs, and code. The first heading,
+  if any, must be level one; later headings cannot skip levels. Link labels cannot
+  be blank.
+- Validate root-relative, item-relative, and same-origin absolute links against
+  generated routes and copied assets. Ignore queries/fragments, decode segments,
+  normalize dot segments, reject traversal above root, then encode for matching.
+  Raw and encoded Unicode paths are equivalent; encoded dot segments receive the
+  same traversal checks. Report missing targets with Markdown path and line.
+  External HTTP(S) targets and fragment identifiers remain unchecked.
+
+## Rendering, theme, and publication invariants
+
+- Validate first, build in a unique temporary sibling directory, and replace
+  `public/` only after every page and asset succeeds. Fail with source/item/field
+  context where possible. Preserve the last valid publication after invalid edits.
+- Preserve `/`, `/404.html`, `/articles/`, `/pages/`, `/tags/`, `/llms.txt`,
+  `/articles/<slug>/`, `/<slug>/`, and `/tags/<tag-slug>/`, plus presentation and
+  content assets. The homepage features the newest article in full and configured
+  collections of older articles and popular tags; `llms.txt` is metadata-only.
+- Sort articles by date descending then slug; pages by title then slug; popular
+  tags by count descending then label then slug. Ascending tie-breaks are stable.
+- Engine-owned templates, theme CSS/JS, and preview resources live in `resources/`.
+  They are immutable installed inputs for authors, never workspace overrides.
+  Initialization copies only author defaults and guidance, creates empty content
+  collections, and never replaces author files or copies demo content.
+- Authors own `site/config.php`, optional `site/site.css` and `site/site.js`,
+  favicon, site assets, and content. Preserve the documented CSS tokens, class
+  hooks, and layer meanings within a major release. Use semantic HTML, plain CSS,
+  and `@layer overrides` for author styles. Preserve readable, navigable output
+  without JavaScript and review visual changes across widths and light/dark modes.
+- Load optional site JavaScript with `defer` after the bundled theme script.
+  Preserve CSP behavior; external origins require explicit configuration.
+- Render covers through `resources/templates/article-figure.html` only on the
+  canonical article and when featured in full on the homepage, never archive
+  cards or tag pages. Preserve original bytes and root-relative article asset
+  URLs. Do not add resizing, compression, variants, lazy-loading policy, or captions.
+- Preserve ordered footer profile links (HTTPS, with a label or bundled icon),
+  accessible URL names for icon-only profiles, and the footer `llms.txt` link.
+- Always conservatively minify theme and optional site CSS, preserving token
+  boundaries and falling back to original bytes for uncertain syntax. Publish
+  HTML as rendered and copy JavaScript unchanged. Fingerprint entry assets from
+  final published bytes; do not add build/minification configuration.
+- Preview may inject a live-reload helper into responses, never published HTML.
+  Direct contributor preview reloads runtime after engine `bin/` or `src/` edits
+  and rebuilds after `resources/` edits. The official image uses its immutable
+  engine router and watches only mounted publication inputs (`content/`, `site/`).
+  Caddy's local certificate is for preview; the static host owns public HTTPS.
