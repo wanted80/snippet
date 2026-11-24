@@ -5,28 +5,29 @@ RUN npm install --global npm@12.2.3
 
 FROM php:8.5.13-cli-alpine3.24@sha256:b9d7db51a2b83c41420ba04de0b90e6078d4b6440e5cc480fc4dc51b18e0b6db AS production
 
+RUN apk add --no-cache --virtual .snippet-build-dependencies ${PHPIZE_DEPS} \
+    && docker-php-ext-install -j"$(nproc)" pcntl \
+    && apk del .snippet-build-dependencies
+
 ARG LOCAL_UID=1000
 ARG LOCAL_GID=1000
 
-RUN apk add --no-cache --virtual .snippet-build-dependencies ${PHPIZE_DEPS} \
-    && docker-php-ext-install -j"$(nproc)" pcntl \
-    && apk del .snippet-build-dependencies \
-    && addgroup -g "${LOCAL_GID}" snippet \
-    && adduser -D -u "${LOCAL_UID}" -G snippet snippet \
+RUN { getent group "${LOCAL_GID}" >/dev/null || addgroup -g "${LOCAL_GID}" snippet; } \
+    && adduser -D -u "${LOCAL_UID}" -G "$(getent group "${LOCAL_GID}" | cut -d: -f1)" snippet \
     && mkdir /app \
-    && chown snippet:snippet /app
+    && chown "${LOCAL_UID}:${LOCAL_GID}" /app
 
 COPY --from=composer /composer /usr/local/bin/composer
 WORKDIR /app
 USER snippet
 
-COPY --chown=snippet:snippet composer.json composer.lock ./
-COPY --chown=snippet:snippet src src
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} composer.json composer.lock ./
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} src src
 RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
-COPY --chown=snippet:snippet LICENSE LICENSE
-COPY --chown=snippet:snippet bin bin
-COPY --chown=snippet:snippet resources resources
-COPY --chown=snippet:snippet site site
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} LICENSE LICENSE
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} bin bin
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} resources resources
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} site site
 
 CMD ["bin/snippet", "validate"]
 

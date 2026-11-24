@@ -52,6 +52,7 @@ it('defines stable least-privilege continuous integration and deployment workflo
         "          persist-credentials: false\n",
         'name: Run development quality gate',
         'run: make docker-check',
+        'run: make production-smoke',
         'name: Smoke-test release builder image',
         'run: make builder-smoke',
         'name: Report builder image OS vulnerabilities',
@@ -294,7 +295,7 @@ it('exposes separate deterministic and network-dependent maintenance gates', fun
             "demo-check: builder-image\n\tsh docker/demo/check.sh \"$(BUILDER_IMAGE)\"",
             'app sh docker/quality/check.sh',
             'git config --local core.hooksPath .githooks',
-            '$(MAKE) docker-check builder-smoke demo-check docker-audit',
+            '$(MAKE) docker-check production-smoke builder-smoke demo-check docker-audit',
             'sh docker/quality/check.sh && composer app:audit',
         )
         ->and($developmentDockerfile)

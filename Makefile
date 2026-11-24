@@ -11,13 +11,14 @@ falsy = $(filter 0 false no off,$(strip $(1)))
 BUILD_OPTIONS = $(if $(call truthy,$(PULL)),--pull) $(if $(call truthy,$(NO_CACHE)),--no-cache)
 ORPHAN_OPTION = $(if $(call falsy,$(REMOVE_ORPHANS)),,--remove-orphans)
 
-.PHONY: help builder-image builder-smoke demo-check docker-image docker-install docker-validate docker-build docker-preview docker-preview-trust docker-preview-down docker-shell docker-config docker-test docker-test-browser docker-mutations docker-analyse docker-audit docker-lint docker-fix docker-check hooks-install pre-push-check
+.PHONY: help builder-image builder-smoke production-smoke demo-check docker-image docker-install docker-validate docker-build docker-preview docker-preview-trust docker-preview-down docker-shell docker-config docker-test docker-test-browser docker-mutations docker-analyse docker-audit docker-lint docker-fix docker-check hooks-install pre-push-check
 
 help:
 	@echo 'Snippet Docker commands'
 	@echo
 	@echo '  make builder-image         Build the release builder image'
 	@echo '  make builder-smoke         Smoke-test the release builder image'
+	@echo '  make production-smoke      Build the demo with the packaged Compose production image'
 	@echo '  make demo-check            Validate and build the composed demo site'
 	@echo '  make docker-image          Build the selected application image'
 	@echo '  make docker-install        Synchronize its isolated dependency volumes'
@@ -54,6 +55,15 @@ builder-image:
 
 builder-smoke: builder-image
 	sh docker/builder/smoke.sh "$(BUILDER_IMAGE)"
+
+# Alpine assigns GID 999 to ping before the application user is created.
+production-smoke:
+	ENVIRONMENT=production IMAGE=snippet TAG=smoke LOCAL_UID=1001 LOCAL_GID=999 $(COMPOSE) build $(BUILD_OPTIONS) app
+	docker run --rm --network none \
+		--mount "type=bind,src=$(CURDIR)/demo/content,dst=/app/content,readonly" \
+		--mount "type=bind,src=$(CURDIR)/demo/site/config.php,dst=/app/site/config.php,readonly" \
+		snippet:smoke-production sh -c 'test "$$(id -u):$$(id -g)" = 1001:999 && \
+			bin/snippet validate && bin/snippet build && test -s public/index.html'
 
 demo-check: builder-image
 	sh docker/demo/check.sh "$(BUILDER_IMAGE)"
@@ -134,5 +144,5 @@ pre-push-check:
 	else \
 		$(MAKE) ENVIRONMENT=development docker-config && \
 		$(MAKE) ENVIRONMENT=production docker-config && \
-		$(MAKE) docker-check builder-smoke demo-check docker-audit; \
+		$(MAKE) docker-check production-smoke builder-smoke demo-check docker-audit; \
 	fi

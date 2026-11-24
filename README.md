@@ -644,6 +644,8 @@ Pull requests run the complete Docker development gate, validate both Compose en
 
 ```bash
 make docker-check
+make production-smoke
+make builder-smoke
 make demo-check
 make docker-audit
 ```

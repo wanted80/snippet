@@ -23,7 +23,7 @@ Enable the tracked pre-push hook once per clone:
 make hooks-install
 ```
 
-Devcontainer setup enables it automatically. Every push runs `make pre-push-check` and stops on the first failure. On the host this validates both Compose environments, runs `docker-check`, smoke-tests the builder, builds the demo, and audits Composer dependencies, using the same targets as the Quality workflow. Docker must be running; the audit and dependency installation require network access. The workflow's report-only Trivy scan stays in CI.
+Devcontainer setup enables it automatically. Every push runs `make pre-push-check` and stops on the first failure. On the host this validates both Compose environments, runs `docker-check`, smoke-tests the packaged production and release builder images, builds the demo, and audits Composer dependencies, using the same targets as the Quality workflow. Docker must be running; the audit and dependency installation require network access. The workflow's report-only Trivy scan stays in CI.
 
 Inside the devcontainer the hook runs the same application, shell, and JavaScript checks directly, followed by the Composer audit. Run `make pre-push-check` on the host to include Compose and image checks, which require host Docker access. Checks validate the current working tree; commit the changes you intend to push and keep that tree aligned with them. The hook does not format or commit files. Git hooks are local safeguards; CI remains authoritative.
 
