@@ -59,11 +59,7 @@ builder-smoke: builder-image
 # Alpine assigns GID 999 to ping before the application user is created.
 production-smoke:
 	ENVIRONMENT=production IMAGE=snippet TAG=smoke LOCAL_UID=1001 LOCAL_GID=999 $(COMPOSE) build $(BUILD_OPTIONS) app
-	docker run --rm --network none \
-		--mount "type=bind,src=$(CURDIR)/demo/content,dst=/app/content,readonly" \
-		--mount "type=bind,src=$(CURDIR)/demo/site/config.php,dst=/app/site/config.php,readonly" \
-		snippet:smoke-production sh -c 'test "$$(id -u):$$(id -g)" = 1001:999 && \
-			bin/snippet validate && bin/snippet build && test -s public/index.html'
+	sh docker/development/production-smoke.sh snippet:smoke-production
 
 demo-check: builder-image
 	sh docker/demo/check.sh "$(BUILDER_IMAGE)"

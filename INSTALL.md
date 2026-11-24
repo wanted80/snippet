@@ -372,7 +372,7 @@ Development uses PHP 8.5 and Node 26 LTS on Debian Trixie. The Compose productio
 target and release builder use Alpine and install only production PHP dependencies.
 Their base images use full version tags and multi-platform SHA-256 digests.
 `make production-smoke` validates and builds the demo with the packaged Compose
-production image using an existing Alpine group and read-only publication inputs.
+production image using an existing Alpine group and read-only copies of the demo inputs.
 
 Docker image builds, `docker-install`, and devcontainer setup share the same npm
 synchronization check. They reuse installed modules when `package.json` and
