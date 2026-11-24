@@ -25,11 +25,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Match development container ownership to the runner
-        run: |
-          echo "LOCAL_UID=$(id -u)" >> "$GITHUB_ENV"
-          echo "LOCAL_GID=$(id -g)" >> "$GITHUB_ENV"
-
       - name: Validate development Compose configuration
         run: make docker-config
 
@@ -38,6 +33,9 @@ jobs:
 
       - name: Run development quality gate
         run: make docker-check
+
+      - name: Check development accounts with Linux, macOS and WSL user IDs
+        run: make development-ownership-smoke
 
       - name: Smoke-test the packaged Compose production image
         run: make production-smoke

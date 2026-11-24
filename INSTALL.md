@@ -315,7 +315,7 @@ Contributor containers mount `demo/content/` at `/app/content`, alongside the ca
 
 The generator checkout ignores the root `/content/` mount in Git and Docker build contexts. It is a second view of `demo/content/`, so edits are tracked at their real source paths only. This rule belongs to the generator checkout; an initialized author repository should still commit its own `content/` and `site/` directories.
 
-Install Git, GNU Make, Docker, and Docker Compose. Linux users should configure Docker for their user. macOS users may use Docker Desktop or Colima. Windows users should use WSL 2 with Docker Desktop integration.
+Use Linux containers with Git, GNU Make, and Docker Compose. On Linux, run Make as your regular Docker-enabled user. On macOS, use Docker Desktop or Colima. On Windows, enable Docker Desktop integration for your WSL 2 distribution, clone into your WSL home directory, and run the commands in that distribution.
 
 ```bash
 git clone https://github.com/wanted80/snippet.git
@@ -371,8 +371,11 @@ image after changing the Playwright lock so its browser cache stays aligned.
 Development uses PHP 8.5 and Node 26 LTS on Debian Trixie. The Compose production
 target and release builder use Alpine and install only production PHP dependencies.
 Their base images use full version tags and multi-platform SHA-256 digests.
-`make production-smoke` validates and builds the demo with the packaged Compose
-production image using an existing Alpine group and read-only copies of the demo inputs.
+`make development-ownership-smoke` checks the development account with UID/GID pairs
+`501:20`, `1000:1000`, and `1001:999`. `make production-smoke` validates and builds
+the demo with an existing Alpine group and a private, read-only copy of the demo config.
+It also runs the Make publication step in a host-owned checkout with different
+container IDs and checks ownership of every generated file and directory.
 
 Docker image builds, `docker-install`, and devcontainer setup share the same npm
 synchronization check. They reuse installed modules when `package.json` and
@@ -392,8 +395,20 @@ The optional `.env` controls local orchestration only. Its principal settings ar
 | `PREVIEW_PORT` | `8443` | Select the host HTTPS preview port. |
 | `IMAGE` | `snippet` | Select the local application image name. |
 | `TAG` | `local` | Select its tag prefix. |
-| `LOCAL_UID` | `1000` | Match the host user's ID. |
-| `LOCAL_GID` | `1000` | Match the host group's ID. |
+| `LOCAL_UID` | Host UID through Make | Override the contributor account's user ID. |
+| `LOCAL_GID` | Host GID through Make | Override its primary group ID. |
+
+Make detects both IDs for an ordinary user. Direct Compose invocations and Make
+invoked by root use `1000:1000` as the fallback. Set `LOCAL_UID` and `LOCAL_GID`
+in `.env` to choose the contributor image account. `make docker-build` installs
+dependencies as that account, then publishes `public/` with the UID and primary
+GID of the person running Make. Existing `.env` files that pin `1000:1000`
+continue to work for publication.
+
+Composer and npm volumes are scoped to the Compose project, environment, and
+configured UID. Local contributor image tags include both IDs so switching
+between Make and direct Compose selects the matching image. The first run
+after this change populates fresh dependency volumes.
 
 Shell and Make assignments override `.env`, for example:
 
@@ -410,6 +425,8 @@ The root production and development images, Compose services, and Caddy flow are
 Install Visual Studio Code and the Dev Containers extension, then choose **Dev Containers: Reopen in Container** and select **Snippet**. Its configuration is `.devcontainer/default/devcontainer.json`; it uses `compose.yaml` plus `compose.dev.yaml`, the development toolchain and dependency volume, and an isolated `snippet-dev` Compose project. It requires no host Codex directory or FUSE device.
 
 To share an existing host Codex setup, select **Snippet with host Codex** instead. This optional configuration lives in `.devcontainer/codex/devcontainer.json`, adds its adjacent Compose overlay, and uses a separate `snippet-dev-codex` project and dependency volume. Use **Dev Containers: Switch Container** to change configurations.
+
+Both configurations enable `updateRemoteUserUID`. On Linux, including WSL 2, the Dev Containers extension can remap the `snippet` account to the host UID and GID even when `.env` specifies different IDs for the image. Run `id` inside the devcontainer to see the effective IDs.
 
 Only the Codex configuration bind-mounts the host `~/.codex` and exposes it through an ownership-mapped FUSE view. It requires Docker access to `/dev/fuse` and the overlay's mount permissions. Ensure the host directory exists, is writable by Docker, and uses file-based authentication. Colima users may need to add it as a writable VM mount before opening this configuration:
 
@@ -543,7 +560,7 @@ Run `make docker-preview-trust`, close every browser window, and reopen it. Fire
 
 ### Docker output has the wrong owner
 
-The builder examples always pass `--user "$(id -u):$(id -g)"`. For full-checkout Compose work, set `LOCAL_UID` and `LOCAL_GID` in `.env`, then rebuild with `make docker-image NO_CACHE=1`.
+The builder examples and `make docker-build` publish with the host UID and primary GID. Run them as the user who should own `public/`. For output written by `make docker-preview`, compare the image account in `make docker-config` with `id -u` and `id -g`. To use your host IDs for preview, remove any `LOCAL_UID` and `LOCAL_GID` overrides and restart `make docker-preview`.
 
 ### Compose uses unexpected values
 

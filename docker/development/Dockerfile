@@ -31,10 +31,17 @@ COPY --chown=${LOCAL_UID}:${LOCAL_GID} site site
 
 CMD ["bin/snippet", "validate"]
 
-FROM php:8.5.13-cli-trixie@sha256:dbf32b33595283b79fd1a37ebc1614bdf1b83d3750daad9a57d67dbb9b96ec16 AS development
+FROM php:8.5.13-cli-trixie@sha256:dbf32b33595283b79fd1a37ebc1614bdf1b83d3750daad9a57d67dbb9b96ec16 AS development-account
 
 ARG LOCAL_UID=1000
 ARG LOCAL_GID=1000
+
+# Reserve the host IDs before installing packages. Debian already uses some
+# workstation GIDs, including the macOS staff GID (20) for dialout.
+RUN { getent group "${LOCAL_GID}" >/dev/null || groupadd --gid "${LOCAL_GID}" snippet; } \
+    && useradd --no-log-init --uid "${LOCAL_UID}" --gid "${LOCAL_GID}" --create-home --shell /bin/sh snippet
+
+FROM development-account AS development
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
 WORKDIR /app
@@ -43,9 +50,7 @@ COPY --from=node /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
 RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
-# Reserve the host GID before packages such as OpenSSH allocate system groups.
-RUN groupadd --gid "${LOCAL_GID}" snippet \
-    && apt-get update \
+RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         bat \
         bindfs \
@@ -77,8 +82,8 @@ RUN groupadd --gid "${LOCAL_GID}" snippet \
     && docker-php-ext-enable pcov \
     && printf '%s\n' 'pcov.enabled=0' > /usr/local/etc/php/conf.d/zz-pcov.ini \
     && npm install --global @openai/codex@0.172.0 \
-    && useradd --uid "${LOCAL_UID}" --gid "${LOCAL_GID}" --create-home --shell /usr/bin/zsh snippet \
-    && printf '%s\n' 'snippet ALL=(root) NOPASSWD: /usr/bin/chown -R snippet\:snippet /app/vendor, /usr/bin/chown -R snippet\:snippet /app/node_modules, /usr/local/bin/npm install --global @openai/codex, /usr/local/bin/snippet-devcontainer-entrypoint' > /etc/sudoers.d/snippet \
+    && usermod --shell /usr/bin/zsh snippet \
+    && printf '%s\n' 'snippet ALL=(root) NOPASSWD: /usr/bin/chown -R snippet\: /app/vendor, /usr/bin/chown -R snippet\: /app/node_modules, /usr/local/bin/npm install --global @openai/codex, /usr/local/bin/snippet-devcontainer-entrypoint' > /etc/sudoers.d/snippet \
     && chmod 0440 /etc/sudoers.d/snippet \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false ${PHPIZE_DEPS} \
     && apt-get install -y --no-install-recommends file libatomic1 make \
@@ -103,10 +108,10 @@ RUN chmod 0755 /usr/local/bin/snippet-devcontainer-entrypoint
 COPY --from=composer /composer /usr/local/bin/composer
 COPY composer.json composer.lock ./
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader \
-    && chown -R snippet:snippet /app
+    && chown -R snippet: /app
 
-COPY --chown=snippet:snippet . .
-COPY --chown=snippet:snippet docker/development/zshrc /home/snippet/.zshrc
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} . .
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} docker/development/zshrc /home/snippet/.zshrc
 
 USER snippet
 

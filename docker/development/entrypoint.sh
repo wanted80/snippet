@@ -28,7 +28,7 @@ fi
 
 /usr/bin/mkdir --parents "${codex_home}"
 /usr/bin/mkdir --parents "${codex_tmp}"
-/usr/bin/chown snippet:snippet "${codex_tmp}"
+/usr/bin/chown snippet: "${codex_tmp}"
 /usr/bin/chmod 0700 "${codex_tmp}"
 
 source_uid=$(/usr/bin/stat --format='%u' "${host_codex_home}")
@@ -36,7 +36,7 @@ source_gid=$(/usr/bin/stat --format='%g' "${host_codex_home}")
 
 /usr/bin/bindfs \
     --force-user=snippet \
-    --force-group=snippet \
+    --force-group="$(/usr/bin/id -g snippet)" \
     --create-for-user="${source_uid}" \
     --create-for-group="${source_gid}" \
     -o allow_other \

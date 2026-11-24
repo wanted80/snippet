@@ -52,6 +52,7 @@ it('defines stable least-privilege continuous integration and deployment workflo
         "          persist-credentials: false\n",
         'name: Run development quality gate',
         'run: make docker-check',
+        'run: make development-ownership-smoke',
         'run: make production-smoke',
         'name: Smoke-test release builder image',
         'run: make builder-smoke',
@@ -295,12 +296,13 @@ it('exposes separate deterministic and network-dependent maintenance gates', fun
             "demo-check: builder-image\n\tsh docker/demo/check.sh \"$(BUILDER_IMAGE)\"",
             'app sh docker/quality/check.sh',
             'git config --local core.hooksPath .githooks',
-            '$(MAKE) docker-check production-smoke builder-smoke demo-check docker-audit',
+            '$(MAKE) docker-check development-ownership-smoke production-smoke builder-smoke demo-check docker-audit',
             'sh docker/quality/check.sh && composer app:audit',
         )
         ->and($developmentDockerfile)
         ->toMatch('~^FROM node:26[.]\d+[.]\d+-trixie-slim@sha256:[0-9a-f]{64} AS node$~m')
-        ->toMatch('~^FROM php:8[.]5[.]\d+-cli-trixie@sha256:[0-9a-f]{64} AS development$~m')
+        ->toMatch('~^FROM php:8[.]5[.]\d+-cli-trixie@sha256:[0-9a-f]{64} AS development-account$~m')
+        ->toContain('FROM development-account AS development')
         ->toMatch('~^FROM php:8[.]5[.]\d+-cli-alpine\d+[.]\d+@sha256:[0-9a-f]{64} AS production$~m')
         ->and($developmentDockerfile)->toContain(
             'COPY --from=node /usr/local/bin/node /usr/local/bin/node',
