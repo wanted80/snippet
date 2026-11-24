@@ -43,7 +43,9 @@ COPY --from=node /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
 RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
-RUN apt-get update \
+# Reserve the host GID before packages such as OpenSSH allocate system groups.
+RUN groupadd --gid "${LOCAL_GID}" snippet \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         bat \
         bindfs \
@@ -75,7 +77,6 @@ RUN apt-get update \
     && docker-php-ext-enable pcov \
     && printf '%s\n' 'pcov.enabled=0' > /usr/local/etc/php/conf.d/zz-pcov.ini \
     && npm install --global @openai/codex@0.172.0 \
-    && groupadd --gid "${LOCAL_GID}" snippet \
     && useradd --uid "${LOCAL_UID}" --gid "${LOCAL_GID}" --create-home --shell /usr/bin/zsh snippet \
     && printf '%s\n' 'snippet ALL=(root) NOPASSWD: /usr/bin/chown -R snippet\:snippet /app/vendor, /usr/bin/chown -R snippet\:snippet /app/node_modules, /usr/local/bin/npm install --global @openai/codex, /usr/local/bin/snippet-devcontainer-entrypoint' > /etc/sudoers.d/snippet \
     && chmod 0440 /etc/sudoers.d/snippet \
