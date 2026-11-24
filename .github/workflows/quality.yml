@@ -13,7 +13,7 @@ permissions:
 jobs:
   quality:
     name: Quality
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     concurrency:
       group: quality-${{ github.workflow }}-${{ github.ref }}
@@ -53,7 +53,7 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '0'
-          version: v0.76.1
+          version: v0.76.2
           cache: false
 
       - name: Validate and build the composed demo site

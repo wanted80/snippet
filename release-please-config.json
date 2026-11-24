@@ -25,10 +25,6 @@
                 },
                 {
                     "type": "generic",
-                    "path": "examples/github-pages.yml"
-                },
-                {
-                    "type": "generic",
                     "path": "demo/content/articles/2026/08/21/preview-and-validation/article.md"
                 },
                 {

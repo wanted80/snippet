@@ -340,14 +340,14 @@ it('defines a dedicated minimal builder image and runtime configuration', functi
     assert(is_string($developmentDockerfile));
 
     expect($dockerfile)
-        ->toMatch('~^FROM composer:2@sha256:[0-9a-f]{64} AS composer$~m')
-        ->toMatch('~^FROM php:8[.]5-cli-alpine@sha256:[0-9a-f]{64} AS dependencies$~m')
-        ->toMatch('~^FROM php:8[.]5-cli-alpine@sha256:[0-9a-f]{64} AS builder$~m')
+        ->toMatch('~^FROM composer/composer:2[.]\d+[.]\d+-bin@sha256:[0-9a-f]{64} AS composer$~m')
+        ->toMatch('~^FROM php:8[.]5[.]\d+-cli-alpine\d+[.]\d+@sha256:[0-9a-f]{64} AS dependencies$~m')
+        ->toMatch('~^FROM php:8[.]5[.]\d+-cli-alpine\d+[.]\d+@sha256:[0-9a-f]{64} AS builder$~m')
         ->and($dockerfile)->toContain(
             'apk add --no-cache --virtual .snippet-build-dependencies ${PHPIZE_DEPS}',
             'docker-php-ext-install -j"$(nproc)" pcntl',
             'apk del .snippet-build-dependencies',
-            'COPY --from=composer /usr/bin/composer /usr/local/bin/composer',
+            'COPY --from=composer /composer /usr/local/bin/composer',
             'COPY --from=dependencies /app/vendor /app/vendor',
             'COPY src/Application.php src/Application.php',
             'COPY src/Authoring src/Authoring',

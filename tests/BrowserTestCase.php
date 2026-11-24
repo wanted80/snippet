@@ -104,7 +104,7 @@ abstract class BrowserTestCase extends TestCase
     }
 
     /**
-     * Playwright 1.64 has no shared reduced-transparency option. Retain native Chromium
+     * Playwright 1.65 has no shared reduced-transparency option. Retain native Chromium
      * coverage through CDP; callers explicitly skip this capability on other engines.
      */
     protected function reducedTransparency(Page $page): void

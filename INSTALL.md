@@ -367,8 +367,9 @@ libraries are installed only in the development image. Tests use temporary publi
 need no external network, and record no screenshots, videos, or traces. Production
 and release-builder images contain no browser tooling. Rebuild the development
 image after changing the Playwright lock so its browser cache stays aligned.
-The development image uses a digest-pinned Node 26 toolchain; production and
-release-builder images contain no Node.js or npm.
+Development uses PHP 8.5 and Node 26 LTS on Debian Trixie. The Compose production
+target and release builder use Alpine and install only production PHP dependencies.
+Their base images use full version tags and multi-platform SHA-256 digests.
 
 Docker image builds, `docker-install`, and devcontainer setup share the same npm
 synchronization check. They reuse installed modules when `package.json` and
@@ -473,14 +474,14 @@ static host.
 5. Push to `main`. The Actions tab shows validation, build, and deployment; Pages settings show the published URL. Adjust the workflow's branch checks if you use a different default branch.
 
 Pull requests validate and build without deploying. Pushes to `main` publish the
-result; manual runs on `main` can republish it. The example uses the same pinned
-image as local authoring, verifies its GitHub provenance, and uploads only
+result. Manual runs on `main` can republish it. The example pins a Snippet
+release by tag and digest, verifies its GitHub provenance, and uploads only
 `public/`. Checkout credentials are not retained, and write permissions are
 limited to the deployment job. No personal access token is needed: the workflow
 uses GitHub's built-in `GITHUB_TOKEN`.
 
 The image-verification step uses the GitHub CLI supplied by GitHub-hosted runners.
-For immutable builds, replace `SNIPPET_IMAGE` with the exact
+To upgrade the example, replace the entire `SNIPPET_IMAGE` value with the
 `ghcr.io/wanted80/snippet:vX.Y.Z@sha256:<release-index-digest>` reference printed
 by Snippet's Builder Image release workflow. Use the multi-platform index digest.
 Review later image updates in a pull request and preview your custom CSS before

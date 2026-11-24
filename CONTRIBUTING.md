@@ -57,7 +57,7 @@ checks without requiring identical decimal serialization. Touch taps are checked
 separately from pressed styles, since engines clear `:active` at different points
 in the tap/click sequence.
 
-Playwright 1.64 does not expose portable reduced-transparency emulation. That
+Playwright 1.65 does not expose portable reduced-transparency emulation. That
 native-preference test retains its Chromium CDP adapter and is explicitly skipped
 in Firefox and WebKit; opaque fallback, author overrides, printing, reduced motion,
 and all other theme/navigation checks run in every engine. The suite never
@@ -81,5 +81,9 @@ Use a conventional pull-request title because Snippet squash-merges the PR title
 - `docs:`, `test:`, `refactor:`, `build:`, `ci:`, or `chore:` for changes that should not publish a release by themselves.
 
 Use `feat(ui): ...` for a user-visible presentation feature; Conventional Commits reserves `style:` for formatting-only changes. Keep the PR description clear about behavior, tests, and any user-facing migration. CI must pass and review conversations must be resolved before the PR is squash-merged.
+
+After publishing a builder release, update the full `SNIPPET_IMAGE` reference in
+`examples/github-pages.yml` from the Builder Image workflow summary. The digest
+becomes available after Release Please creates the tag.
 
 For complete architectural and coding constraints, read [AGENTS.md](AGENTS.md).
