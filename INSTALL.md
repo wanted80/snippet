@@ -474,14 +474,14 @@ static host.
 5. Push to `main`. The Actions tab shows validation, build, and deployment; Pages settings show the published URL. Adjust the workflow's branch checks if you use a different default branch.
 
 Pull requests validate and build without deploying. Pushes to `main` publish the
-result. Manual runs on `main` can republish it. The example pins a Snippet
-release by tag and digest, verifies its GitHub provenance, and uploads only
+result. Manual runs on `main` can republish it. The example uses the exact release
+tag from the quick start, verifies its GitHub provenance, and uploads only
 `public/`. Checkout credentials are not retained, and write permissions are
 limited to the deployment job. No personal access token is needed: the workflow
 uses GitHub's built-in `GITHUB_TOKEN`.
 
 The image-verification step uses the GitHub CLI supplied by GitHub-hosted runners.
-To upgrade the example, replace the entire `SNIPPET_IMAGE` value with the
+To pin an immutable image in your copy, set `SNIPPET_IMAGE` to the
 `ghcr.io/wanted80/snippet:vX.Y.Z@sha256:<release-index-digest>` reference printed
 by Snippet's Builder Image release workflow. Use the multi-platform index digest.
 Review later image updates in a pull request and preview your custom CSS before

@@ -82,8 +82,7 @@ Use a conventional pull-request title because Snippet squash-merges the PR title
 
 Use `feat(ui): ...` for a user-visible presentation feature; Conventional Commits reserves `style:` for formatting-only changes. Keep the PR description clear about behavior, tests, and any user-facing migration. CI must pass and review conversations must be resolved before the PR is squash-merged.
 
-After publishing a builder release, update the full `SNIPPET_IMAGE` reference in
-`examples/github-pages.yml` from the Builder Image workflow summary. The digest
-becomes available after Release Please creates the tag.
+Release Please updates the builder version tag in `examples/github-pages.yml`
+alongside the installation examples.
 
 For complete architectural and coding constraints, read [AGENTS.md](AGENTS.md).

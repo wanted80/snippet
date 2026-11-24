@@ -236,6 +236,10 @@ it('configures the first stable source release across bootstrap and subsequent r
                     ],
                     [
                         'type' => 'generic',
+                        'path' => 'examples/github-pages.yml',
+                    ],
+                    [
+                        'type' => 'generic',
                         'path' => 'demo/content/articles/2026/08/21/preview-and-validation/article.md',
                     ],
                     [
@@ -414,8 +418,8 @@ it('documents immutable builder consumption and optional runtime containment', f
         'pids_limit: 64',
         'cpus: 2',
     )
-        ->and($example)->toMatch('~^  SNIPPET_IMAGE: ghcr[.]io/wanted80/snippet:v\d+[.]\d+[.]\d+@sha256:[0-9a-f]{64}$~m')
         ->and($example)->toContain(
+            '  SNIPPET_IMAGE: ghcr.io/wanted80/snippet:v' . ApplicationVersion::CURRENT . " # x-release-please-version\n",
             'gh attestation verify "oci://${SNIPPET_IMAGE}"',
             '--signer-workflow wanted80/snippet/.github/workflows/release.yml',
             '--deny-self-hosted-runners',
