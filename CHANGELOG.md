@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.5.1](https://github.com/wanted80/snippet/compare/v4.5.0...v4.5.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* refresh PHP tooling and use Alpine in production ([#87](https://github.com/wanted80/snippet/issues/87)) ([59f8d3c](https://github.com/wanted80/snippet/commit/59f8d3c31050eea798558c9d3762b6b3be266976))
+
 ## [4.5.0](https://github.com/wanted80/snippet/compare/v4.4.0...v4.5.0) (2026-11-01)
 
 
