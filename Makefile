@@ -6,18 +6,27 @@ NO_CACHE ?= 0
 REMOVE_ORPHANS ?= 1
 BUILDER_IMAGE ?= snippet-builder:smoke
 
+# Compose still gives explicit LOCAL_UID/LOCAL_GID in the shell or .env priority.
+# A root invocation keeps the image's non-root defaults.
+ifneq ($(shell id -u),0)
+export SNIPPET_HOST_UID := $(shell id -u)
+export SNIPPET_HOST_GID := $(shell id -g)
+endif
+
 truthy = $(filter 1 true yes on,$(strip $(1)))
 falsy = $(filter 0 false no off,$(strip $(1)))
 BUILD_OPTIONS = $(if $(call truthy,$(PULL)),--pull) $(if $(call truthy,$(NO_CACHE)),--no-cache)
 ORPHAN_OPTION = $(if $(call falsy,$(REMOVE_ORPHANS)),,--remove-orphans)
 
-.PHONY: help builder-image builder-smoke demo-check docker-image docker-install docker-validate docker-build docker-preview docker-preview-trust docker-preview-down docker-shell docker-config docker-test docker-test-browser docker-mutations docker-analyse docker-audit docker-lint docker-fix docker-check hooks-install pre-push-check
+.PHONY: help builder-image builder-smoke development-ownership-smoke production-smoke demo-check docker-image docker-install docker-validate docker-build docker-preview docker-preview-trust docker-preview-down docker-shell docker-config docker-test docker-test-browser docker-mutations docker-analyse docker-audit docker-lint docker-fix docker-check hooks-install pre-push-check
 
 help:
 	@echo 'Snippet Docker commands'
 	@echo
 	@echo '  make builder-image         Build the release builder image'
 	@echo '  make builder-smoke         Smoke-test the release builder image'
+	@echo '  make development-ownership-smoke  Check development accounts with representative host IDs'
+	@echo '  make production-smoke      Build the demo with the packaged Compose production image'
 	@echo '  make demo-check            Validate and build the composed demo site'
 	@echo '  make docker-image          Build the selected application image'
 	@echo '  make docker-install        Synchronize its isolated dependency volumes'
@@ -55,6 +64,14 @@ builder-image:
 builder-smoke: builder-image
 	sh docker/builder/smoke.sh "$(BUILDER_IMAGE)"
 
+development-ownership-smoke:
+	sh docker/development/ownership-smoke.sh $(BUILD_OPTIONS)
+
+# Alpine assigns GID 999 to ping before the application user is created.
+production-smoke:
+	ENVIRONMENT=production IMAGE=snippet TAG=smoke LOCAL_UID=1001 LOCAL_GID=999 $(COMPOSE) build $(BUILD_OPTIONS) app
+	sh docker/development/production-smoke.sh snippet:smoke-production-1001-999
+
 demo-check: builder-image
 	sh docker/demo/check.sh "$(BUILDER_IMAGE)"
 
@@ -67,6 +84,7 @@ docker-install: docker-image
 docker-validate: docker-install
 	$(COMPOSE) run --rm --no-deps app bin/snippet validate
 
+# The checkout can belong to a different user than the dependency volumes.
 docker-build: docker-install
 	$(COMPOSE) run --rm --no-deps --user "$$(id -u):$$(id -g)" app bin/snippet build
 
@@ -134,5 +152,5 @@ pre-push-check:
 	else \
 		$(MAKE) ENVIRONMENT=development docker-config && \
 		$(MAKE) ENVIRONMENT=production docker-config && \
-		$(MAKE) docker-check builder-smoke demo-check docker-audit; \
+		$(MAKE) docker-check development-ownership-smoke production-smoke builder-smoke demo-check docker-audit; \
 	fi

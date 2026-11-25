@@ -144,6 +144,8 @@ compatibility tests. The normal Pest suite includes Chromium.
 use browser tests for computed styles, accessibility, and interactive behavior
 that require a real browser.
 
+`make development-ownership-smoke` exercises host UID/GID mapping.
+`make production-smoke` exercises the packaged Compose production image.
 `make builder-smoke` and `make demo-check` cover release-image and composed-demo
 build behavior. `composer app:audit` / `make docker-audit` is separate because
 advisory lookup needs network access. The full `make docker-mutations` gate is

@@ -4,8 +4,8 @@ set -euo pipefail
 
 workspace=/app
 
-sudo --non-interactive /usr/bin/chown -R snippet:snippet "${workspace}/vendor"
-sudo --non-interactive /usr/bin/chown -R snippet:snippet "${workspace}/node_modules"
+sudo --non-interactive /usr/bin/chown -R snippet: "${workspace}/vendor"
+sudo --non-interactive /usr/bin/chown -R snippet: "${workspace}/node_modules"
 
 if ! git config --global --get-all safe.directory | grep -Fxq "${workspace}"; then
     git config --global --add safe.directory "${workspace}"

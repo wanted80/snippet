@@ -231,9 +231,7 @@ it('keeps Docker development entry points and build dependencies out of producti
     expect($makefile)->toContain(
         "COMPOSE ?= $(shell if docker compose version >/dev/null 2>&1; then printf '%s' 'docker compose'; elif docker-compose version >/dev/null 2>&1; then printf '%s' 'docker-compose'; else printf '%s' 'docker compose'; fi)",
         "docker-shell:\n\t$(MAKE) ENVIRONMENT=development docker-install\n\tENVIRONMENT=development $(COMPOSE) run --rm --no-deps app zsh",
-        "docker-build: docker-install\n\t$(COMPOSE) run --rm --no-deps --user ",
-        '$$(id -u):$$(id -g)',
-        ' app bin/snippet build',
+        "docker-build: docker-install\n",
     )
         ->and($dockerfile)->toContain('docker-php-ext-install -j"$(nproc)" pcntl', 'apt-get purge -y --auto-remove')
         ->not->toContain('libonig-dev', 'apt-mark manual libonig5')
@@ -292,7 +290,7 @@ it('isolates the devcontainer from the host Docker Compose project', function ()
             '/usr/bin/mountpoint --quiet "${codex_home}/tmp"',
             '/usr/bin/mount --bind "${codex_tmp}" "${codex_home}/tmp"',
             '--force-user=snippet',
-            '--force-group=snippet',
+            '--force-group="$(/usr/bin/id -g snippet)"',
             'exec /usr/sbin/runuser --user snippet -- "$@"',
         )
         ->and($postCreate)->toContain(

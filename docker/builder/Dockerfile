@@ -1,19 +1,18 @@
-FROM composer:2@sha256:ca11f643d7791ebdd90a34fc20caf11380d434007ae539a9ea75cd9212e13dca AS composer
+FROM composer/composer:2.11.3-bin@sha256:2990de2e55e336422625cdac47b76dcf66a19e5b624d9c8b2f2c30a016242a58 AS composer
 
-FROM php:8.5-cli-alpine@sha256:1ff5b45922ab30f418447c6089dbe2eba5f01e0b2742863d0327ac349305d70f AS dependencies
+FROM php:8.5.13-cli-alpine3.24@sha256:b9d7db51a2b83c41420ba04de0b90e6078d4b6440e5cc480fc4dc51b18e0b6db AS dependencies
 
 WORKDIR /app
 
-COPY --from=composer /usr/bin/composer /usr/local/bin/composer
+COPY --from=composer /composer /usr/local/bin/composer
 COPY composer.json composer.lock ./
-RUN apk add --no-cache unzip
 RUN composer install \
     --no-dev \
     --no-interaction \
     --prefer-dist \
     --optimize-autoloader
 
-FROM php:8.5-cli-alpine@sha256:1ff5b45922ab30f418447c6089dbe2eba5f01e0b2742863d0327ac349305d70f AS builder
+FROM php:8.5.13-cli-alpine3.24@sha256:b9d7db51a2b83c41420ba04de0b90e6078d4b6440e5cc480fc4dc51b18e0b6db AS builder
 
 RUN apk add --no-cache --virtual .snippet-build-dependencies ${PHPIZE_DEPS} \
     && docker-php-ext-install -j"$(nproc)" pcntl \

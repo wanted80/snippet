@@ -23,7 +23,7 @@ Enable the tracked pre-push hook once per clone:
 make hooks-install
 ```
 
-Devcontainer setup enables it automatically. Every push runs `make pre-push-check` and stops on the first failure. On the host this validates both Compose environments, runs `docker-check`, smoke-tests the builder, builds the demo, and audits Composer dependencies, using the same targets as the Quality workflow. Docker must be running; the audit and dependency installation require network access. The workflow's report-only Trivy scan stays in CI.
+Devcontainer setup enables it automatically. Every push runs `make pre-push-check` and stops on the first failure. On the host this validates both Compose environments, runs `docker-check`, verifies development account ownership, smoke-tests the packaged production and release builder images, builds the demo, and audits Composer dependencies, using the same targets as the Quality workflow. Docker must be running; the audit and dependency installation require network access. The workflow's report-only Trivy scan stays in CI.
 
 Inside the devcontainer the hook runs the same application, shell, and JavaScript checks directly, followed by the Composer audit. Run `make pre-push-check` on the host to include Compose and image checks, which require host Docker access. Checks validate the current working tree; commit the changes you intend to push and keep that tree aligned with them. The hook does not format or commit files. Git hooks are local safeguards; CI remains authoritative.
 
@@ -57,7 +57,7 @@ checks without requiring identical decimal serialization. Touch taps are checked
 separately from pressed styles, since engines clear `:active` at different points
 in the tap/click sequence.
 
-Playwright 1.64 does not expose portable reduced-transparency emulation. That
+Playwright 1.65 does not expose portable reduced-transparency emulation. That
 native-preference test retains its Chromium CDP adapter and is explicitly skipped
 in Firefox and WebKit; opaque fallback, author overrides, printing, reduced motion,
 and all other theme/navigation checks run in every engine. The suite never
@@ -81,5 +81,8 @@ Use a conventional pull-request title because Snippet squash-merges the PR title
 - `docs:`, `test:`, `refactor:`, `build:`, `ci:`, or `chore:` for changes that should not publish a release by themselves.
 
 Use `feat(ui): ...` for a user-visible presentation feature; Conventional Commits reserves `style:` for formatting-only changes. Keep the PR description clear about behavior, tests, and any user-facing migration. CI must pass and review conversations must be resolved before the PR is squash-merged.
+
+Release Please updates the builder version tag in `examples/github-pages.yml`
+alongside the installation examples.
 
 For complete architectural and coding constraints, read [AGENTS.md](AGENTS.md).

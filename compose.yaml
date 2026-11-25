@@ -7,9 +7,9 @@ services:
       dockerfile: docker/development/Dockerfile
       target: ${ENVIRONMENT:-development}
       args:
-        LOCAL_UID: ${LOCAL_UID:-1000}
-        LOCAL_GID: ${LOCAL_GID:-1000}
-    image: ${IMAGE:-snippet}:${TAG:-local}-${ENVIRONMENT:-development}
+        LOCAL_UID: ${LOCAL_UID:-${SNIPPET_HOST_UID:-1000}}
+        LOCAL_GID: ${LOCAL_GID:-${SNIPPET_HOST_GID:-1000}}
+    image: ${IMAGE:-snippet}:${TAG:-local}-${ENVIRONMENT:-development}-${LOCAL_UID:-${SNIPPET_HOST_UID:-1000}}-${LOCAL_GID:-${SNIPPET_HOST_GID:-1000}}
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       GIT_CONFIG_COUNT: "1"
@@ -35,7 +35,7 @@ services:
         target: /app/node_modules
 
   caddy:
-    image: caddy:2-alpine@sha256:78bd35025c7ba85961dd149ae670315129954e77abe2383ac47c89106b35ade9
+    image: caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
     profiles:
       - preview
     depends_on:
@@ -49,8 +49,12 @@ services:
 
 volumes:
   vendor-development:
+    name: ${COMPOSE_PROJECT_NAME}_vendor-development-${LOCAL_UID:-${SNIPPET_HOST_UID:-1000}}
   vendor-production:
+    name: ${COMPOSE_PROJECT_NAME}_vendor-production-${LOCAL_UID:-${SNIPPET_HOST_UID:-1000}}
   node-development:
+    name: ${COMPOSE_PROJECT_NAME}_node-development-${LOCAL_UID:-${SNIPPET_HOST_UID:-1000}}
   node-production:
+    name: ${COMPOSE_PROJECT_NAME}_node-production-${LOCAL_UID:-${SNIPPET_HOST_UID:-1000}}
   caddy-data:
   caddy-config:

@@ -1,46 +1,50 @@
-FROM composer:2@sha256:ca11f643d7791ebdd90a34fc20caf11380d434007ae539a9ea75cd9212e13dca AS composer
+FROM composer/composer:2.11.3-bin@sha256:2990de2e55e336422625cdac47b76dcf66a19e5b624d9c8b2f2c30a016242a58 AS composer
 
-FROM node:26-bookworm-slim@sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c0161664a011f7ff6b0f1 AS node
-RUN npm install --global npm@12.2.2
+FROM node:26.13.1-trixie-slim@sha256:abe7e5a82b61a8ef67b315b85497c9e65173387ccf2f4a029248184b8e020be5 AS node
+RUN npm install --global npm@12.2.3
 
-FROM php:8.5-cli@sha256:50956f094e90a716d43bea28087d447555ad80510e386ab8c9c10d8c70d781a9 AS php-base
+FROM php:8.5.13-cli-alpine3.24@sha256:b9d7db51a2b83c41420ba04de0b90e6078d4b6440e5cc480fc4dc51b18e0b6db AS production
+
+RUN apk add --no-cache --virtual .snippet-build-dependencies ${PHPIZE_DEPS} \
+    && docker-php-ext-install -j"$(nproc)" pcntl \
+    && apk del .snippet-build-dependencies
 
 ARG LOCAL_UID=1000
 ARG LOCAL_GID=1000
 
-ENV COMPOSER_ALLOW_SUPERUSER=1
+RUN { getent group "${LOCAL_GID}" >/dev/null || addgroup -g "${LOCAL_GID}" snippet; } \
+    && adduser -D -u "${LOCAL_UID}" -G "$(getent group "${LOCAL_GID}" | cut -d: -f1)" snippet \
+    && mkdir /app \
+    && chown "${LOCAL_UID}:${LOCAL_GID}" /app
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        git \
-        unzip \
-        ${PHPIZE_DEPS} \
-    && docker-php-ext-install -j"$(nproc)" pcntl \
-    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
-        ${PHPIZE_DEPS} \
-    && groupadd --gid "${LOCAL_GID}" snippet \
-    && useradd --uid "${LOCAL_UID}" --gid "${LOCAL_GID}" --create-home --shell /bin/sh snippet \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=composer /usr/bin/composer /usr/local/bin/composer
-
+COPY --from=composer /composer /usr/local/bin/composer
 WORKDIR /app
-
-FROM php-base AS production
-
-COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader \
-    && chown -R snippet:snippet /app
-
-COPY --chown=snippet:snippet . .
-
 USER snippet
+
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} composer.json composer.lock ./
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} src src
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} LICENSE LICENSE
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} bin bin
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} resources resources
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} site site
 
 CMD ["bin/snippet", "validate"]
 
-FROM php-base AS development
+FROM php:8.5.13-cli-trixie@sha256:dbf32b33595283b79fd1a37ebc1614bdf1b83d3750daad9a57d67dbb9b96ec16 AS development-account
 
+ARG LOCAL_UID=1000
+ARG LOCAL_GID=1000
+
+# Reserve the host IDs before installing packages. Debian already uses some
+# workstation GIDs, including the macOS staff GID (20) for dialout.
+RUN { getent group "${LOCAL_GID}" >/dev/null || groupadd --gid "${LOCAL_GID}" snippet; } \
+    && useradd --no-log-init --uid "${LOCAL_UID}" --gid "${LOCAL_GID}" --create-home --shell /bin/sh snippet
+
+FROM development-account AS development
+
+ENV COMPOSER_ALLOW_SUPERUSER=1
+WORKDIR /app
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
 RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
@@ -56,8 +60,10 @@ RUN apt-get update \
         file \
         fzf \
         gh \
+        git \
         jq \
         less \
+        libatomic1 \
         lsof \
         openssh-client \
         procps \
@@ -68,15 +74,16 @@ RUN apt-get update \
         sudo \
         time \
         tree \
+        unzip \
         zsh \
         ${PHPIZE_DEPS} \
-    && docker-php-ext-install -j"$(nproc)" sockets \
-    && pecl install pcov \
+    && docker-php-ext-install -j"$(nproc)" pcntl sockets \
+    && pecl install pcov-1.0.12 \
     && docker-php-ext-enable pcov \
     && printf '%s\n' 'pcov.enabled=0' > /usr/local/etc/php/conf.d/zz-pcov.ini \
-    && npm install --global @openai/codex \
+    && npm install --global @openai/codex@0.172.0 \
     && usermod --shell /usr/bin/zsh snippet \
-    && printf '%s\n' 'snippet ALL=(root) NOPASSWD: /usr/bin/chown -R snippet\:snippet /app/vendor, /usr/bin/chown -R snippet\:snippet /app/node_modules, /usr/local/bin/npm install --global @openai/codex, /usr/local/bin/snippet-devcontainer-entrypoint' > /etc/sudoers.d/snippet \
+    && printf '%s\n' 'snippet ALL=(root) NOPASSWD: /usr/bin/chown -R snippet\: /app/vendor, /usr/bin/chown -R snippet\: /app/node_modules, /usr/local/bin/npm install --global @openai/codex, /usr/local/bin/snippet-devcontainer-entrypoint' > /etc/sudoers.d/snippet \
     && chmod 0440 /etc/sudoers.d/snippet \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false ${PHPIZE_DEPS} \
     && apt-get install -y --no-install-recommends file libatomic1 make \
@@ -98,12 +105,13 @@ RUN sh docker/development/install-node-dependencies.sh \
 COPY docker/development/entrypoint.sh /usr/local/bin/snippet-devcontainer-entrypoint
 RUN chmod 0755 /usr/local/bin/snippet-devcontainer-entrypoint
 
+COPY --from=composer /composer /usr/local/bin/composer
 COPY composer.json composer.lock ./
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader \
-    && chown -R snippet:snippet /app
+    && chown -R snippet: /app
 
-COPY --chown=snippet:snippet . .
-COPY --chown=snippet:snippet docker/development/zshrc /home/snippet/.zshrc
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} . .
+COPY --chown=${LOCAL_UID}:${LOCAL_GID} docker/development/zshrc /home/snippet/.zshrc
 
 USER snippet
 

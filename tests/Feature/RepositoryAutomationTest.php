@@ -52,6 +52,8 @@ it('defines stable least-privilege continuous integration and deployment workflo
         "          persist-credentials: false\n",
         'name: Run development quality gate',
         'run: make docker-check',
+        'run: make development-ownership-smoke',
+        'run: make production-smoke',
         'name: Smoke-test release builder image',
         'run: make builder-smoke',
         'name: Report builder image OS vulnerabilities',
@@ -61,7 +63,7 @@ it('defines stable least-privilege continuous integration and deployment workflo
         "          severity: HIGH,CRITICAL\n",
         "          ignore-unfixed: true\n",
         "          exit-code: '0'\n",
-        "          version: v0.76.1\n",
+        "          version: v0.76.2\n",
         "          cache: false\n",
         'name: Validate and build the composed demo site',
         'run: make demo-check',
@@ -105,7 +107,7 @@ it('keeps Release Please source-only and independently guarded', function (): vo
         "permissions:\n  contents: write\n  issues: write\n  pull-requests: write\n",
         "concurrency:\n  group: release-please\n  cancel-in-progress: false\n",
         "    if: github.repository == 'wanted80/snippet'\n",
-        "    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n",
+        "    runs-on: ubuntu-26.04\n    timeout-minutes: 10\n",
         'uses: googleapis/release-please-action@',
         'token: ${{ secrets.RELEASE_PLEASE_TOKEN }}',
         'config-file: release-please-config.json',
@@ -171,7 +173,6 @@ it('publishes stable released builder tags with provenance and least privilege',
         "          tags: \${{ steps.metadata.outputs.tags }}\n",
         "          labels: \${{ steps.metadata.outputs.labels }}\n",
         "          provenance: mode=max\n",
-        "          sbom: true\n",
         'uses: actions/attest-build-provenance@',
         'subject-name: ghcr.io/wanted80/snippet',
         'subject-digest: ${{ steps.build.outputs.digest }}',
@@ -186,6 +187,7 @@ it('publishes stable released builder tags with provenance and least privilege',
         'ghcr.io/wanted80/snippet:${RELEASE_TAG}@${IMAGE_DIGEST}',
     )
         ->not->toContain('workflow_dispatch', 'push:', 'pull_request_target', 'permissions: write-all', 'contents: write')
+        ->and($release)->toMatch('~^          sbom: generator=docker/buildkit-syft-scanner:\d+[.]\d+[.]\d+@sha256:[0-9a-f]{64}$~m')
         ->and(mb_substr_count($release, 'uses:'))->toBe(8)
         ->and(preg_match_all('~uses: [^@\\s]+@[0-9a-f]{40}~', $release))->toBe(8)
         ->and(mb_substr_count($release, 'persist-credentials: false'))->toBe(2)
@@ -294,10 +296,14 @@ it('exposes separate deterministic and network-dependent maintenance gates', fun
             "demo-check: builder-image\n\tsh docker/demo/check.sh \"$(BUILDER_IMAGE)\"",
             'app sh docker/quality/check.sh',
             'git config --local core.hooksPath .githooks',
-            '$(MAKE) docker-check builder-smoke demo-check docker-audit',
+            '$(MAKE) docker-check development-ownership-smoke production-smoke builder-smoke demo-check docker-audit',
             'sh docker/quality/check.sh && composer app:audit',
         )
-        ->and($developmentDockerfile)->toMatch('~^FROM node:26-bookworm-slim@sha256:[0-9a-f]{64} AS node$~m')
+        ->and($developmentDockerfile)
+        ->toMatch('~^FROM node:26[.]\d+[.]\d+-trixie-slim@sha256:[0-9a-f]{64} AS node$~m')
+        ->toMatch('~^FROM php:8[.]5[.]\d+-cli-trixie@sha256:[0-9a-f]{64} AS development-account$~m')
+        ->toContain('FROM development-account AS development')
+        ->toMatch('~^FROM php:8[.]5[.]\d+-cli-alpine\d+[.]\d+@sha256:[0-9a-f]{64} AS production$~m')
         ->and($developmentDockerfile)->toContain(
             'COPY --from=node /usr/local/bin/node /usr/local/bin/node',
             '/usr/local/bin/npm install --global @openai/codex',
@@ -387,7 +393,7 @@ it('isolates mutation testing from the host checkout and detects any host change
 it('keeps exact builder-image examples release-managed', function (): void {
     $root = dirname(__DIR__, 2);
 
-    foreach (['README.md', 'INSTALL.md', 'examples/github-pages.yml', 'demo/content/articles/2026/08/21/preview-and-validation/article.md', 'demo/content/articles/2026/08/25/start-your-site/article.md'] as $document) {
+    foreach (['README.md', 'INSTALL.md', 'demo/content/articles/2026/08/21/preview-and-validation/article.md', 'demo/content/articles/2026/08/25/start-your-site/article.md'] as $document) {
         $contents = file_get_contents($root . '/' . $document);
         assert(is_string($contents));
         $pattern = '~^.*v' . preg_quote(ApplicationVersion::CURRENT, '~') . '.*$~m';
@@ -416,6 +422,7 @@ it('documents immutable builder consumption and optional runtime containment', f
         'cpus: 2',
     )
         ->and($example)->toContain(
+            '  SNIPPET_IMAGE: ghcr.io/wanted80/snippet:v' . ApplicationVersion::CURRENT . " # x-release-please-version\n",
             'gh attestation verify "oci://${SNIPPET_IMAGE}"',
             '--signer-workflow wanted80/snippet/.github/workflows/release.yml',
             '--deny-self-hosted-runners',
