@@ -370,7 +370,9 @@ and release-builder images contain no browser tooling. Rebuild the development
 image after changing the Playwright lock so its browser cache stays aligned.
 Development uses PHP 8.5 and Node 26 LTS on Debian Trixie. The Compose production
 target and release builder use Alpine and install only production PHP dependencies.
-Their base images use full version tags and multi-platform SHA-256 digests.
+Their base images pin multi-platform SHA-256 digests. PHP uses stable minor tags
+so Dependabot can pick up stable patches through digest updates. PHP minor and
+major upgrades are made manually.
 `make development-ownership-smoke` checks the development account with UID/GID pairs
 `501:20`, `1000:1000`, and `1001:999`. `make production-smoke` validates and builds
 the demo with an existing Alpine group and a private, read-only copy of the demo config.

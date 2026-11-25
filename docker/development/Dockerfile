@@ -3,7 +3,7 @@ FROM composer/composer:2.11.3-bin@sha256:2990de2e55e336422625cdac47b76dcf66a19e5
 FROM node:26.13.1-trixie-slim@sha256:abe7e5a82b61a8ef67b315b85497c9e65173387ccf2f4a029248184b8e020be5 AS node
 RUN npm install --global npm@12.2.3
 
-FROM php:8.5.13-cli-alpine3.24@sha256:b9d7db51a2b83c41420ba04de0b90e6078d4b6440e5cc480fc4dc51b18e0b6db AS production
+FROM php:8.5-cli-alpine3.24@sha256:b9d7db51a2b83c41420ba04de0b90e6078d4b6440e5cc480fc4dc51b18e0b6db AS production
 
 RUN apk add --no-cache --virtual .snippet-build-dependencies ${PHPIZE_DEPS} \
     && docker-php-ext-install -j"$(nproc)" pcntl \
@@ -31,7 +31,7 @@ COPY --chown=${LOCAL_UID}:${LOCAL_GID} site site
 
 CMD ["bin/snippet", "validate"]
 
-FROM php:8.5.13-cli-trixie@sha256:dbf32b33595283b79fd1a37ebc1614bdf1b83d3750daad9a57d67dbb9b96ec16 AS development-account
+FROM php:8.5-cli-trixie@sha256:dbf32b33595283b79fd1a37ebc1614bdf1b83d3750daad9a57d67dbb9b96ec16 AS development-account
 
 ARG LOCAL_UID=1000
 ARG LOCAL_GID=1000

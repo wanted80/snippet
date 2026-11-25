@@ -341,8 +341,8 @@ it('defines a dedicated minimal builder image and runtime configuration', functi
 
     expect($dockerfile)
         ->toMatch('~^FROM composer/composer:2[.]\d+[.]\d+-bin@sha256:[0-9a-f]{64} AS composer$~m')
-        ->toMatch('~^FROM php:8[.]5[.]\d+-cli-alpine\d+[.]\d+@sha256:[0-9a-f]{64} AS dependencies$~m')
-        ->toMatch('~^FROM php:8[.]5[.]\d+-cli-alpine\d+[.]\d+@sha256:[0-9a-f]{64} AS builder$~m')
+        ->toMatch('~^FROM php:8[.]5-cli-alpine\d+[.]\d+@sha256:[0-9a-f]{64} AS dependencies$~m')
+        ->toMatch('~^FROM php:8[.]5-cli-alpine\d+[.]\d+@sha256:[0-9a-f]{64} AS builder$~m')
         ->and($dockerfile)->toContain(
             'apk add --no-cache --virtual .snippet-build-dependencies ${PHPIZE_DEPS}',
             'docker-php-ext-install -j"$(nproc)" pcntl',
