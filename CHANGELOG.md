@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.5.2](https://github.com/wanted80/snippet/compare/v4.5.1...v4.5.2) (2026-11-25)
+
+
+### Bug Fixes
+
+* **deps:** track stable PHP container releases ([#90](https://github.com/wanted80/snippet/issues/90)) ([56bf5f6](https://github.com/wanted80/snippet/commit/56bf5f6eef170b4689c0ec3c7d9d466d262b6be1))
+
 ## [4.5.1](https://github.com/wanted80/snippet/compare/v4.5.0...v4.5.1) (2026-11-25)
 
 
