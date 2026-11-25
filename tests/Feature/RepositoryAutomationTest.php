@@ -301,9 +301,9 @@ it('exposes separate deterministic and network-dependent maintenance gates', fun
         )
         ->and($developmentDockerfile)
         ->toMatch('~^FROM node:26[.]\d+[.]\d+-trixie-slim@sha256:[0-9a-f]{64} AS node$~m')
-        ->toMatch('~^FROM php:8[.]5[.]\d+-cli-trixie@sha256:[0-9a-f]{64} AS development-account$~m')
+        ->toMatch('~^FROM php:8[.]5-cli-trixie@sha256:[0-9a-f]{64} AS development-account$~m')
         ->toContain('FROM development-account AS development')
-        ->toMatch('~^FROM php:8[.]5[.]\d+-cli-alpine\d+[.]\d+@sha256:[0-9a-f]{64} AS production$~m')
+        ->toMatch('~^FROM php:8[.]5-cli-alpine\d+[.]\d+@sha256:[0-9a-f]{64} AS production$~m')
         ->and($developmentDockerfile)->toContain(
             'COPY --from=node /usr/local/bin/node /usr/local/bin/node',
             '/usr/local/bin/npm install --global @openai/codex',
